@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -23,12 +23,61 @@ export default function DentalManagement() {
   const [showAddProcedure, setShowAddProcedure] = useState(false)
   const [refreshPatients, setRefreshPatients] = useState(0)
 
+// Define Patient type if not imported
+type Patient = {
+  id: string;
+  name: string;
+  age: number;
+  // Add other relevant fields as needed
+};
+
+// Define Appointment type
+type Appointment = {
+  id: string;
+  patientId: string;
+  date: string;
+  time: string;
+  // Add other relevant fields as needed
+};
+
+const [patients, setPatients] = useState<Patient[]>([]);
+const [appointments, setAppointments] = useState<Appointment[]>([]);
+const [procedures, setProcedures] = useState<any[]>([]);
+const [billing, setBilling] = useState<any>({});
+
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const patientsRes = await fetch("/api/patients");
+      const patientsData = await patientsRes.json();
+      if (patientsData.success) setPatients(patientsData.patients);
+
+      const appointmentsRes = await fetch("/api/appointments");
+      const appointmentsData = await appointmentsRes.json();
+      if (appointmentsData.success) setAppointments(appointmentsData.appointments);
+
+      // const proceduresRes = await fetch("/api/procedures");
+      // const proceduresData = await proceduresRes.json();
+      // if (proceduresData.success) setProcedures(proceduresData.procedures);
+
+      // const billingRes = await fetch("/api/billing");
+      // const billingData = await billingRes.json();
+      // if (billingData.success) setBilling(billingData);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  fetchData();
+}, [refreshPatients, showAddAppointment, showAddProcedure]);
+
   const stats = [
-    { title: "Total Patients", value: "1,247", icon: Users, change: "+12%" },
-    { title: "Today's Appointments", value: "18", icon: Calendar, change: "+3%" },
-    { title: "Procedures This Month", value: "156", icon: FileText, change: "+8%" },
-    { title: "Monthly Revenue", value: "$24,580", icon: DollarSign, change: "+15%" },
-  ]
+  { title: "Total Patients", value: patients.length.toString(), icon: Users },
+  { title: "Today's Appointments", value: appointments.filter(a => a.date === new Date().toISOString().slice(0,10)).length.toString(), icon: Calendar },
+  { title: "Procedures This Month", value: appointments.length.toString(), icon: FileText },
+  { title: "Monthly Revenue", value: `$${billing.monthlyRevenue || 0}`, icon: DollarSign },
+];
+
 
   const navigation = [
     { name: "Dashboard", id: "dashboard", icon: Menu },

@@ -283,49 +283,66 @@ export function AddAppointmentModal({
               </div>
             </div>
 
-           <div>
+<div>
   <Label htmlFor="patient">Patient *</Label>
-  <Input
-    type="text"
-    placeholder="Search patient by name..."
-    value={patientSearch}
-    onChange={(e) => {
-      setPatientSearch(e.target.value)
-      setFormData({ ...formData, patient: "" }) // reset selection on search
-    }}
-    disabled={!formData.date} // require date first
-  />
 
-  {/* Dropdown appears only if user typed something */}
-  {patientSearch.trim() !== "" && (
-    <div className="max-h-48 overflow-y-auto border rounded p-2 mt-1 bg-white shadow-lg absolute z-50 w-full">
-      {filteredPatients.length > 0 ? (
-        filteredPatients.map((patient) => {
-          const isSelected = formData.patient === patient.name
-          return (
-            <div
-              key={patient.id}
-              className={`p-2 rounded mb-1 cursor-pointer ${
-                patient.hasAppointment
-                  ? "bg-red-200 text-red-800 cursor-not-allowed"
-                  : isSelected
-                  ? "bg-green-200 text-green-900 cursor-default"
-                  : "hover:bg-gray-100"
-              }`}
-              onClick={() => {
-                if (!patient.hasAppointment) handlePatientSelect(patient)
-              }}
-            >
-              {patient.name} {patient.phone && `- ${patient.phone}`}
-            </div>
-          )
-        })
-      ) : (
-        <p className="text-xs text-gray-500">No patients found</p>
-      )}
+  {/* Show selected patient with X if chosen */}
+  {formData.patient ? (
+    <div className="flex items-center gap-2 border rounded p-2 mt-1 bg-white w-full">
+      <span className="flex-1">{formData.patient}</span>
+      <button
+        type="button"
+        className="text-red-500 font-bold"
+        onClick={() => {
+          setFormData({ ...formData, patient: "" })
+          setPatientSearch("")
+          setSelectedPatientPhone("")
+        }}
+      >
+        ✕
+      </button>
     </div>
+  ) : (
+    <>
+      <Input
+        type="text"
+        placeholder="Search patient by name..."
+        value={patientSearch}
+        onChange={(e) => setPatientSearch(e.target.value)}
+        disabled={!formData.date} // require date first
+      />
+
+      {/* Dropdown appears only if user typed something */}
+      {patientSearch.trim() !== "" && (
+        <div className="max-h-48 overflow-y-auto border rounded p-2 mt-1 bg-white shadow-lg absolute z-50 w-full">
+          {filteredPatients.length > 0 ? (
+            filteredPatients.map((patient) => {
+              const isSelected = formData.patient === patient.name
+              return (
+                <div
+                  key={patient.id}
+                  className={`p-2 rounded mb-1 cursor-pointer ${
+                    patient.hasAppointment
+                      ? "bg-red-200 text-red-800 cursor-not-allowed"
+                      : isSelected
+                      ? "bg-green-200 text-green-900 cursor-default"
+                      : "hover:bg-gray-100"
+                  }`}
+                  onClick={() => !patient.hasAppointment && handlePatientSelect(patient)}
+                >
+                  {patient.name} {patient.phone && `- ${patient.phone}`}
+                </div>
+              )
+            })
+          ) : (
+            <p className="text-xs text-gray-500">No patients found</p>
+          )}
+        </div>
+      )}
+    </>
   )}
 </div>
+
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -366,6 +383,24 @@ export function AddAppointmentModal({
                 </Select>
               </div>
             </div>
+<div>
+  <Label htmlFor="room">Room</Label>
+  <Select
+    value={rooms.includes(formData.room) ? formData.room : ""}
+    onValueChange={(value) => setFormData({ ...formData, room: value })}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select room" />
+    </SelectTrigger>
+    <SelectContent>
+      {rooms.map((room) => (
+        <SelectItem key={room} value={room}>
+          {room}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
 
             <div>
               <Label htmlFor="notes">Notes</Label>

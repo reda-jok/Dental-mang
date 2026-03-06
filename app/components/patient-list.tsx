@@ -33,7 +33,7 @@ export function PatientList() {
   const fetchPatients = async () => {
     setLoading(true)
     try {
-      const response = await fetch("./api/patients")
+      const response = await fetch("/api/patients")
       const data = await response.json()
 
       if (data.success) {

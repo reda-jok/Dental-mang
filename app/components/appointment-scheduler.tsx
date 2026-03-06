@@ -5,17 +5,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, User, MapPin, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
+import { set } from "date-fns"
+import { is } from "date-fns/locale"
+import { get } from "http"
 
 interface Appointment {
   appointmentId: string;
   createdAt: string;
   date: string;
-  dentist: string;
+  dentist: string | null;
   duration: number;
   id: number;
   notes: string | null;
-  patient: string;
-  patientId: number;
+  patient: string | null;
+  patientId: number | null;
   priority: string;
   procedure: string;
   room: string;
@@ -42,21 +45,36 @@ function AppointmentsList({
   setView: React.Dispatch<React.SetStateAction<"day" | "week">>
 }) {
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [restDays, setRestDays] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
+const formatDateKey = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
   const fetchAppointments = async () => {
     setLoading(true)
     try {
       const response = await fetch("./api/appointments")
       const data = await response.json()
+      // console.log("Fetched data:", data)
       if (data.success) {
         // Default to pending if status is not set
         const normalized = data.appointments.map((apt: Appointment) => ({
           ...apt,
-          status: apt.status === "in-progress" || apt.status === "completed" ? apt.status : "pending"
-        }))
+           status:
+            apt.status === "in-progress" || apt.status === "completed"
+      ? apt.status
+      : "pending",
+    }))
+    const restSet: Set<string> = new Set(
+      data.restDays.map((d: string) => formatDateKey(new Date(d))))
         setAppointments(normalized)
+        setRestDays(Array.from(restSet))
+        console.log("Rest Days Set:", Array.from(restSet))
         setError("")
       } else {
         setError(data.error || "Failed to fetch appointments")
@@ -70,6 +88,7 @@ function AppointmentsList({
 
   useEffect(() => {
     fetchAppointments()
+
   }, [])
 
 const updateAppointmentStatus = async (id: number, status: "pending" | "in-progress" | "completed") => {
@@ -81,12 +100,14 @@ const updateAppointmentStatus = async (id: number, status: "pending" | "in-progr
       },
       body: JSON.stringify({ id, status }),
     })
-
+ 
     const data = await res.json()
     if (data.success) {
       setAppointments(prev =>
         prev.map(apt => apt.id === id ? { ...apt, status } : apt)
+       
       )
+      console.log("Updated appointment:", data.appointment)
     } else {
       alert("Failed to update status: " + data.error)
     }
@@ -97,24 +118,25 @@ const updateAppointmentStatus = async (id: number, status: "pending" | "in-progr
 }
 
 
-  const getLocalDatePart = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+ // Convert ISO date to local YYYY-MM-DD
+  const getLocalDateFromISO = (isoString: string) => {
+    const date = new Date(isoString)
+    return formatDateKey(date)
+  }
 
-  const getLocalDateFromISO = (isoString: string): string => {
-    const date = new Date(isoString);
-    return getLocalDatePart(date);
-  };
 
-  const currentDateFormatted = getLocalDatePart(currentDate);
+const currentDateFormatted = formatDateKey(currentDate);
+console.log("Current Date:", currentDateFormatted);
 
-  const filteredAppointments = appointments.filter((apt) => {
-    const aptDate = getLocalDateFromISO(apt.date);
-    return aptDate === currentDateFormatted;
-  });
+ const isRestDay = (date: Date) => restDays.includes(formatDateKey(date))
+console.log("Rest Days:", isRestDay(currentDate));
+
+
+
+const filteredAppointments = appointments.filter(
+  apt =>
+    getLocalDateFromISO(apt.date) === currentDateFormatted 
+);
 
   if (loading) {
     return (
@@ -145,12 +167,13 @@ const updateAppointmentStatus = async (id: number, status: "pending" | "in-progr
   const uniqueTimeSlots = Array.from(new Set(filteredAppointments.map(apt => apt.time)));
 
   const getBadgeClasses = (status: string) => {
-    if (status === "pending") return "border border-red-500 text-red-600 bg-red-50"
+    if (status === "pending") return "border border-yellow-500 text-yellow-600 bg-yellow-50"
     if (status === "in-progress") return "border border-blue-500 text-blue-600 bg-blue-50"
     if (status === "completed") return "bg-green-500/50 text-green-800"
+    if (status === "rest-day") return "bg-red-500/50 text-red-800"
     return ""
   }
-
+  //  console.log(appointments.filter(apt => apt.status));
   return (
     <div className="space-y-6">
       <Card>
@@ -179,7 +202,16 @@ const updateAppointmentStatus = async (id: number, status: "pending" | "in-progr
           </div>
         </CardHeader>
       </Card>
-
+       {isRestDay(currentDate) ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <div className="flex flex-col items-center justify-center py-8">
+              <Clock className="w-12 h-12 text-red-600 mb-2" />
+              <span className="text-red-600 font-medium">Rest Day</span>
+            </div>
+          </CardContent>
+        </Card>
+      ):(
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <Card className="lg:col-span-1">
           <CardHeader>
@@ -216,6 +248,7 @@ const updateAppointmentStatus = async (id: number, status: "pending" | "in-progr
               <CardTitle>Today's Appointments ({filteredAppointments.length})</CardTitle>
             </CardHeader>
             <CardContent>
+              
               <div className="space-y-4">
                 {filteredAppointments.map((appointment) => (
                   <div key={appointment.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -273,6 +306,7 @@ const updateAppointmentStatus = async (id: number, status: "pending" | "in-progr
           </Card>
         </div>
       </div>
-    </div>
+      )}
+     </div>
   )
 }
