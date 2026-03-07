@@ -2,3 +2,9 @@ node_modules/
 .next/
 .env
 .env.local
+prisma.config.ts
+prisma/
+
+# Ignore log files
+logs/
+*.log       
