@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAddPatient } from "@/hooks/use-patients"
 
 interface AddPatientModalProps {
   open: boolean
@@ -26,16 +27,12 @@ export function AddPatientModal({ open, onOpenChange, onPatientAdded }: AddPatie
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    email: "",
     phone: "00964",
     dateOfBirth: "",
     address: "",
     city: "",
-    state: "",
-    zipCode: "",
-    insurance: "",
     emergencyContact: "",
-    emergencyPhone: "",
+    emergencyPhone: "00964",
     medicalHistory: "",
     allergies: "",
   })
@@ -43,21 +40,15 @@ export function AddPatientModal({ open, onOpenChange, onPatientAdded }: AddPatie
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
 
+  const { mutateAsync: addPatient } = useAddPatient()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     setError("")
 
     try {
-      const response = await fetch("/api/patients", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      })
-
-      const data = await response.json()
+      const data = await addPatient(formData)
 
       if (data.success) {
         alert(data.message)
@@ -80,14 +71,10 @@ export function AddPatientModal({ open, onOpenChange, onPatientAdded }: AddPatie
     setFormData({
       firstName: "",
       lastName: "",
-      email: "",
       phone: "",
       dateOfBirth: "",
       address: "",
       city: "",
-      state: "",
-      zipCode: "",
-      insurance: "",
       emergencyContact: "",
       emergencyPhone: "",
       medicalHistory: "",
@@ -134,15 +121,6 @@ export function AddPatientModal({ open, onOpenChange, onPatientAdded }: AddPatie
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div>
                 <Label htmlFor="phone">Phone Number *</Label>
                 <Input
                   id="phone"
@@ -185,42 +163,12 @@ export function AddPatientModal({ open, onOpenChange, onPatientAdded }: AddPatie
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 />
               </div>
-              <div>
-                <Label htmlFor="state">State</Label>
-                <Select value={formData.state} onValueChange={(value) => setFormData({ ...formData, state: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CA">California</SelectItem>
-                    <SelectItem value="NY">New York</SelectItem>
-                    <SelectItem value="TX">Texas</SelectItem>
-                    <SelectItem value="FL">Florida</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="zipCode">ZIP Code</Label>
-                <Input
-                  id="zipCode"
-                  value={formData.zipCode}
-                  onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                />
-              </div>
             </div>
           </div>
 
           {/* Insurance & Emergency Contact */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Insurance & Emergency Contact</h3>
-            <div>
-              <Label htmlFor="insurance">Insurance Provider</Label>
-              <Input
-                id="insurance"
-                value={formData.insurance}
-                onChange={(e) => setFormData({ ...formData, insurance: e.target.value })}
-              />
-            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Coffee, RefreshCw } from "lucide-react"
 import { DayViewModal } from "./day-view-modal"
-
+import { useAppointments } from "@/hooks/use-appointments"
 interface Appointment {
   id: number
   appointmentId: string
@@ -25,7 +25,7 @@ export function CalendarSection() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [showDayView, setShowDayView] = useState(false)
   const [restDays, setRestDays] = useState<Set<string>>(new Set())
-  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const { appointments, setAppointments, isLoading } = useAppointments({})
   const [loading, setLoading] = useState(true)
 
   const formatDateKey = (date: Date) => {
@@ -45,11 +45,15 @@ export function CalendarSection() {
       console.log('Fetched appointments data:', data)
       if (data.success) {
         setAppointments(data.appointments)
-        const restSet: Set<string> = new Set(
-          data.restDays.map((d: string) => formatDateKey(new Date(d)))
-      );
-        setRestDays(restSet)
-        console.log('restDays:', restSet)
+        // Fetch the holiday data to mark rest days
+        const holidaysResponse = await fetch(`/api/clinic/holidayes`)
+        const holidaysData = await holidaysResponse.json()
+        if (holidaysData.success) {
+          const holidayDates = holidaysData.holidays.map((h: any) => h.date.slice(0, 10)) // Extract YYYY-MM-DD
+          setRestDays(new Set(holidayDates))
+        } else {
+          console.error("Failed to fetch holidays:", holidaysData.error)
+        }
       } else {
         console.error("Failed to fetch appointments:", data.error)
       }
@@ -143,7 +147,7 @@ export function CalendarSection() {
   const handleRestDayChange = async (date: Date, isRestDay: boolean) => {
     const dateKey = formatDateKey(date)
     try {
-      await fetch(`/api/rest-days`, {
+      await fetch(`/api/clinic/holidayes`, {
         method: isRestDay ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: dateKey }),

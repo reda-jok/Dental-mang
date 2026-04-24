@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { WhatsAppService } from "../utils/whatsapp"
 import { WhatsAppMessageModal } from "./whatsapp-message-modal"
+import { usePatients } from "@/hooks/use-patients"
+import { useAppointments, useAddAppointment } from "@/hooks/use-appointments"
 
 interface AddAppointmentModalProps {
   open: boolean
@@ -67,9 +69,6 @@ export function AddAppointmentModal({
     priority: "normal",
   })
 
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [existingAppointments, setExistingAppointments] = useState<Appointment[]>([])
-  const [loadingAppointments, setLoadingAppointments] = useState(false)
   const [patientSearch, setPatientSearch] = useState("")
   const [selectedPatientPhone, setSelectedPatientPhone] = useState("")
   const [sendWhatsApp, setSendWhatsApp] = useState(true)
@@ -77,6 +76,10 @@ export function AddAppointmentModal({
   const [whatsAppMessage, setWhatsAppMessage] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
+
+  const { patients } = usePatients()
+  const { appointments: existingAppointments, isLoading: loadingAppointments } = useAppointments({ date: formData.date })
+  const { mutateAsync: addAppointment } = useAddAppointment()
 
   const procedures = [
     "Routine Cleaning",
@@ -97,38 +100,6 @@ export function AddAppointmentModal({
     "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00"
   ]
 
-  // Fetch patients
-  useEffect(() => {
-    if (!open) return
-    const fetchPatients = async () => {
-      try {
-        const res = await fetch("/api/patients")
-        const data = await res.json()
-        if (data.success) setPatients(data.patients)
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    fetchPatients()
-  }, [open])
-
-  // Fetch existing appointments for selected date
-  useEffect(() => {
-    if (!formData.date) return
-    setLoadingAppointments(true)
-    const fetchAppointments = async () => {
-      try {
-        const res = await fetch(`/api/appointments?date=${formData.date}`)
-        const data = await res.json()
-        if (data.success) setExistingAppointments(data.appointments)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoadingAppointments(false)
-      }
-    }
-    fetchAppointments()
-  }, [formData.date])
 
   const availableTimeSlots = useMemo(() => {
     return timeSlots.filter(
@@ -161,12 +132,7 @@ export function AddAppointmentModal({
     setIsSubmitting(true)
     setError("")
     try {
-      const res = await fetch("/api/appointments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-      const data = await res.json()
+      const data = await addAppointment(formData)
       if (data.success) {
         if (sendWhatsApp && selectedPatientPhone) {
           const message = WhatsAppService.generateAppointmentScheduledMessage(
@@ -208,7 +174,6 @@ export function AddAppointmentModal({
     setSelectedPatientPhone("")
     setSendWhatsApp(true)
     setError("")
-    setExistingAppointments([])
     setPatientSearch("")
     if (onAppointmentAdded) onAppointmentAdded()
   }

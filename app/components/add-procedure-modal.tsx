@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAddProcedureType } from "@/hooks/use-procedure-types"
 
 interface AddProcedureModalProps {
   open: boolean
@@ -49,6 +50,7 @@ export function AddProcedureModal({ open, onOpenChange, onProcedureCreated }: Ad
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
+  const { mutateAsync: addProcedureType } = useAddProcedureType()
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -74,14 +76,8 @@ export function AddProcedureModal({ open, onOpenChange, onProcedureCreated }: Ad
       createdAt: new Date().toISOString(),
     }
   try{
-    const response = await fetch("/api/procedure-types", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(newProcedureType),
-    })
-    const data = await response.json()
+    setIsSubmitting(true)
+    const data = await addProcedureType(newProcedureType)
 
       if (data.success) {
         alert(data.message)

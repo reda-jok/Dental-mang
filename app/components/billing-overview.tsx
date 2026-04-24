@@ -7,69 +7,37 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, DollarSign, CreditCard, AlertCircle, CheckCircle, Clock, Send } from "lucide-react"
+import { Search, DollarSign, CreditCard, AlertCircle, CheckCircle, Clock, Send, RefreshCw } from "lucide-react"
+import { useInvoices } from "@/hooks/use-invoices"
 
 export function BillingOverview() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
 
-  const invoices = [
-    {
-      id: "INV-001",
-      date: "2024-01-18",
-      patient: "Alice Brown",
-      procedure: "Crown Placement",
-      amount: "$1,200.00",
-      insurance: "$800.00",
-      patientDue: "$400.00",
-      status: "paid",
-      dueDate: "2024-02-18",
-    },
-    {
-      id: "INV-002",
-      date: "2024-01-17",
-      patient: "Robert Wilson",
-      procedure: "Teeth Whitening",
-      amount: "$400.00",
+  const { invoices: rawInvoices, isLoading, error } = useInvoices()
+
+  const invoices = (rawInvoices || []).map((inv) => {
+    const patientName = inv.patient ? `${inv.patient.firstName} ${inv.patient.lastName}` : "Unknown"
+    const procedure = inv.items && inv.items.length > 0 ? inv.items[0].description : "General"
+    const patientDue = inv.totalAmount - inv.paidAmount
+    let displayStatus = inv.status
+    if (displayStatus === "unpaid" || displayStatus === "partial") displayStatus = "pending"
+    
+    return {
+      id: `INV-${inv.id.toString().padStart(3, "0")}`,
+      rawId: inv.id,
+      date: new Date(inv.createdAt).toLocaleDateString(),
+      patient: patientName,
+      procedure: procedure,
+      amount: `$${inv.totalAmount.toFixed(2)}`,
       insurance: "$0.00",
-      patientDue: "$400.00",
-      status: "pending",
-      dueDate: "2024-02-17",
-    },
-    {
-      id: "INV-003",
-      date: "2024-01-16",
-      patient: "Lisa Garcia",
-      procedure: "Tooth Extraction",
-      amount: "$300.00",
-      insurance: "$200.00",
-      patientDue: "$100.00",
-      status: "overdue",
-      dueDate: "2024-01-16",
-    },
-    {
-      id: "INV-004",
-      date: "2024-01-15",
-      patient: "David Lee",
-      procedure: "Routine Cleaning",
-      amount: "$150.00",
-      insurance: "$150.00",
-      patientDue: "$0.00",
-      status: "paid",
-      dueDate: "2024-02-15",
-    },
-    {
-      id: "INV-005",
-      date: "2024-01-15",
-      patient: "Mike Chen",
-      procedure: "Root Canal Treatment",
-      amount: "$800.00",
-      insurance: "$600.00",
-      patientDue: "$200.00",
-      status: "pending",
-      dueDate: "2024-02-15",
-    },
-  ]
+      patientDue: `$${patientDue.toFixed(2)}`,
+      status: displayStatus,
+      dueDate: new Date(inv.createdAt).toLocaleDateString(),
+      rawTotalAmount: inv.totalAmount,
+      rawPatientDue: patientDue
+    }
+  })
 
   const paymentMethods = [
     { name: "Cash", count: 45, percentage: 30 },
@@ -87,16 +55,29 @@ export function BillingOverview() {
     return matchesSearch && matchesStatus
   })
 
-  const totalRevenue = invoices.reduce(
-    (sum, inv) => sum + Number.parseFloat(inv.amount.replace("$", "").replace(",", "")),
-    0,
-  )
+  const totalRevenue = invoices.reduce((sum, inv) => sum + inv.rawTotalAmount, 0)
   const totalPending = invoices
     .filter((inv) => inv.status === "pending")
-    .reduce((sum, inv) => sum + Number.parseFloat(inv.patientDue.replace("$", "").replace(",", "")), 0)
+    .reduce((sum, inv) => sum + inv.rawPatientDue, 0)
   const totalOverdue = invoices
     .filter((inv) => inv.status === "overdue")
-    .reduce((sum, inv) => sum + Number.parseFloat(inv.patientDue.replace("$", "").replace(",", "")), 0)
+    .reduce((sum, inv) => sum + inv.rawPatientDue, 0)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-12 text-center text-red-600">
+        <p>{error.message}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
