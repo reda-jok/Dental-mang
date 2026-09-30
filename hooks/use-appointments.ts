@@ -16,7 +16,7 @@ export function useAppointments(params?: { date?: string; month?: string }) {
   if (params?.month) search.set("month", params.month)
   const url = `/api/appointments${search.toString() ? `?${search}` : ""}`
 
-  const { data, isLoading, error } = useQuery<AppointmentsResponse>({
+  const { data, isLoading, error, refetch } = useQuery<AppointmentsResponse>({
     queryKey: ["appointments", params],
     queryFn: () => fetcher(url),
     staleTime: 20_000,
@@ -27,6 +27,7 @@ export function useAppointments(params?: { date?: string; month?: string }) {
     restDays: data?.restDays ?? [],
     isLoading,
     error: error as Error | null,
+    refetch,
   }
 }
 

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Search, Filter, Eye, Edit, Phone, Mail, RefreshCw } from "lucide-react"
 import { usePatients } from "@/hooks/use-patients"
+import Link from "next/link"
 
 export function PatientList() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -153,9 +154,11 @@ export function PatientList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                        <Link href={`/patients/${patient.id}`}>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </Link>
                         <Button variant="ghost" size="sm">
                           <Edit className="w-4 h-4" />
                         </Button>

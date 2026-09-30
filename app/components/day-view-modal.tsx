@@ -6,14 +6,7 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Coffee } from "lucide-react"
 
-interface Appointment {
-  id: number
-  time: string
-  patient: string
-  procedure: string
-  status: string
-  date: string
-}
+import type { Appointment } from "@/types"
 
 interface DayViewModalProps {
   open: boolean
@@ -56,31 +49,8 @@ export function DayViewModal({
 
 const handleRestDayToggle = async (checked: boolean) => {
   if (!selectedDate) return
-  const dateKey = formatDateKey(selectedDate)
 
   try {
-    if (checked) {
-      // Create rest-day if toggled on
-      await fetch("/api/appointments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: dateKey,
-          time: "00:00",
-          patient: "Rest Day",
-          procedure: "Rest Day",
-          status: "rest-day"
-        })
-      })
-    } else {
-      // Delete rest-day if toggled off
-      await fetch("/api/appointments", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dateKey })
-      })
-    }
-
     // Update local state & refresh calendar
     onRestDayChange(checked)
     onAppointmentAdded()

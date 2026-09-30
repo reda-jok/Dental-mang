@@ -7,16 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Coffee, RefreshCw } from "lucide-react"
 import { DayViewModal } from "./day-view-modal"
 import { useAppointments } from "@/hooks/use-appointments"
-interface Appointment {
-  id: number
-  appointmentId: string
-  patient: string
-  time: string
-  procedure: string
-  status: string
-  dentist: string
-  room: string
-  date: string
+
+
+const formatDateKey = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function CalendarSection() {
@@ -25,47 +22,39 @@ export function CalendarSection() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [showDayView, setShowDayView] = useState(false)
   const [restDays, setRestDays] = useState<Set<string>>(new Set())
-  const { appointments, setAppointments, isLoading } = useAppointments({})
-  const [loading, setLoading] = useState(true)
 
-  const formatDateKey = (date: Date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
+  const monthKey = formatDateKey(currentDate).slice(0, 7)
+  const { appointments, isLoading: isAppointmentsLoading, refetch: refetchAppointments } = useAppointments({ month: monthKey })
+  const [loadingHolidays, setLoadingHolidays] = useState(true)
 
-  // Fetch appointments + rest days dynamically
-  const fetchAppointments = async () => {
-    setLoading(true)
+  const loading = isAppointmentsLoading || loadingHolidays
+
+  // Fetch rest days dynamically
+  const fetchHolidays = async () => {
+    setLoadingHolidays(true)
     try {
-      const monthKey = formatDateKey(currentDate).slice(0, 7) // YYYY-MM
-      const response = await fetch(`/api/appointments?month=${monthKey}`)
-      const data = await response.json()
-      console.log('Fetched appointments data:', data)
-      if (data.success) {
-        setAppointments(data.appointments)
-        // Fetch the holiday data to mark rest days
-        const holidaysResponse = await fetch(`/api/clinic/holidayes`)
-        const holidaysData = await holidaysResponse.json()
-        if (holidaysData.success) {
-          const holidayDates = holidaysData.holidays.map((h: any) => h.date.slice(0, 10)) // Extract YYYY-MM-DD
-          setRestDays(new Set(holidayDates))
-        } else {
-          console.error("Failed to fetch holidays:", holidaysData.error)
-        }
+      const holidaysResponse = await fetch(`/api/clinic/holidays`)
+      const holidaysData = await holidaysResponse.json()
+      if (holidaysData.success) {
+        const holidayDates = holidaysData.holidays.map((h: any) => h.date.slice(0, 10)) // Extract YYYY-MM-DD
+        setRestDays(new Set(holidayDates))
       } else {
-        console.error("Failed to fetch appointments:", data.error)
+        console.error("Failed to fetch holidays:", holidaysData.error)
       }
     } catch (error) {
-      console.error("Error fetching appointments:", error)
+      console.error("Error fetching holidays:", error)
     } finally {
-      setLoading(false)
+      setLoadingHolidays(false)
     }
   }
 
+  const handleRefresh = () => {
+    refetchAppointments()
+    fetchHolidays()
+  }
+
   useEffect(() => {
-    fetchAppointments()
+    fetchHolidays()
   }, [currentDate])
 
   // Convert ISO date to local YYYY-MM-DD
@@ -147,7 +136,7 @@ export function CalendarSection() {
   const handleRestDayChange = async (date: Date, isRestDay: boolean) => {
     const dateKey = formatDateKey(date)
     try {
-      await fetch(`/api/clinic/holidayes`, {
+      await fetch(`/api/clinic/holidays`, {
         method: isRestDay ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: dateKey }),
@@ -172,7 +161,7 @@ export function CalendarSection() {
           <div className="flex items-center justify-between">
             <CardTitle>Appointment Calendar</CardTitle>
             <div className="flex items-center gap-4">
-              <Button onClick={fetchAppointments} variant="outline" size="sm" className="gap-2">
+              <Button onClick={handleRefresh} variant="outline" size="sm" className="gap-2">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
               </Button>
               <div className="flex items-center gap-2">
@@ -269,7 +258,7 @@ export function CalendarSection() {
         appointments={selectedDate ? getAppointmentsForDate(selectedDate) : []}
         isRestDay={selectedDate ? isRestDay(selectedDate) : false}
         onRestDayChange={(isRest) => selectedDate && handleRestDayChange(selectedDate, isRest)}
-        onAppointmentAdded={fetchAppointments}
+        onAppointmentAdded={handleRefresh}
       />
     </>
   )
