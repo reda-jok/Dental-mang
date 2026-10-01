@@ -51,7 +51,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 ## UI
 
 - **Design = the clinic's April design** (blue-600 primary, slate neutrals, soft shadows, rounded-2xl). Colours come from the tokens in `globals.css`, not ad-hoc palettes.
-  - Page sections: `<Panel icon title description actions>` (`src/components/panel.tsx`). Tabs: `<PillNav>`. Dashboard numbers: `<StatCard>`.
+  - Page sections: `<Panel icon title description actions>` (`src/components/panel.tsx`). Tabs: `<PillNav>`. Dashboard numbers: `<StatCard>`. List search + status filter (URL params): `<FilterBar>` (`src/components/filter-bar.tsx`).
   - The page title lives in the header (`AppHeader`, an `h1` from the nav). Pages start at `h2`.
   - Tooth chart: tile odontogram (`features/chart/components/tooth-chart.tsx`) with condition colours from `TILE_STYLES`.
   - Review visual changes with screenshots: `VISUAL_TOUR_DIR=/tmp/tour pnpm --filter clinic test:e2e`.

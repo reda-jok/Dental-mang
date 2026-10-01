@@ -58,7 +58,7 @@ export const navGroups: { key: NavItem["key"]; items: NavItem[] }[] = [
         permission: "billing:read",
         ready: true,
       },
-      { key: "lab", href: "/lab", icon: FlaskConicalIcon, permission: "lab:read", ready: false },
+      { key: "lab", href: "/lab", icon: FlaskConicalIcon, permission: "lab:read", ready: true },
     ],
   },
   {

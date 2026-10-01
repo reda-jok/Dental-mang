@@ -33,7 +33,7 @@ type Props = {
 
 /** Search box + one filter, kept in the URL (?q=&<param>=) so back and sharing work. */
 export function FilterBar({ q, placeholder, hint, filter }: Props) {
-  const t = useTranslations("billing")
+  const t = useTranslations("common")
   const router = useRouter()
   const pathname = usePathname()
   const [value, setValue] = useState(q)

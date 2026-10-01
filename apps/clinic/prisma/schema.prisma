@@ -53,6 +53,8 @@ model User {
   paymentReminders      PaymentReminder[]
   cashCloses            CashClose[]
   prescriptions         Prescription[]
+  labCasesAsDentist     LabCase[]           @relation("LabCaseDentist")
+  labCasesCreated       LabCase[]           @relation("LabCaseCreatedBy")
 
   @@map("user")
 }
@@ -219,6 +221,7 @@ model Patient {
   refunds          Refund[]
   paymentReminders PaymentReminder[]
   prescriptions    Prescription[]
+  labCases         LabCase[]
 
   @@index([phone])
   @@index([createdAt])
@@ -427,6 +430,7 @@ model TreatmentPlanItem {
   dentist      User?         @relation("PlanItemDentist", fields: [dentistId], references: [id], onDelete: SetNull)
   invoice      Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   invoiceLines InvoiceLine[]
+  labCases     LabCase[]
 
   @@index([planId])
   @@index([invoiceId])
@@ -904,4 +908,73 @@ model PrescriptionItem {
 
   @@index([prescriptionId])
   @@map("prescription_item")
+}
+
+// ─── Lab work ────────────────────────────────────────────────────────────────
+
+/// Dental labs the clinic works with.
+model Lab {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String    @unique
+  phone          String?
+  contactName    String?   @map("contact_name")
+  /// Usual working days from sending to delivery; sets a new case's due date.
+  turnaroundDays Int       @default(7) @map("turnaround_days")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  cases LabCase[]
+
+  @@map("lab")
+}
+
+enum LabCaseStatus {
+  sent // at the lab
+  received // back at the clinic, waiting to be fitted
+  fitted // delivered to the patient
+  cancelled
+}
+
+/// Work sent to a lab (crown, bridge, denture…), from the slip to the fitting.
+model LabCase {
+  id          String        @id @default(uuid()) @db.Uuid
+  /// "LAB-2026-000123" (lab_case_number_seq).
+  number      String        @unique
+  patientId   String        @map("patient_id") @db.Uuid
+  labId       String        @map("lab_id") @db.Uuid
+  dentistId   String?       @map("dentist_id") @db.Uuid
+  /// The treatment it's for, when it comes from a plan.
+  planItemId  String?       @map("plan_item_id") @db.Uuid
+  /// What is made, e.g. "تاج زيركون".
+  work        String
+  /// FDI teeth.
+  teeth       Int[]
+  shade       String?
+  material    String?
+  instructions String?
+  /// What the lab charges for it (IQD).
+  cost        Decimal       @default(0) @db.Decimal(14, 2)
+  status      LabCaseStatus @default(sent)
+  sentOn      DateTime      @map("sent_on") @db.Date
+  dueOn       DateTime      @map("due_on") @db.Date
+  receivedOn  DateTime?     @map("received_on") @db.Date
+  fittedOn    DateTime?     @map("fitted_on") @db.Date
+  /// Times the work went back to the lab to be redone.
+  remakes     Int           @default(0)
+  cancelReason String?      @map("cancel_reason")
+  createdById String?       @map("created_by_id") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  patient   Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  lab       Lab                @relation(fields: [labId], references: [id], onDelete: Restrict)
+  dentist   User?              @relation("LabCaseDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+  planItem  TreatmentPlanItem? @relation(fields: [planItemId], references: [id], onDelete: SetNull)
+  createdBy User?              @relation("LabCaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, dueOn])
+  @@index([patientId])
+  @@index([labId, receivedOn])
+  @@map("lab_case")
 }

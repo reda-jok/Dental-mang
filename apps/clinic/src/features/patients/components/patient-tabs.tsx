@@ -5,6 +5,7 @@ import {
   CalendarDaysIcon,
   CheckCircle2Icon,
   FileImageIcon,
+  FlaskConicalIcon,
   HeartPulseIcon,
   PillIcon,
   UserIcon,
@@ -19,11 +20,13 @@ export function PatientTabs({
   clinical,
   appointments,
   billing,
+  lab,
 }: {
   patientId: string
   clinical: boolean
   appointments: boolean
   billing: boolean
+  lab: boolean
 }) {
   const t = useTranslations("patients.tabs")
   const tp = useTranslations("patients")
@@ -55,6 +58,7 @@ export function PatientTabs({
           },
         ]
       : []),
+    ...(lab ? [{ key: "lab", label: t("lab"), icon: FlaskConicalIcon, href: `${base}/lab` }] : []),
     ...(billing
       ? [{ key: "billing", label: t("billing"), icon: WalletIcon, href: `${base}/billing` }]
       : []),

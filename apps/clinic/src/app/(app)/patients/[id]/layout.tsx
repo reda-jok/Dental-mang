@@ -29,6 +29,7 @@ export default async function PatientLayout({ children, params }: LayoutProps<"/
         clinical={clinical}
         appointments={hasPermission(user.role, "appointment:read")}
         billing={hasPermission(user.role, "billing:read")}
+        lab={hasPermission(user.role, "lab:read")}
       />
       <div className="pt-2">{children}</div>
     </div>

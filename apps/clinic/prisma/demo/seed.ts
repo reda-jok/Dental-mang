@@ -31,6 +31,8 @@ import {
   voidPayment,
   type Clock,
 } from "@/features/billing/service"
+import { createLabCaseSchema } from "@/features/lab/schemas"
+import { createLabCase, stepLabCase } from "@/features/lab/service"
 import { buildSearchText } from "@/features/patients/search"
 import { shouldCompletePlan } from "@/features/plans/rules"
 import { createPrescriptionSchema } from "@/features/prescriptions/schemas"
@@ -141,7 +143,167 @@ export async function seedDemo(options: { patients: number; mode: SeedMode }) {
  */
 async function topUps() {
   await seedPrescriptions()
+  await seedLabCases()
 }
+
+const LAB_WORK: Record<string, { cost: number; material: string }> = {
+  "تاج زيركون": { cost: 75_000, material: "zirconia" },
+  "تاج بورسلين على معدن": { cost: 45_000, material: "pfm" },
+  "جسر (لكل سن)": { cost: 60_000, material: "zirconia" },
+  فينير: { cost: 70_000, material: "emax" },
+  "طقم كامل": { cost: 150_000, material: "acrylic" },
+}
+
+/**
+ * Lab work (2026-10-01): three labs, and a case for each crown, bridge, veneer and
+ * denture in the plans: fitted for finished treatment, at the lab (some late) or
+ * waiting to be fitted for open treatment, with a few remakes and cancellations.
+ */
+async function seedLabCases() {
+  if ((await db.lab.count()) === 0) {
+    await db.lab.createMany({
+      data: [
+        {
+          name: "مختبر الرافدين للأسنان",
+          phone: "+9647701112233",
+          contactName: "أبو أحمد",
+          turnaroundDays: 7,
+        },
+        {
+          name: "مختبر بغداد الرقمي",
+          phone: "+9647801234321",
+          contactName: "م. سيف",
+          turnaroundDays: 5,
+          notes: "زيركون وإيماكس بالتصميم الرقمي (CAD/CAM)",
+        },
+        {
+          name: "مختبر النخبة للأطقم",
+          phone: "+9647509876543",
+          contactName: "حجي كريم",
+          turnaroundDays: 10,
+        },
+      ],
+    })
+  }
+  if ((await db.labCase.count()) > 0) return
+  const labs = await db.lab.findMany({
+    where: { archivedAt: null },
+    select: { id: true, name: true, turnaroundDays: true },
+  })
+  const today = todayIso(TZ)
+  const items = await db.treatmentPlanItem.findMany({
+    where: {
+      procedure: { requiresLab: true, name: { in: Object.keys(LAB_WORK) } },
+      plan: {
+        status: { in: ["accepted", "completed", "cancelled"] },
+        patient: { deletedAt: null },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      tooth: true,
+      status: true,
+      completedAt: true,
+      createdAt: true,
+      dentistId: true,
+      procedure: { select: { name: true } },
+      plan: { select: { patientId: true, status: true, createdById: true } },
+    },
+  })
+  const dentistIds = [
+    ...new Set(items.flatMap((i) => [i.dentistId, i.plan.createdById]).filter(Boolean)),
+  ] as string[]
+  const users = new Map(
+    (
+      await db.user.findMany({
+        where: { id: { in: dentistIds } },
+        select: { id: true, name: true, username: true },
+      })
+    ).map((u) => [u.id, u]),
+  )
+  const counts = { fitted: 0, open: 0, cancelled: 0 }
+  for (const item of items) {
+    const work = item.procedure.name
+    const lab =
+      work === "طقم كامل"
+        ? (labs[2] ?? labs[0]!)
+        : work === "تاج بورسلين على معدن"
+          ? labs[0]!
+          : pick(labs.slice(0, 2))
+    const dentistId = item.dentistId ?? item.plan.createdById
+    const user = dentistId ? users.get(dentistId) : null
+    if (!user) continue
+    const actor: CurrentUser = {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      role: "dentist",
+    }
+    const planDay = toDay(item.createdAt)
+    let sentOn: string
+    let steps: Parameters<typeof stepLabCase>[1][] = []
+    if (item.status === "done" && item.completedAt) {
+      const fittedOn = toDay(item.completedAt)
+      const receivedOn = addDays(fittedOn, -int(1, 2))
+      sentOn = maxDay(planDay, addDays(receivedOn, -(lab.turnaroundDays + int(-1, 2))))
+      if (sentOn > receivedOn) continue
+      // Now and then the first delivery was sent back and redone.
+      const firstDelivery = addDays(receivedOn, -5)
+      steps =
+        chance(0.08) && firstDelivery > sentOn
+          ? [
+              { action: "receive", id: "", date: firstDelivery },
+              { action: "remake", id: "", dueOn: receivedOn, reason: "اللون غير مطابق" },
+              { action: "receive", id: "", date: receivedOn },
+            ]
+          : [{ action: "receive", id: "", date: receivedOn }]
+      steps.push({ action: "fit", id: "", date: fittedOn })
+      counts.fitted++
+    } else if (item.plan.status === "cancelled") {
+      if (!chance(0.5)) continue
+      sentOn = minDay(today, addDays(planDay, 1))
+      steps = [{ action: "cancel", id: "", reason: "المريض أجّل العلاج" }]
+      counts.cancelled++
+    } else if (item.status === "planned" || item.status === "in_progress") {
+      sentOn = minDay(today, addDays(planDay, int(1, 12)))
+      const expected = addDays(sentOn, lab.turnaroundDays)
+      if (expected < today && chance(0.6)) {
+        steps = [{ action: "receive", id: "", date: minDay(today, addDays(expected, int(-1, 2))) }]
+      }
+      counts.open++
+    } else {
+      continue
+    }
+    const created = await createLabCase(
+      actor,
+      createLabCaseSchema.parse({
+        patientId: item.plan.patientId,
+        labId: lab.id,
+        dentistId: user.id,
+        planItemId: item.id,
+        work,
+        teeth: item.tooth ? String(item.tooth) : "",
+        shade: work === "طقم كامل" ? "A3" : pick(["A1", "A2", "A2", "A3", "B1", "B2"]),
+        material: LAB_WORK[work]!.material,
+        instructions: chance(0.3)
+          ? pick(["حواف كتفية", "تجربة قبل التلميع النهائي", "تطابق اللون مع السن المجاور"])
+          : "",
+        cost: String(LAB_WORK[work]!.cost),
+        sentOn,
+        dueOn: addDays(sentOn, lab.turnaroundDays),
+      }),
+    )
+    for (const step of steps) await stepLabCase(actor, { ...step, id: created.id } as never)
+  }
+  console.log(
+    `Lab: ${labs.length} labs, ${counts.fitted} fitted, ${counts.open} open, ${counts.cancelled} cancelled.`,
+  )
+}
+
+const toDay = (instant: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(instant)
+const maxDay = (a: string, b: string) => (a > b ? a : b)
+const minDay = (a: string, b: string) => (a < b ? a : b)
 
 /**
  * Prescriptions (2026-10-01): the starter medicines list, and a prescription after each

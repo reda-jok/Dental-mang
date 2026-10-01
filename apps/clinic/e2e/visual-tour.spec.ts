@@ -104,6 +104,11 @@ test("visual tour", async ({ page }, testInfo) => {
     await visit(page, `/print/prescription/${prescription.id}`, "print-prescription")
   await visit(page, "/settings/medications", "settings-medications")
 
+  await visit(page, "/lab?status=all", "lab")
+  await visit(page, "/lab/labs", "labs")
+  const labPatient = await patientUrl("مريض مختبر")
+  await visit(page, labPatient && `${labPatient}/lab`, "patient-lab")
+
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")
   await visit(page, "/settings/procedures", "settings-procedures")

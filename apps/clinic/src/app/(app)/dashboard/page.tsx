@@ -18,6 +18,8 @@ import { calendarParams } from "@/features/appointments/params"
 import { monthGrid, weekOf } from "@/features/appointments/rules"
 import { StatCard } from "@/features/dashboard/components/stat-card"
 import { getDashboard } from "@/features/dashboard/data"
+import { LabAlerts } from "@/features/lab/components/lab-alerts"
+import { getLabSummary } from "@/features/lab/data"
 import { todayIso } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
 import { hasPermission } from "@/lib/permissions"
@@ -37,11 +39,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const { cal = today, view } = calendarParams.parse(await searchParams)
   const range = view === "month" ? monthGrid(cal) : weekOf(cal)
 
-  const [data, todays, calendarAppointments, holidays, t, ta, format] = await Promise.all([
+  const canLab = hasPermission(user.role, "lab:read")
+  const [data, todays, calendarAppointments, holidays, lab, t, ta, format] = await Promise.all([
     getDashboard(user),
     canAppointments ? listAppointments(today, today) : null,
     canAppointments ? listAppointments(range[0]!, range.at(-1)!) : null,
     canAppointments ? listHolidays(range[0]!, range.at(-1)!) : null,
+    canLab ? getLabSummary() : null,
     getTranslations("dashboard"),
     getTranslations("appointments"),
     getFormatter(),
@@ -111,6 +115,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           />
         )}
       </div>
+
+      {/* Lab work that's late or due today */}
+      {lab && lab.urgent.length > 0 && <LabAlerts cases={lab.urgent} late={lab.late} />}
 
       {/* Calendar */}
       {calendarAppointments && holidays && (
