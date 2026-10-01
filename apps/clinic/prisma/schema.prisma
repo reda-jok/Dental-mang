@@ -51,6 +51,7 @@ model User {
   paymentsVoided        Payment[]           @relation("PaymentVoidedBy")
   refundsGiven          Refund[]
   paymentReminders      PaymentReminder[]
+  cashCloses            CashClose[]
 
   @@map("user")
 }
@@ -544,6 +545,7 @@ model JournalEntry {
   invoice    Invoice?
   payment    Payment?
   refund     Refund?
+  cashClose  CashClose?
 
   @@index([date])
   @@index([sourceType, sourceId])
@@ -759,4 +761,61 @@ model PaymentReminder {
 
   @@index([patientId, sentAt])
   @@map("payment_reminder")
+}
+
+// ─── Daily cash close ────────────────────────────────────────────────────────
+// At the end of the day reception counts the cash drawer. The close takes every money
+// movement not yet in an earlier close (payments, voided payments, refunds), so money
+// taken after closing goes into the next close and nothing is counted twice. A
+// difference between the count and the expected cash is posted to "cash over/short".
+
+model CashClose {
+  id             String    @id @default(uuid()) @db.Uuid
+  /// Clinic day closed (one close per day).
+  day            DateTime  @unique @db.Date
+  closedAt       DateTime  @default(now()) @map("closed_at") @db.Timestamptz(3)
+  /// Cash that should be in the drawer: cash in − cash out.
+  expected       Decimal   @db.Decimal(14, 2)
+  /// Cash counted by hand.
+  counted        Decimal   @db.Decimal(14, 2)
+  /// counted − expected (negative = shortage).
+  difference     Decimal   @db.Decimal(14, 2)
+  cashIn         Decimal   @map("cash_in") @db.Decimal(14, 2)
+  cashOut        Decimal   @map("cash_out") @db.Decimal(14, 2)
+  /// For checking against the card machine and wallet statements (not counted).
+  card           Decimal   @db.Decimal(14, 2)
+  wallet         Decimal   @db.Decimal(14, 2)
+  notes          String?
+  closedById     String?   @map("closed_by_id") @db.Uuid
+  journalEntryId String?   @unique @map("journal_entry_id") @db.Uuid
+
+  closedBy     User?           @relation(fields: [closedById], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  items        CashCloseItem[]
+
+  @@map("cash_close")
+}
+
+enum CashMovement {
+  payment // money received (+)
+  payment_void // a payment voided after it was taken (−)
+  refund // money given back (−)
+}
+
+/// Which money movements a close took in. Each movement belongs to exactly one close.
+model CashCloseItem {
+  id       String        @id @default(uuid()) @db.Uuid
+  closeId  String        @map("close_id") @db.Uuid
+  kind     CashMovement
+  /// The payment or refund.
+  sourceId String        @map("source_id") @db.Uuid
+  method   PaymentMethod
+  /// Signed: received is positive, voided and refunded are negative.
+  amount   Decimal       @db.Decimal(14, 2)
+
+  close CashClose @relation(fields: [closeId], references: [id], onDelete: Restrict)
+
+  @@unique([kind, sourceId])
+  @@index([closeId])
+  @@map("cash_close_item")
 }

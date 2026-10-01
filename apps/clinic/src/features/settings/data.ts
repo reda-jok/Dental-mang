@@ -4,7 +4,7 @@ import { connection } from "next/server"
 import { cache } from "react"
 
 import { db } from "@/server/db"
-import { authorize } from "@/server/session"
+import { authorize, requireUser } from "@/server/session"
 
 /**
  * Public clinic info (name, phone, currency, timezone). Not permission-guarded because
@@ -26,3 +26,21 @@ export async function getClinicSettingsForEdit() {
     select: { name: true, phone: true, address: true, receiptFooter: true, invoiceDueDays: true },
   })
 }
+
+/** The clinic's details printed on receipts and quotes. */
+export const getLetterhead = cache(async () => {
+  await requireUser()
+  const settings = await db.clinicSettings.findUnique({
+    where: { id: 1 },
+    select: { name: true, phone: true, address: true, receiptFooter: true, timezone: true },
+  })
+  return {
+    name: settings?.name ?? "",
+    phone: settings?.phone ?? null,
+    address: settings?.address ?? null,
+    footer: settings?.receiptFooter ?? null,
+    timezone: settings?.timezone ?? "Asia/Baghdad",
+  }
+})
+
+export type Letterhead = Awaited<ReturnType<typeof getLetterhead>>

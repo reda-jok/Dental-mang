@@ -20,6 +20,7 @@ import { InvoiceStateBadge } from "@/features/billing/components/invoice-state-b
 import { PaymentButton } from "@/features/billing/components/payment-dialog"
 import { VoidButton } from "@/features/billing/components/void-button"
 import { getInvoice, getPaymentFormData } from "@/features/billing/data"
+import { PrintLink } from "@/features/printing/components/print-link"
 import { toothText } from "@/features/billing/display"
 import { parseIsoDate } from "@/lib/dates"
 import { formatMoney, toMinor } from "@/lib/money"
@@ -35,9 +36,10 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
   const user = await requirePagePermission("billing:read")
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
-  const [invoice, t, format] = await Promise.all([
+  const [invoice, t, tp, format] = await Promise.all([
     getInvoice(id),
     getTranslations("billing"),
+    getTranslations("print"),
     getFormatter(),
   ])
   if (!invoice) notFound()
@@ -71,23 +73,26 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
         }
         description={t(`kinds.${invoice.kind}`)}
         actions={
-          !isVoid && (
-            <>
-              {paymentForm && (
-                <PaymentButton
-                  patientId={invoice.patient.id}
-                  data={paymentForm}
-                  invoiceId={invoice.id}
+          <>
+            <PrintLink href={`/print/invoice/${invoice.id}`} label={tp("printInvoice")} />
+            {!isVoid && (
+              <>
+                {paymentForm && (
+                  <PaymentButton
+                    patientId={invoice.patient.id}
+                    data={paymentForm}
+                    invoiceId={invoice.id}
+                  />
+                )}
+                <VoidButton
+                  kind="invoice"
+                  id={invoice.id}
+                  number={invoice.number}
+                  allowed={invoice.canVoid}
                 />
-              )}
-              <VoidButton
-                kind="invoice"
-                id={invoice.id}
-                number={invoice.number}
-                allowed={invoice.canVoid}
-              />
-            </>
-          )
+              </>
+            )}
+          </>
         }
         className="min-w-0"
       >
@@ -208,7 +213,14 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
                           {day(p.receivedOn)} · {t(`methods.${p.method}`)}
                         </span>
                       </span>
-                      <span className="font-medium text-green-700">{money(p.amount)}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium text-green-700">{money(p.amount)}</span>
+                        <PrintLink
+                          href={`/print/receipt/${p.id}`}
+                          label={tp("printReceiptOf", { number: p.number })}
+                          compact
+                        />
+                      </span>
                     </li>
                   ))}
                 </ul>

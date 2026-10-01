@@ -86,6 +86,7 @@ function PaymentForm({
   onDone: () => void
 }) {
   const t = useTranslations("billing")
+  const tp = useTranslations("print")
   const tc = useTranslations("common")
   const vm = useValidationMessage()
   const handleError = useActionErrorHandler()
@@ -118,7 +119,14 @@ function PaymentForm({
       startTransition(async () => {
         const result = await recordPaymentAction(form.getValues())
         if (!result.ok) return handleError(result, form.setError)
-        toast.success(t("paymentRecorded", { number: result.data.number }))
+        const receipt = `/print/receipt/${result.data.id}?print=1`
+        toast.success(t("paymentRecorded", { number: result.data.number }), {
+          action: {
+            label: tp("printReceipt"),
+            onClick: () => window.open(receipt, "_blank", "noopener"),
+          },
+          duration: 10_000,
+        })
         onDone()
       }),
     onInvalid,

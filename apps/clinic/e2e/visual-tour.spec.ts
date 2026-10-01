@@ -93,6 +93,12 @@ test("visual tour", async ({ page }, testInfo) => {
   }
 
   await visit(page, "/billing/debts", "debts")
+  await visit(page, "/billing/cash", "cash")
+  const [printable] = await query<{ payment: string; plan: string }>(
+    "select (select id from payment order by created_at limit 1) as payment, (select id from treatment_plan order by created_at limit 1) as plan",
+  )
+  if (printable?.payment) await visit(page, `/print/receipt/${printable.payment}`, "print-receipt")
+  if (printable?.plan) await visit(page, `/print/quote/${printable.plan}`, "print-quote")
 
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")

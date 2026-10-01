@@ -1,6 +1,6 @@
 "use client"
 
-import { AlarmClockIcon, ReceiptTextIcon } from "lucide-react"
+import { AlarmClockIcon, LockKeyholeIcon, ReceiptTextIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { PillNav, type PillNavItem } from "@/components/pill-nav"
@@ -17,7 +17,10 @@ export function BillingNav({ showDebts }: { showDebts: boolean }) {
       exact: true,
     },
     ...(showDebts
-      ? [{ key: "debts", label: t("tabs.debts"), icon: AlarmClockIcon, href: "/billing/debts" }]
+      ? [
+          { key: "debts", label: t("tabs.debts"), icon: AlarmClockIcon, href: "/billing/debts" },
+          { key: "cash", label: t("tabs.cash"), icon: LockKeyholeIcon, href: "/billing/cash" },
+        ]
       : []),
   ]
   return <PillNav items={items} label={t("title")} />

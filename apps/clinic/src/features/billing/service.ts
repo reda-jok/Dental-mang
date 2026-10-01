@@ -11,6 +11,7 @@ import { can } from "@/server/permissions"
 import type { CurrentUser } from "@/server/session"
 
 import { postJournal, reverseJournal } from "../ledger/service"
+import { closeOutcome, differencePosting, signedAmount, summarize, type Movement } from "./cash"
 import {
   allocate,
   documentNumber,
@@ -21,6 +22,7 @@ import {
 } from "./payments"
 import { givesNewDiscount, invoiceNumber, invoicePosting, invoiceTotals } from "./rules"
 import type {
+  closeCashSchema,
   createInvoiceSchema,
   paymentReminderSchema,
   recordPaymentSchema,
@@ -152,13 +154,21 @@ export async function createInvoice(
         price: true,
         discount: true,
         procedure: { select: { name: true } },
-        plan: { select: { status: true } },
       },
     })
     if (items.length !== planItemIds.length) throw new AppError("not_found")
+    // Separate read: inside a transaction, load at most one relation per query.
+    const cancelledPlans = new Set(
+      (
+        await tx.treatmentPlan.findMany({
+          where: { id: { in: [...new Set(items.map((i) => i.planId))] }, status: "cancelled" },
+          select: { id: true },
+        })
+      ).map((p) => p.id),
+    )
     for (const item of items) {
       if (item.invoiceId) throw new AppError("conflict", "itemsAlreadyBilled")
-      if (item.status === "cancelled" || item.plan.status === "cancelled") {
+      if (item.status === "cancelled" || cancelledPlans.has(item.planId)) {
         throw new AppError("conflict", "itemCancelled")
       }
       if (input.kind === "visit" && item.status !== "done") {
@@ -597,5 +607,125 @@ export async function logPaymentReminder(
       after: { patientId: input.patientId, amount: fromMinor(owed), channel: "whatsapp" },
     })
     return reminder
+  })
+}
+
+export type OpenMovement = Movement & {
+  sourceId: string
+  number: string
+  patientName: string
+  at: Date
+}
+
+/** Money movements not taken in by any close yet (oldest first). */
+export async function unclosedMovements(tx: Db): Promise<OpenMovement[]> {
+  const rows = await tx.$queryRaw<
+    {
+      kind: Movement["kind"]
+      source_id: string
+      method: Movement["method"]
+      amount: string
+      number: string
+      patient_name: string
+      at: Date
+    }[]
+  >`
+    select 'payment' as kind, p.id as source_id, p.method::text as method,
+           p.amount::text as amount, p.number, pt.full_name as patient_name, p.created_at as at
+    from payment p join patient pt on pt.id = p.patient_id
+    where not exists (select 1 from cash_close_item c where c.kind = 'payment' and c.source_id = p.id)
+    union all
+    select 'payment_void', p.id, p.method::text, p.amount::text, p.number, pt.full_name, p.voided_at
+    from payment p join patient pt on pt.id = p.patient_id
+    where p.voided_at is not null
+      and not exists (select 1 from cash_close_item c where c.kind = 'payment_void' and c.source_id = p.id)
+    union all
+    select 'refund', r.id, r.method::text, r.amount::text, r.number, pt.full_name, r.created_at
+    from refund r join patient pt on pt.id = r.patient_id
+    where not exists (select 1 from cash_close_item c where c.kind = 'refund' and c.source_id = r.id)
+    order by at`
+  return rows.map((r) => ({
+    kind: r.kind,
+    sourceId: r.source_id,
+    method: r.method,
+    amount: r.amount,
+    number: r.number,
+    patientName: r.patient_name,
+    at: r.at,
+  }))
+}
+
+/**
+ * Closes today's cash drawer: takes in every movement not yet closed, compares the
+ * counted cash with the expected cash, and books any difference. One close per day;
+ * a close can't be changed afterwards.
+ */
+export async function closeCashDrawer(
+  actor: CurrentUser,
+  input: z.output<typeof closeCashSchema>,
+  clock?: Clock,
+) {
+  return db.$transaction(async (tx) => {
+    const { day, at } = await clockOf(tx, clock)
+    // One close at a time: a second one waits, then finds the day closed.
+    await tx.$queryRaw`select 1 from (select pg_advisory_xact_lock(hashtext('cash_close'))) as l`
+    const existing = await tx.cashClose.findUnique({
+      where: { day: new Date(`${day}T00:00:00Z`) },
+      select: { id: true },
+    })
+    if (existing) throw new AppError("conflict", "dayAlreadyClosed")
+
+    const movements = await unclosedMovements(tx)
+    const summary = summarize(movements)
+    const outcome = closeOutcome(input.counted, summary.expected)
+    if (outcome.kind !== "match" && !input.notes) {
+      throw new AppError("validation", "differenceNeedsNote", { notes: ["differenceNeedsNote"] })
+    }
+
+    const id = crypto.randomUUID()
+    const posting = differencePosting(outcome.difference)
+    const entry = posting
+      ? await postJournal(tx, {
+          date: day,
+          description: `cash close ${day}`,
+          source: { type: "cash_close", id },
+          lines: posting,
+          userId: actor.id,
+        })
+      : null
+
+    await tx.cashClose.create({
+      data: {
+        id,
+        day: new Date(`${day}T00:00:00Z`),
+        closedAt: at,
+        expected: summary.expected,
+        counted: input.counted,
+        difference: outcome.difference,
+        cashIn: summary.cashIn,
+        cashOut: summary.cashOut,
+        card: summary.card,
+        wallet: summary.wallet,
+        notes: input.notes,
+        closedById: actor.id,
+        journalEntryId: entry?.id,
+        items: {
+          create: movements.map((m) => ({
+            kind: m.kind,
+            sourceId: m.sourceId,
+            method: m.method,
+            amount: signedAmount(m),
+          })),
+        },
+      },
+    })
+    await recordAudit(tx, {
+      userId: actor.id,
+      action: "create",
+      entity: "cash_close",
+      entityId: id,
+      after: { day, expected: summary.expected, counted: input.counted, ...outcome },
+    })
+    return { id, ...outcome }
   })
 }

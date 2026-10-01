@@ -31,6 +31,7 @@ import {
 import { useActionErrorHandler } from "@/lib/form"
 import { formatMoney, subtractAmounts, type Currency } from "@/lib/money"
 
+import { PrintLink } from "../../printing/components/print-link"
 import { setItemStatusAction, setPlanStatusAction } from "../actions"
 import type { PlanView } from "../data"
 import { allowedItemStatuses, isPlanOpen, type ItemStatus } from "../rules"
@@ -75,6 +76,7 @@ export function PlansList({
 
 function PlanCard({ plan, canEdit }: { plan: PlanView; canEdit: boolean }) {
   const t = useTranslations("plans")
+  const tp = useTranslations("print")
   const format = useFormatter()
   const handleError = useActionErrorHandler()
   const [pending, startTransition] = useTransition()
@@ -115,46 +117,49 @@ function PlanCard({ plan, canEdit }: { plan: PlanView; canEdit: boolean }) {
               ` · ${t("acceptedAt", { date: format.dateTime(plan.acceptedAt, { dateStyle: "medium" }) })}`}
           </p>
         </div>
-        {canEdit && (
-          <div className="flex gap-1">
-            {plan.status === "proposed" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pending}
-                    onClick={() => setPlan("accepted")}
-                  >
-                    <CheckCircle2Icon />
-                    {t("accept")}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("acceptTip")}</TooltipContent>
-              </Tooltip>
-            )}
-            {open && (
-              <IconButton
-                label={t("cancelTip")}
-                variant="outline"
-                pending={pending}
-                onClick={() => setPlan("cancelled")}
-              >
-                <BanIcon />
-              </IconButton>
-            )}
-            {plan.status === "cancelled" && (
-              <IconButton
-                label={t("reopenTip")}
-                variant="outline"
-                pending={pending}
-                onClick={() => setPlan("proposed")}
-              >
-                <RotateCcwIcon />
-              </IconButton>
-            )}
-          </div>
-        )}
+        <div className="flex gap-1">
+          <PrintLink href={`/print/quote/${plan.id}`} label={tp("printQuote")} compact />
+          {canEdit && (
+            <>
+              {plan.status === "proposed" && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => setPlan("accepted")}
+                    >
+                      <CheckCircle2Icon />
+                      {t("accept")}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("acceptTip")}</TooltipContent>
+                </Tooltip>
+              )}
+              {open && (
+                <IconButton
+                  label={t("cancelTip")}
+                  variant="outline"
+                  pending={pending}
+                  onClick={() => setPlan("cancelled")}
+                >
+                  <BanIcon />
+                </IconButton>
+              )}
+              {plan.status === "cancelled" && (
+                <IconButton
+                  label={t("reopenTip")}
+                  variant="outline"
+                  pending={pending}
+                  onClick={() => setPlan("proposed")}
+                >
+                  <RotateCcwIcon />
+                </IconButton>
+              )}
+            </>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="overflow-x-auto rounded-lg border">

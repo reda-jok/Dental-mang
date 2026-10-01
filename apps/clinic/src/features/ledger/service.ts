@@ -76,16 +76,20 @@ export async function reverseJournal(
       sourceId: true,
       reversesId: true,
       reversedBy: { select: { id: true } },
-      lines: { select: { accountId: true, debit: true, credit: true, memo: true } },
     },
   })
   if (!original) throw new AppError("not_found")
   if (original.reversedBy || original.reversesId) throw new AppError("conflict", "alreadyReversed")
+  // Separate read: inside a transaction, load at most one relation per query.
+  const originalLines = await tx.journalLine.findMany({
+    where: { entryId },
+    select: { accountId: true, debit: true, credit: true, memo: true },
+  })
   const date = parseIsoDate(input.date)
   if (!date) throw new Error(`ledger: invalid date ${input.date}`)
 
   const lines = reversalLines(
-    original.lines.map((line) => ({
+    originalLines.map((line) => ({
       accountId: line.accountId,
       memo: line.memo,
       debit: line.debit.toString(),

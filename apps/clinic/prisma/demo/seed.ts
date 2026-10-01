@@ -10,7 +10,9 @@
 
 import { hashPassword } from "better-auth/crypto"
 
+import { summarize } from "@/features/billing/cash"
 import {
+  closeCashSchema,
   createInvoiceSchema,
   paymentReminderSchema,
   recordPaymentSchema,
@@ -19,11 +21,13 @@ import {
   voidPaymentSchema,
 } from "@/features/billing/schemas"
 import {
+  closeCashDrawer,
   createInvoice,
   logPaymentReminder,
   recordPayment,
   refundPatient,
   voidInvoice,
+  unclosedMovements,
   voidPayment,
   type Clock,
 } from "@/features/billing/service"
@@ -86,8 +90,18 @@ type ScheduledPayment = { patientId: string; amount: bigint | "balance"; method?
 const today = todayIso(TZ)
 const start = addDays(today, -HISTORY_DAYS)
 const last = addDays(today, UPCOMING_DAYS)
+/** Days with a cash-close difference in the last two weeks (see closeDrawer). */
+const recentShort = nextOpen(addDays(today, -4))
+const recentOver = nextOpen(addDays(today, -11))
 
-const counts = { invoices: 0, payments: 0, voidedInvoices: 0, voidedPayments: 0, refunds: 0 }
+const counts = {
+  invoices: 0,
+  payments: 0,
+  voidedInvoices: 0,
+  voidedPayments: 0,
+  refunds: 0,
+  closes: 0,
+}
 
 /** Clinic-time moment on `day` at `minutes` after midnight. */
 const clockAt = (day: string, minutes = 21 * 60): Clock => ({
@@ -334,6 +348,9 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
         schedule(agenda, nextOpen(addDays(day, gap)), { patientId: state.id })
       }
     }
+
+    // End of the day: reception counts the drawer. Today is left open to try it.
+    if (day < today) await closeDrawer(day)
   }
 
   // ─── Payment reminders (debts page) ────────────────────────────────────────
@@ -373,6 +390,7 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
     db.journalEntry.count(),
   ])
   console.log(`Payment reminders: ${reminders} to ${late.length} late patients.`)
+  console.log(`Cash closes: ${counts.closes} days (today left open).`)
   console.log(
     `Done: ${summary[0]} patients, ${summary[1]} appointments, ${summary[2]} plans, ` +
       `${summary[3]} invoices (${counts.voidedInvoices} void), ${summary[4]} payments ` +
@@ -656,6 +674,36 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
     }
     await recordPayment(reception, input(amount), clockAt(day, minutes + 3))
     counts.payments++
+  }
+
+  /** The daily cash close; now and then the count is a little off, with a note. */
+  async function closeDrawer(day: string) {
+    const expected = toMinor(summarize(await unclosedMovements(db)).expected)
+    // Random small differences, plus one shortage and one overage in the last two weeks
+    // so the "last 30 days" panel has something to show.
+    const off =
+      day === recentShort
+        ? -200_000n
+        : day === recentOver
+          ? 500_000n
+          : chance(0.08)
+            ? BigInt(pick([-1, 1]) * int(1, 10)) * 100_000n
+            : 0n
+    const counted = expected + off < 0n ? 0n : expected + off
+    const notes =
+      counted === expected
+        ? ""
+        : expected < 0n
+          ? "صُرف الاسترجاع من الفكة"
+          : off < 0n
+            ? pick(["فكة أُعطيت لمريض ولم تُسجَّل", "خطأ في العد", "مبلغ ناقص، يُراجع غداً"])
+            : pick(["مريض دفع ولم تُسجَّل دفعته", "زيادة غير معروفة السبب"])
+    await closeCashDrawer(
+      reception,
+      closeCashSchema.parse({ counted: dinars(counted), notes }),
+      clockAt(day, 22 * 60 + 5),
+    )
+    counts.closes++
   }
 
   async function nextPlanned(planId: string) {

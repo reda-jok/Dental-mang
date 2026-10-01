@@ -16,11 +16,13 @@ import { cn } from "@/lib/utils"
 
 import type { PatientBilling, PaymentRow } from "../data"
 import { sumAmounts } from "../payments"
+import { PrintLink } from "../../printing/components/print-link"
 import { VoidButton } from "./void-button"
 
 /** A patient's payments: what each paid, and which invoices it went to. */
 export function PaymentsTable({ rows, canVoid }: { rows: PaymentRow[]; canVoid: boolean }) {
   const t = useTranslations("billing")
+  const tp = useTranslations("print")
   const format = useFormatter()
   const day = (iso: string) =>
     format.dateTime(parseIsoDate(iso)!, { day: "numeric", month: "short", timeZone: "UTC" })
@@ -98,15 +100,22 @@ export function PaymentsTable({ rows, canVoid }: { rows: PaymentRow[]; canVoid: 
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">{p.receivedByName ?? "—"}</TableCell>
                 <TableCell>
-                  {!p.voidedAt && (
-                    <VoidButton
-                      kind="payment"
-                      id={p.id}
-                      number={p.number}
-                      allowed={canVoid}
+                  <span className="flex items-center gap-1">
+                    <PrintLink
+                      href={`/print/receipt/${p.id}`}
+                      label={tp("printReceiptOf", { number: p.number })}
                       compact
                     />
-                  )}
+                    {!p.voidedAt && (
+                      <VoidButton
+                        kind="payment"
+                        id={p.id}
+                        number={p.number}
+                        allowed={canVoid}
+                        compact
+                      />
+                    )}
+                  </span>
                 </TableCell>
               </TableRow>
             )

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { optionalAmountField, parseAmount, toMinor } from "@/lib/money"
+import { amountField, optionalAmountField, parseAmount, toMinor } from "@/lib/money"
 import {
   isoDate,
   optionalMultiline,
@@ -111,5 +111,13 @@ export const debtSearchSchema = z.object({
 
 export const paymentReminderSchema = z.strictObject({ patientId: uuid })
 
+export const closeCashSchema = z.strictObject({
+  /** Cash counted in the drawer (0 is allowed). */
+  counted: amountField(),
+  /** Required by the server when the count doesn't match. */
+  notes: optionalMultiline(300),
+})
+
+export type CloseCashInput = z.input<typeof closeCashSchema>
 export type RecordPaymentInput = z.input<typeof recordPaymentSchema>
 export type RefundInput = z.input<typeof refundSchema>

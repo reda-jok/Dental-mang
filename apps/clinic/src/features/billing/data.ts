@@ -2,16 +2,18 @@ import "server-only"
 
 import { Prisma } from "@/generated/prisma/client"
 import { searchTokens } from "@/lib/arabic"
-import { todayIso, toIsoDate } from "@/lib/dates"
+import { addDays, todayIso, toIsoDate } from "@/lib/dates"
 import { fromMinor, subtractAmounts, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
 import { can } from "@/server/permissions"
 import { authorize, type CurrentUser } from "@/server/session"
 
 import { getClinicSettings } from "../settings/data"
+import { summarize } from "./cash"
 import { AGE_BUCKETS, agePatientDebts, bucketTotals, type AgeBucket } from "./debts"
 import { PAYMENT_METHODS, patientAccount, sumAmounts } from "./payments"
 import { paymentState } from "./rules"
+import { unclosedMovements } from "./service"
 import type { DEBT_FILTERS, INVOICE_FILTERS } from "./schemas"
 
 export const INVOICE_PAGE_SIZE = 20
@@ -126,7 +128,9 @@ export async function listInvoices({
       ],
     })),
   }
-  const [total, rows] = await db.$transaction([
+  // Not a transaction: Prisma loads the relations below in parallel, which a single
+  // transaction connection can't do (pg warns). The count can be a moment apart; fine.
+  const [total, rows] = await Promise.all([
     db.invoice.count({ where }),
     db.invoice.findMany({
       where,
@@ -639,3 +643,122 @@ export async function getPatientDebt(patientId: string) {
     clinic: { name: settings?.name ?? "", phone: settings?.phone ?? null },
   }
 }
+
+/**
+ * The cash drawer: movements waiting to be closed (with what the drawer should hold),
+ * today's close if done, and the close history with this month's differences.
+ */
+export async function getCashDrawer() {
+  await authorize("billing:write")
+  const settings = await getClinicSettings()
+  const today = todayIso(settings?.timezone)
+  const [movements, closes] = await Promise.all([
+    unclosedMovements(db),
+    db.cashClose.findMany({
+      orderBy: { day: "desc" },
+      take: 60,
+      select: {
+        id: true,
+        day: true,
+        closedAt: true,
+        expected: true,
+        counted: true,
+        difference: true,
+        cashIn: true,
+        cashOut: true,
+        card: true,
+        wallet: true,
+        notes: true,
+        closedBy: { select: { name: true } },
+        _count: { select: { items: true } },
+      },
+    }),
+  ])
+  const history = closes.map(({ closedBy, day, _count, ...c }) => ({
+    ...c,
+    day: toIsoDate(day),
+    expected: c.expected.toString(),
+    counted: c.counted.toString(),
+    difference: c.difference.toString(),
+    cashIn: c.cashIn.toString(),
+    cashOut: c.cashOut.toString(),
+    card: c.card.toString(),
+    wallet: c.wallet.toString(),
+    closedByName: closedBy?.name ?? null,
+    movements: _count.items,
+  }))
+  // Last 30 days (a calendar month would be empty on the 1st).
+  const since = addDays(today, -30)
+  const month = history.filter((c) => c.day > since)
+  const short = month.filter((c) => toMinor(c.difference) < 0n)
+  const over = month.filter((c) => toMinor(c.difference) > 0n)
+  return {
+    today,
+    open: { movements, summary: summarize(movements) },
+    todayClose: history.find((c) => c.day === today) ?? null,
+    history,
+    month: {
+      closes: month.length,
+      short: { count: short.length, amount: sumAmounts(short.map((c) => c.difference.slice(1))) },
+      over: { count: over.length, amount: sumAmounts(over.map((c) => c.difference)) },
+    },
+  }
+}
+
+export type CashDrawer = Awaited<ReturnType<typeof getCashDrawer>>
+
+/** A payment receipt: what was paid, what it paid for, and where the account stands now. */
+export async function getPaymentReceipt(id: string) {
+  await authorize("billing:write")
+  const payment = await db.payment.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      number: true,
+      method: true,
+      reference: true,
+      amount: true,
+      receivedOn: true,
+      createdAt: true,
+      notes: true,
+      voidedAt: true,
+      voidReason: true,
+      receivedBy: { select: { name: true } },
+      patient: { select: { id: true, fullName: true, code: true } },
+      allocations: {
+        where: { invoice: { status: "issued" } },
+        orderBy: { createdAt: "asc" },
+        select: { amount: true, invoice: { select: { number: true, total: true } } },
+      },
+    },
+  })
+  if (!payment) return null
+  const [invoiced, received, refunded] = await Promise.all([
+    db.invoice.aggregate({
+      where: { patientId: payment.patient.id, status: "issued" },
+      _sum: { total: true },
+    }),
+    db.payment.aggregate({
+      where: { patientId: payment.patient.id, voidedAt: null },
+      _sum: { amount: true },
+    }),
+    db.refund.aggregate({ where: { patientId: payment.patient.id }, _sum: { amount: true } }),
+  ])
+  return {
+    ...payment,
+    amount: payment.amount.toString(),
+    receivedOn: toIsoDate(payment.receivedOn),
+    receivedByName: payment.receivedBy?.name ?? null,
+    appliedTo: payment.allocations.map((a) => ({
+      number: a.invoice.number,
+      amount: a.amount.toString(),
+    })),
+    account: patientAccount({
+      invoiced: invoiced._sum.total?.toString() ?? "0",
+      received: received._sum.amount?.toString() ?? "0",
+      refunded: refunded._sum.amount?.toString() ?? "0",
+    }),
+  }
+}
+
+export type PaymentReceipt = NonNullable<Awaited<ReturnType<typeof getPaymentReceipt>>>

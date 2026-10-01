@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { defineAction } from "@/server/action"
 
 import {
+  closeCashSchema,
   createInvoiceSchema,
   paymentReminderSchema,
   recordPaymentSchema,
@@ -13,6 +14,7 @@ import {
   voidPaymentSchema,
 } from "./schemas"
 import {
+  closeCashDrawer,
   createInvoice,
   logPaymentReminder,
   recordPayment,
@@ -88,5 +90,15 @@ export const logPaymentReminderAction = defineAction({
     revalidatePath("/billing/debts")
     revalidatePath(`/patients/${input.patientId}/billing`)
     return null
+  },
+})
+
+export const closeCashAction = defineAction({
+  schema: closeCashSchema,
+  permission: "billing:write",
+  handler: async (input, { user }) => {
+    const result = await closeCashDrawer(user, input)
+    revalidatePath("/billing/cash")
+    return result
   },
 })

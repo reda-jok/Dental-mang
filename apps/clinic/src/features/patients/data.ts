@@ -20,7 +20,7 @@ export async function searchPatients({ q, page }: { q: string; page: number }) {
   await authorize("patient:read")
   const where = searchWhere(q)
 
-  const [total, rows] = await db.$transaction([
+  const [total, rows] = await Promise.all([
     db.patient.count({ where }),
     db.patient.findMany({
       where,
