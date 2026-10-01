@@ -56,19 +56,20 @@ test("chart → plan → done: caries becomes a filling and the plan completes",
   await page.getByRole("button", { name: "إضافة إلى الخطة" }).click()
   await expect(page.getByText("تمت إضافة علاج واحد")).toBeVisible()
 
-  // Implant on 36, priced in USD.
+  // Implant on 36.
   await tooth(page, 36).click()
   await pickProcedure(page, /زرعة سنية/)
   await page.getByRole("button", { name: "إضافة إلى الخطة" }).click()
   await expect(page.getByText("تمت إضافة علاج واحد")).toBeVisible()
 
-  // Plans tab: both items, separate totals per currency.
+  // Plans tab: both items and the plan total.
   await page.goto(`${patientUrl}/plans`)
   const plan = page.locator("[data-plan]").first()
   await expect(plan).toContainText("مقترحة")
   await expect(plan.getByRole("row", { name: /حشوة تجميلية/ })).toContainText("MO")
   await expect(plan).toContainText("25,000")
-  await expect(plan).toContainText("900.00")
+  await expect(plan).toContainText("1,200,000")
+  await expect(plan).toContainText("1,225,000")
 
   // Done: the filling replaces the caries on the chart.
   await plan.getByRole("combobox", { name: /حشوة تجميلية/ }).click()

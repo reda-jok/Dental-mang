@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import type { Permission } from "@/lib/permissions"
+import type { FixedPermission } from "@/lib/permissions"
 import type messages from "../../../messages/ar.json"
 
 export type NavItem = {
@@ -20,7 +20,7 @@ export type NavItem = {
   href: string
   icon: LucideIcon
   /** Shown only to users with this permission. */
-  permission?: Permission
+  permission?: FixedPermission
   /** False until the module is built; rendered as "coming soon". */
   ready: boolean
 }
@@ -56,7 +56,7 @@ export const navGroups: { key: NavItem["key"]; items: NavItem[] }[] = [
         href: "/billing",
         icon: BanknoteIcon,
         permission: "billing:read",
-        ready: false,
+        ready: true,
       },
       { key: "lab", href: "/lab", icon: FlaskConicalIcon, permission: "lab:read", ready: false },
     ],

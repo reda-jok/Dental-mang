@@ -23,6 +23,7 @@ type Props = {
     phone: string | null
     address: string | null
     receiptFooter: string | null
+    invoiceDueDays: number
   }
   canEdit: boolean
 }
@@ -42,6 +43,7 @@ export function ClinicSettingsForm({ initial, canEdit }: Props) {
       phone: initial.phone ?? "",
       address: initial.address ?? "",
       receiptFooter: initial.receiptFooter ?? "",
+      invoiceDueDays: String(initial.invoiceDueDays),
     },
   })
   const { errors, isDirty } = form.formState
@@ -111,6 +113,21 @@ export function ClinicSettingsForm({ initial, canEdit }: Props) {
             />
             {!errors.receiptFooter && <FieldDescription>{t("receiptFooterHint")}</FieldDescription>}
             <FieldError>{vm(errors.receiptFooter?.message)}</FieldError>
+          </Field>
+
+          <Field data-invalid={!!errors.invoiceDueDays} className="max-w-48">
+            <FieldLabel htmlFor="invoiceDueDays">
+              {t("invoiceDueDays")}
+              <InfoHint>{t("invoiceDueDaysHint")}</InfoHint>
+            </FieldLabel>
+            <Input
+              id="invoiceDueDays"
+              dir="ltr"
+              inputMode="numeric"
+              aria-invalid={!!errors.invoiceDueDays}
+              {...form.register("invoiceDueDays")}
+            />
+            <FieldError>{vm(errors.invoiceDueDays?.message)}</FieldError>
           </Field>
 
           {canEdit && (

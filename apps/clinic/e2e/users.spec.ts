@@ -84,7 +84,13 @@ test("the owner can't disable themselves, and the tip says why", async ({ page, 
   const disable = ownRow.getByRole("button", { name: "تعطيل الحساب ومنع الدخول" })
   await expect(disable).toBeDisabled()
   if (!isMobile) {
-    await disable.locator("..").hover()
-    await expect(page.getByRole("tooltip")).toContainText("لا يمكنك تعطيل حسابك بنفسك")
+    // Hovering before the page has hydrated does nothing; retry until the tip appears.
+    await expect(async () => {
+      await page.mouse.move(0, 0)
+      await disable.locator("..").hover()
+      await expect(page.getByRole("tooltip")).toContainText("لا يمكنك تعطيل حسابك بنفسك", {
+        timeout: 1_000,
+      })
+    }).toPass()
   }
 })

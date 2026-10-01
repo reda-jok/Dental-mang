@@ -5,6 +5,8 @@
 import { parsePhoneNumberFromString } from "libphonenumber-js/min"
 import { z } from "zod"
 
+import { parseIsoDate } from "@/lib/dates"
+
 // Control characters (except tab/newline), zero-width characters and bidi overrides.
 // Bidi overrides (U+202A–U+202E, U+2066–U+2069) can make stored text *display*
 // differently from what it is — e.g. to impersonate a patient or staff name.
@@ -136,3 +138,9 @@ export const password = z
   .refine((v) => new Set(v).size >= 4, "passwordTooSimple")
 
 export const uuid = z.uuid("invalid")
+
+/** A calendar day "YYYY-MM-DD" (Arabic digits accepted). */
+export const isoDate = z
+  .string({ error: "required" })
+  .transform((v) => toLatinDigits(v).trim())
+  .refine((v) => parseIsoDate(v) !== null, "invalidDate")

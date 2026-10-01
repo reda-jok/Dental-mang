@@ -100,12 +100,19 @@ export async function setItemStatus(
   return db.$transaction(async (tx) => {
     const item = await tx.treatmentPlanItem.findUnique({
       where: { id: input.itemId },
-      select: { status: true, planId: true, plan: { select: { status: true, patientId: true } } },
+      select: {
+        status: true,
+        planId: true,
+        invoiceId: true,
+        plan: { select: { status: true, patientId: true } },
+      },
     })
     if (!item) throw new AppError("not_found")
     if (!isPlanOpen(item.plan.status)) throw new AppError("conflict", "planClosed")
     if (!canChangeItemStatus(item.status, input.status))
       throw new AppError("conflict", "statusChangeNotAllowed")
+    // A billed treatment stays on its invoice; void the invoice first to cancel it.
+    if (input.status === "cancelled" && item.invoiceId) throw new AppError("conflict", "itemBilled")
 
     await tx.treatmentPlanItem.update({
       where: { id: input.itemId },
@@ -150,11 +157,17 @@ export async function setPlanStatus(
   return db.$transaction(async (tx) => {
     const plan = await tx.treatmentPlan.findUnique({
       where: { id: input.planId },
-      select: { status: true, patientId: true },
+      select: {
+        status: true,
+        patientId: true,
+        _count: { select: { items: { where: { invoiceId: { not: null } } } } },
+      },
     })
     if (!plan) throw new AppError("not_found")
     if (!canChangePlanStatus(plan.status, input.status))
       throw new AppError("conflict", "statusChangeNotAllowed")
+    if (input.status === "cancelled" && plan._count.items > 0)
+      throw new AppError("conflict", "planBilled")
     await tx.treatmentPlan.update({
       where: { id: input.planId },
       data: {

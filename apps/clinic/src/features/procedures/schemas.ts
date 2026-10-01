@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { CURRENCIES, parseAmount } from "@/lib/money"
+import { parseAmount } from "@/lib/money"
 import { text, toLatinDigits, uuid } from "@/lib/validation"
 
 import { CONDITION_CODES } from "../chart/teeth"
@@ -12,7 +12,8 @@ export const categorySchema = z.strictObject({ name: text(2, 60) })
 const procedureFields = z.object({
   name: text(2, 100),
   categoryId: uuid,
-  currency: z.enum(CURRENCIES),
+  /** Dinars only (decision 2026-10-01). The column keeps the currency for the future. */
+  currency: z.literal("IQD"),
   price: z.string({ error: "required" }),
   toothScope: z.enum(TOOTH_SCOPES),
   chartResult: z.union([z.enum(CONDITION_CODES), z.literal("")]).transform((v) => v || null),
@@ -26,7 +27,7 @@ const procedureFields = z.object({
   requiresLab: z.boolean(),
 })
 
-/** The price's allowed decimals depend on the currency, so it's checked on the whole object. */
+/** The price is parsed with the currency's decimals, so it's checked on the whole object. */
 function withPrice<T extends z.ZodType<z.output<typeof procedureFields>>>(schema: T) {
   return schema.transform((v, ctx) => {
     if (!v.price.trim()) {

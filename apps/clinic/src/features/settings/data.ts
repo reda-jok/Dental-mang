@@ -23,6 +23,6 @@ export async function getClinicSettingsForEdit() {
   await authorize("settings:read")
   return db.clinicSettings.findUnique({
     where: { id: 1 },
-    select: { name: true, phone: true, address: true, receiptFooter: true },
+    select: { name: true, phone: true, address: true, receiptFooter: true, invoiceDueDays: true },
   })
 }

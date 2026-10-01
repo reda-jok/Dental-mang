@@ -49,23 +49,19 @@ test("load the starter catalog and price two procedures", async ({ page }) => {
   await expect(page.getByText("تمت إضافة القائمة الجاهزة")).toBeVisible()
   await expect(page.getByText("السعر غير محدد").first()).toBeVisible() // prices start unset
 
-  const setPrice = async (name: string, price: string, currency?: "دولار أمريكي") => {
+  const setPrice = async (name: string, price: string) => {
     await page
       .getByRole("row", { name: new RegExp(name) })
       .getByRole("button", { name: "تعديل الإجراء والسعر" })
       .click()
     const dialog = page.getByRole("dialog")
     await dialog.getByLabel("السعر").fill(price)
-    if (currency) {
-      await dialog.getByLabel("العملة").click()
-      await page.getByRole("option", { name: currency }).click()
-    }
     await dialog.getByRole("button", { name: "حفظ" }).click()
     await expect(page.getByText("تم تحديث الإجراء")).toBeVisible()
   }
   await setPrice("حشوة تجميلية", "٢٥,٠٠٠") // Arabic digits + thousands separator
-  await setPrice("زرعة سنية", "900", "دولار أمريكي")
+  await setPrice("زرعة سنية", "1200000")
 
   await expect(page.getByRole("row", { name: /حشوة تجميلية/ })).toContainText("25,000")
-  await expect(page.getByRole("row", { name: /زرعة سنية/ })).toContainText("900.00")
+  await expect(page.getByRole("row", { name: /زرعة سنية/ })).toContainText("1,200,000")
 })

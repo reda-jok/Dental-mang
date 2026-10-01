@@ -1,14 +1,8 @@
 import { z } from "zod"
 
-import { parseIsoDate } from "@/lib/dates"
-import { optionalMultiline, optionalText, text, toLatinDigits, uuid } from "@/lib/validation"
+import { isoDate, optionalMultiline, optionalText, text, uuid } from "@/lib/validation"
 
 import { hhmmToMinutes } from "./rules"
-
-export const isoDate = z
-  .string({ error: "required" })
-  .transform((v) => toLatinDigits(v).trim())
-  .refine((v) => parseIsoDate(v) !== null, "invalidDate")
 
 const time = z.string({ error: "required" }).refine((v) => hhmmToMinutes(v) !== null, "invalidTime")
 

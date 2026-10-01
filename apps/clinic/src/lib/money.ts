@@ -46,6 +46,27 @@ export function amountField(currencyOf: () => Currency = () => "IQD") {
   })
 }
 
+/** A canonical, non-negative amount string as produced by `parseAmount` ("250000", "120.50"). */
+export function isAmount(value: string): boolean {
+  return AMOUNT.test(value)
+}
+
+/** Optional amount typed in a form (discounts): empty → "0". */
+export function optionalAmountField(currency: Currency = "IQD") {
+  return z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      if (!v?.trim()) return "0"
+      const amount = parseAmount(v, currency)
+      if (amount === null) {
+        ctx.addIssue({ code: "custom", message: "invalidAmount" })
+        return z.NEVER
+      }
+      return amount
+    })
+}
+
 /** "120.5" → 12050 minor units (cents / fils). */
 export function toMinor(amount: string): bigint {
   const [whole, fraction = ""] = amount.split(".")

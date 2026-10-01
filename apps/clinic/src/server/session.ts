@@ -4,9 +4,10 @@ import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import { cache } from "react"
 
-import { hasPermission, isRoleName, type Permission, type RoleName } from "@/lib/permissions"
+import { isRoleName, type Permission, type RoleName } from "@/lib/permissions"
 import { auth } from "@/server/auth"
 import { AppError } from "@/server/errors"
+import { can } from "@/server/permissions"
 
 export type CurrentUser = {
   id: string
@@ -33,7 +34,7 @@ export async function requireUser(): Promise<CurrentUser> {
 /** Every data-layer function and service starts with this. */
 export async function authorize(permission: Permission): Promise<CurrentUser> {
   const user = await requireUser()
-  if (!hasPermission(user.role, permission)) throw new AppError("forbidden")
+  if (!(await can(user, permission))) throw new AppError("forbidden")
   return user
 }
 
@@ -44,6 +45,6 @@ export async function authorize(permission: Permission): Promise<CurrentUser> {
 export async function requirePagePermission(permission: Permission): Promise<CurrentUser> {
   const user = await getCurrentUser()
   if (!user) redirect("/login")
-  if (!hasPermission(user.role, permission)) notFound()
+  if (!(await can(user, permission))) notFound()
   return user
 }

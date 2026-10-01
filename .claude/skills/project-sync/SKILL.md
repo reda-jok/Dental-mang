@@ -1,6 +1,6 @@
 ---
 name: project-sync
-description: Bring the project's records up to date after work on the dental clinic app — CLAUDE.md (rules/conventions), Claude's memory (decisions, preferences), docs/03-rebuild-plan.md (roadmap status) and the Notion project page + technical design (checkboxes, status, decisions). Use when a phase or feature is finished, when the user makes product decisions, after an interview, or when the user says "update notion", "sync", "update claude.md", "update the plan" or "update memory".
+description: Bring the project's records up to date after work on the dental clinic app — CLAUDE.md (rules/conventions), Claude's memory (decisions, preferences), docs/03-rebuild-plan.md (roadmap status) and the Notion project page + technical design (checkboxes, status, decisions). Use after every finished part of work (each step of a phase, not only whole phases), when the user makes product decisions, after an interview, or when the user says "update notion", "sync", "update claude.md", "update the plan" or "update memory".
 ---
 
 # Project sync

@@ -1,13 +1,26 @@
 "use client"
 
-import { Building2Icon, CalendarClockIcon, ListChecksIcon, UsersIcon } from "lucide-react"
+import {
+  Building2Icon,
+  CalendarClockIcon,
+  ListChecksIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+} from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { PillNav, type PillNavItem } from "@/components/pill-nav"
 
-export function SettingsNav({ showUsers }: { showUsers: boolean }) {
+export function SettingsNav({
+  showUsers,
+  showPermissions,
+}: {
+  showUsers: boolean
+  showPermissions: boolean
+}) {
   const t = useTranslations("settings")
   const ta = useTranslations("appointments.settings")
+  const tp = useTranslations("permissions")
   const items: PillNavItem[] = [
     { key: "clinic", label: t("clinicTab"), icon: Building2Icon, href: "/settings/clinic" },
     {
@@ -19,6 +32,16 @@ export function SettingsNav({ showUsers }: { showUsers: boolean }) {
     { key: "schedule", label: ta("tab"), icon: CalendarClockIcon, href: "/settings/schedule" },
     ...(showUsers
       ? [{ key: "users", label: t("usersTab"), icon: UsersIcon, href: "/settings/users" }]
+      : []),
+    ...(showPermissions
+      ? [
+          {
+            key: "permissions",
+            label: tp("tab"),
+            icon: ShieldCheckIcon,
+            href: "/settings/permissions",
+          },
+        ]
       : []),
   ]
   return <PillNav items={items} label={t("title")} />

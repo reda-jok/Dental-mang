@@ -17,16 +17,16 @@ export function PatientTabs({
   patientId,
   clinical,
   appointments,
+  billing,
 }: {
   patientId: string
   clinical: boolean
   appointments: boolean
+  billing: boolean
 }) {
   const t = useTranslations("patients.tabs")
   const tp = useTranslations("patients")
-  const tc = useTranslations("common")
   const base = `/patients/${patientId}`
-  const soon = tc("comingSoonHint")
 
   const items: PillNavItem[] = [
     { key: "overview", label: t("overview"), icon: UserIcon, href: base, exact: true },
@@ -48,7 +48,9 @@ export function PatientTabs({
           },
         ]
       : []),
-    { key: "billing", label: t("billing"), icon: WalletIcon, disabledHint: soon },
+    ...(billing
+      ? [{ key: "billing", label: t("billing"), icon: WalletIcon, href: `${base}/billing` }]
+      : []),
   ]
 
   return <PillNav items={items} label={tp("tabsLabel")} />

@@ -21,12 +21,10 @@ describe("createProcedureSchema", () => {
     })
   })
 
-  it("checks decimals against the currency", () => {
+  it("prices in whole dinars only", () => {
     const iqd = createProcedureSchema.safeParse({ ...valid, price: "25000.5" })
     expect(iqd.error?.issues[0]?.message).toBe("invalidAmount")
-    expect(createProcedureSchema.parse({ ...valid, currency: "USD", price: "120.5" }).price).toBe(
-      "120.50",
-    )
+    expect(createProcedureSchema.safeParse({ ...valid, currency: "USD" }).success).toBe(false)
   })
 
   it("allows no chart result and no duration", () => {

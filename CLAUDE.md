@@ -18,6 +18,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 ## Rules
 
 - **Money:** `Decimal(14,2)` + currency, never float or `parseFloat`. Balances are calculated, never stored.
+- **Ledger:** every money event (invoice issued, payment, refund…) posts a balanced journal entry with `postJournal(tx, …)` (`features/ledger/service.ts`) in the same transaction. Fix mistakes with `reverseJournal`; the database refuses edits, deletes and unbalanced entries. The clinic works in IQD only.
 - **Dates:** `@db.Timestamptz(3)`, stored in UTC and shown in the clinic time zone (`Asia/Baghdad`).
 - **IDs:** UUID. Human-readable numbers (patient code, invoice number) come from Postgres sequences, never `count() + 1`.
 - **Clinical and financial rows** get `deletedAt` (soft delete). Issued invoices and journal entries are never edited, only reversed.
@@ -40,6 +41,8 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - Pages use `requirePagePermission()` (redirects to login, or returns 404 without the permission). Data and services use `authorize()`.
 - The CSP is set per request in `proxy.ts` (nonce). No inline scripts and no external origins.
 - Sensitive actions (role change, disable, password reset) sign the user out everywhere.
+- Money amounts on invoices come from the server (plan item or catalog price), never from the browser; the browser sends only ids, quantities and discounts.
+- Discount and void are *adjustable* (`ADJUSTABLE_PERMISSIONS`): the owner sets them per role in Settings → Permissions. Check them on the server with `authorize()` or `await can(user, …)` (`src/server/permissions.ts`). The synchronous `hasPermission` only accepts fixed permissions, so TypeScript catches misuse.
 
 ## UI
 
@@ -57,7 +60,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 
 ## Keeping records in sync
 
-After a phase or feature is finished, or after product decisions, run the `project-sync` skill (`.claude/skills/project-sync/`): it updates CLAUDE.md, Claude's memory, `docs/03-rebuild-plan.md` and the Notion project page together.
+After every finished part of work (not only whole phases), or after product decisions, run the `project-sync` skill (`.claude/skills/project-sync/`): it updates CLAUDE.md, Claude's memory, `docs/03-rebuild-plan.md` and the Notion project page together.
 
 ## Done means
 

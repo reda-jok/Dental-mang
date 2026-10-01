@@ -42,6 +42,11 @@ model User {
   patientsCreated       Patient[]           @relation("PatientCreatedBy")
   medicalHistories      MedicalHistory[]
   attachmentsUploaded   Attachment[]
+  permissionsUpdated    RolePermission[]
+  journalEntriesCreated JournalEntry[]
+  invoicesCreated       Invoice[]           @relation("InvoiceCreatedBy")
+  invoicesVoided        Invoice[]           @relation("InvoiceVoidedBy")
+  invoiceLinesAsDentist InvoiceLine[]
 
   @@map("user")
 }
@@ -115,10 +120,28 @@ model ClinicSettings {
   slotMinutes     Int      @default(30) @map("slot_minutes")
   /// Weekly days off (0 = Sunday … 6 = Saturday). Default: Friday.
   weeklyOffDays   Int[]    @default([5]) @map("weekly_off_days")
+  /// Days a patient has to pay an invoice; sets each new invoice's default due date.
+  invoiceDueDays  Int      @default(30) @map("invoice_due_days")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("clinic_settings")
+}
+
+/// The owner's exceptions to the role defaults in src/lib/permissions.ts. Only
+/// ADJUSTABLE_PERMISSIONS (discount, void) are read from here; a row exists only
+/// while the setting differs from the default.
+model RolePermission {
+  role        String
+  permission  String
+  granted     Boolean
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@id([role, permission])
+  @@map("role_permission")
 }
 
 // ─── Audit ───────────────────────────────────────────────────────────────────
@@ -178,6 +201,7 @@ model Patient {
   toothFindings    ToothFinding[]
   treatmentPlans   TreatmentPlan[]
   appointments     Appointment[]
+  invoices         Invoice[]
 
   @@index([phone])
   @@index([createdAt])
@@ -290,6 +314,7 @@ model Procedure {
   createdBy    User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
   planItems    TreatmentPlanItem[]
   appointments Appointment[]
+  invoiceLines InvoiceLine[]
 
   @@unique([categoryId, name])
   @@map("procedure")
@@ -351,6 +376,7 @@ model TreatmentPlan {
   patient   Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
   createdBy User?               @relation("PlanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   items     TreatmentPlanItem[]
+  invoices  Invoice[]
 
   @@index([patientId, createdAt])
   @@map("treatment_plan")
@@ -373,14 +399,20 @@ model TreatmentPlanItem {
   dentistId   String?        @map("dentist_id") @db.Uuid
   notes       String?
   completedAt DateTime?      @map("completed_at") @db.Timestamptz(3)
+  /// The live (not void) invoice billing this item; null = not billed yet. Claimed with a
+  /// conditional update so two people can't bill the same item; cleared when that invoice is voided.
+  invoiceId   String?        @map("invoice_id") @db.Uuid
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  plan      TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  procedure Procedure     @relation(fields: [procedureId], references: [id], onDelete: Restrict)
-  dentist   User?         @relation("PlanItemDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+  plan         TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  procedure    Procedure     @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  dentist      User?         @relation("PlanItemDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+  invoice      Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoiceLines InvoiceLine[]
 
   @@index([planId])
+  @@index([invoiceId])
   @@map("treatment_plan_item")
 }
 
@@ -449,4 +481,167 @@ model ClinicHoliday {
   createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("clinic_holiday")
+}
+
+// ─── Ledger (double-entry accounting core) ───────────────────────────────────
+// Every money event (invoice issued, payment, refund…) posts a journal entry in the
+// same transaction. Entries are append-only and must balance (debits = credits);
+// both are enforced by database triggers (see the billing_foundation migration).
+// A mistake is fixed with a reversing entry, never by editing.
+
+enum LedgerAccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+}
+
+model LedgerAccount {
+  id         String            @id @default(uuid()) @db.Uuid
+  /// Chart-of-accounts code, e.g. "1000". Postings refer to accounts by code (src/features/ledger/accounts.ts).
+  code       String            @unique
+  name       String
+  type       LedgerAccountType
+  /// Seeded by the migration; automatic postings depend on it, so it can't be archived.
+  system     Boolean           @default(false)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt DateTime?         @map("archived_at") @db.Timestamptz(3)
+
+  lines JournalLine[]
+
+  @@map("ledger_account")
+}
+
+model JournalEntry {
+  id          String    @id @default(uuid()) @db.Uuid
+  /// Human-readable number "JE-000123" from the journal_entry_number_seq sequence.
+  number      String    @unique @default(dbgenerated("('JE-'::text || lpad((nextval('journal_entry_number_seq'::regclass))::text, 6, '0'::text))"))
+  /// Accounting date (clinic calendar day).
+  date        DateTime  @db.Date
+  description String
+  /// The clinic's currency; every line of the entry is in it.
+  currency    Currency  @default(IQD)
+  /// What posted it, e.g. "invoice" / "payment" / "refund", and that record's id.
+  sourceType  String    @map("source_type")
+  sourceId    String?   @map("source_id") @db.Uuid
+  /// On a reversing entry: the entry it cancels (each entry can be reversed once).
+  reversesId  String?   @unique @map("reverses_id") @db.Uuid
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reverses   JournalEntry? @relation("JournalReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy JournalEntry? @relation("JournalReversal")
+  createdBy  User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines      JournalLine[]
+  invoice    Invoice?
+
+  @@index([date])
+  @@index([sourceType, sourceId])
+  @@map("journal_entry")
+}
+
+/// Exactly one of debit / credit is positive (CHECK in the migration).
+model JournalLine {
+  id        String  @id @default(uuid()) @db.Uuid
+  entryId   String  @map("entry_id") @db.Uuid
+  accountId String  @map("account_id") @db.Uuid
+  debit     Decimal @default(0) @db.Decimal(14, 2)
+  credit    Decimal @default(0) @db.Decimal(14, 2)
+  memo      String?
+
+  entry   JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  account LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([entryId])
+  @@index([accountId])
+  @@map("journal_line")
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+// An issued invoice is a document: its lines and amounts never change (database
+// trigger). The only change allowed is voiding it, which reverses its journal entry.
+// What has been paid, the balance and "overdue" are calculated, never stored.
+
+enum InvoiceKind {
+  visit // treatments done (usually that day)
+  plan // a whole treatment plan billed up front, paid in installments
+}
+
+enum InvoiceStatus {
+  issued
+  void
+}
+
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  /// "INV-2026-000123": issue year + invoice_number_seq (never count() + 1).
+  number         String        @unique
+  patientId      String        @map("patient_id") @db.Uuid
+  kind           InvoiceKind
+  /// Plan invoices: the plan billed.
+  planId         String?       @map("plan_id") @db.Uuid
+  status         InvoiceStatus @default(issued)
+  currency       Currency      @default(IQD)
+  /// Clinic calendar days.
+  issueDate      DateTime      @map("issue_date") @db.Date
+  dueDate        DateTime      @map("due_date") @db.Date
+  /// Sum of the lines before any discount.
+  subtotal       Decimal       @db.Decimal(14, 2)
+  /// Discount on the invoice as a whole (line discounts are on the lines).
+  extraDiscount  Decimal       @default(0) @map("extra_discount") @db.Decimal(14, 2)
+  /// Line discounts + extraDiscount.
+  discountTotal  Decimal       @map("discount_total") @db.Decimal(14, 2)
+  /// What the patient owes: subtotal − discountTotal.
+  total          Decimal       @db.Decimal(14, 2)
+  notes          String?
+  journalEntryId String?       @unique @map("journal_entry_id") @db.Uuid
+  createdById    String?       @map("created_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  voidedAt       DateTime?     @map("voided_at") @db.Timestamptz(3)
+  voidedById     String?       @map("voided_by_id") @db.Uuid
+  voidReason     String?       @map("void_reason")
+
+  patient      Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  plan         TreatmentPlan?      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry?       @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdBy    User?               @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  voidedBy     User?               @relation("InvoiceVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+  lines        InvoiceLine[]
+  planItems    TreatmentPlanItem[]
+
+  @@index([patientId, issueDate])
+  @@index([status, dueDate])
+  @@index([issueDate])
+  @@map("invoice")
+}
+
+model InvoiceLine {
+  id          String   @id @default(uuid()) @db.Uuid
+  invoiceId   String   @map("invoice_id") @db.Uuid
+  sortOrder   Int      @map("sort_order")
+  /// The plan item billed, or null for a procedure added straight from the catalog.
+  planItemId  String?  @map("plan_item_id") @db.Uuid
+  procedureId String?  @map("procedure_id") @db.Uuid
+  /// Procedure name at the time of issue (later catalog changes don't alter the invoice).
+  description String
+  tooth       Int?
+  surfaces    String[]
+  /// Who did the work (for commission).
+  dentistId   String?  @map("dentist_id") @db.Uuid
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(14, 2)
+  discount    Decimal  @default(0) @db.Decimal(14, 2)
+  /// quantity × unitPrice − discount
+  total       Decimal  @db.Decimal(14, 2)
+
+  invoice   Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  planItem  TreatmentPlanItem? @relation(fields: [planItemId], references: [id], onDelete: Restrict)
+  procedure Procedure?         @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  dentist   User?              @relation(fields: [dentistId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([planItemId])
+  @@index([dentistId])
+  @@map("invoice_line")
 }

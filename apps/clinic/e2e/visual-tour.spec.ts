@@ -71,8 +71,25 @@ test("visual tour", async ({ page }, testInfo) => {
   await shot("booking-dialog")
   await page.keyboard.press("Escape")
 
+  await visit(page, "/billing", "billing")
+  const [invoice] = await query<{ id: string }>(
+    "select id from invoice where status = 'issued' order by created_at limit 1",
+  )
+  await visit(page, invoice ? `/billing/${invoice.id}` : null, "invoice")
+  const billed = await patientUrl("مريض فاتورة")
+  await visit(page, billed && `${billed}/billing`, "patient-billing")
+  if (billed) {
+    await page.getByRole("button", { name: "فاتورة جديدة" }).click()
+    await shot("new-invoice")
+    await page.keyboard.press("Escape")
+  }
+
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")
   await visit(page, "/settings/procedures", "settings-procedures")
   await visit(page, "/settings/users", "settings-users")
+  await visit(page, "/settings/permissions", "settings-permissions")
+  await page.goto("/settings/procedures")
+  await page.getByRole("button", { name: "تعديل الإجراء والسعر" }).first().click()
+  await shot("procedure-dialog")
 })

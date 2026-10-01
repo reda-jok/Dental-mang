@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useTranslations } from "next-intl"
 import { useTransition } from "react"
-import { Controller, useForm, useWatch } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { TextField } from "@/components/form-field"
@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -27,7 +27,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useActionErrorHandler, useValidationMessage, useInvalidHandler } from "@/lib/form"
-import { CURRENCIES } from "@/lib/money"
 
 import { TOOTH_CONDITIONS } from "../../chart/teeth"
 import { createProcedureAction, updateProcedureAction } from "../actions"
@@ -95,7 +94,7 @@ function ProcedureForm({
       ...(procedure && ({ id: procedure.id } as object)),
       name: procedure?.name ?? "",
       categoryId: procedure?.categoryId ?? defaultCategoryId ?? categories[0]?.id ?? "",
-      currency: procedure?.currency ?? "IQD",
+      currency: "IQD", // the clinic works in dinars only
       price: procedure?.price ?? "",
       toothScope: procedure?.toothScope ?? "tooth",
       chartResult: (procedure?.chartResult ?? "") as ProcedureFormInput["chartResult"],
@@ -104,7 +103,6 @@ function ProcedureForm({
     },
   })
   const { errors } = form.formState
-  const currency = useWatch({ control: form.control, name: "currency" })
 
   const onInvalid = useInvalidHandler()
   const onSubmit = form.handleSubmit(
@@ -121,7 +119,7 @@ function ProcedureForm({
     onInvalid,
   )
 
-  const select = <K extends "categoryId" | "currency" | "toothScope" | "chartResult">(
+  const select = <K extends "categoryId" | "toothScope" | "chartResult">(
     name: K,
     label: React.ReactNode,
     options: { value: string; label: string }[],
@@ -171,26 +169,15 @@ function ProcedureForm({
           t("procedures.category"),
           categories.map((c) => ({ value: c.id, label: c.name })),
         )}
-        <div className="grid grid-cols-[1fr_auto] gap-4">
-          <TextField
-            id="price"
-            inputMode="decimal"
-            dir="ltr"
-            label={t("procedures.price")}
-            description={t("procedures.priceHint")}
-            error={errors.price?.message}
-            {...form.register("price")}
-          />
-          <div className="w-36">
-            {select(
-              "currency",
-              t("procedures.currency"),
-              CURRENCIES.map((c) => ({ value: c, label: t(`currency.${c}`) })),
-              t("procedures.currencyHint"),
-            )}
-          </div>
-        </div>
-        {currency === "USD" && <FieldDescription>{t("procedures.currencyHint")}</FieldDescription>}
+        <TextField
+          id="price"
+          inputMode="numeric"
+          dir="ltr"
+          label={t("procedures.price")}
+          description={t("procedures.priceHint")}
+          error={errors.price?.message}
+          {...form.register("price")}
+        />
         {select(
           "toothScope",
           t("procedures.toothScope"),
