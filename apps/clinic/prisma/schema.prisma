@@ -1,0 +1,452 @@
+// Clinic database. One database per clinic (single-tenant).
+// Conventions: UUID ids, timestamptz (UTC), snake_case tables/columns,
+// money = Decimal(14, 2), soft delete via deletedAt on clinical/financial rows.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth (Better Auth: core + username + admin plugins) ─────────────────────
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  email           String    @unique
+  emailVerified   Boolean   @default(false) @map("email_verified")
+  image           String?
+  username        String?   @unique
+  displayUsername String?   @map("display_username")
+  role            String?
+  banned          Boolean?  @default(false)
+  banReason       String?   @map("ban_reason")
+  banExpires      DateTime? @map("ban_expires") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions  Session[]
+  accounts  Account[]
+  auditLogs AuditLog[]
+
+  proceduresCreated     Procedure[]
+  toothFindings         ToothFinding[]
+  plansCreated          TreatmentPlan[]     @relation("PlanCreatedBy")
+  planItemsAsDentist    TreatmentPlanItem[] @relation("PlanItemDentist")
+  appointmentsAsDentist Appointment[]       @relation("AppointmentDentist")
+  appointmentsCreated   Appointment[]       @relation("AppointmentCreatedBy")
+  holidaysCreated       ClinicHoliday[]
+  patientsCreated       Patient[]           @relation("PatientCreatedBy")
+  medicalHistories      MedicalHistory[]
+  attachmentsUploaded   Attachment[]
+
+  @@map("user")
+}
+
+model Session {
+  id             String   @id @default(uuid()) @db.Uuid
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(3)
+  token          String   @unique
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  impersonatedBy String?  @map("impersonated_by")
+  userId         String   @map("user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id") @db.Uuid
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(3)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─── Clinic ──────────────────────────────────────────────────────────────────
+
+// Exactly one row (id = 1). Creating it is also the "setup done" marker.
+model ClinicSettings {
+  id              Int      @id @default(1)
+  name            String
+  phone           String?
+  address         String?
+  currency        String   @default("IQD")
+  timezone        String   @default("Asia/Baghdad")
+  receiptFooter   String?  @map("receipt_footer")
+  /// Working hours as minutes after midnight (clinic time). Default 15:30–22:00
+  /// (evening clinics, as in the clinic's original booking form).
+  dayStartMinutes Int      @default(930) @map("day_start_minutes")
+  dayEndMinutes   Int      @default(1320) @map("day_end_minutes")
+  /// Length of one booking slot in minutes.
+  slotMinutes     Int      @default(30) @map("slot_minutes")
+  /// Weekly days off (0 = Sunday … 6 = Saturday). Default: Friday.
+  weeklyOffDays   Int[]    @default([5]) @map("weekly_off_days")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("clinic_settings")
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────────────
+
+// Append-only. Written in the same transaction as the change it describes.
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String // e.g. "create" | "update" | "delete" | "login"
+  entity    String // e.g. "patient"
+  entityId  String?  @map("entity_id")
+  before    Json?
+  after     Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ─── Patients ────────────────────────────────────────────────────────────────
+
+enum Gender {
+  male
+  female
+}
+
+model Patient {
+  id                 String    @id @default(uuid()) @db.Uuid
+  /// Human-readable code "P-000123" from the patient_code_seq sequence (see migration).
+  code               String    @unique @default(dbgenerated("('P-'::text || lpad((nextval('patient_code_seq'::regclass))::text, 6, '0'::text))"))
+  /// Full name as written by the clinic (usually the three-part Iraqi name).
+  fullName           String    @map("full_name")
+  gender             Gender
+  birthDate          DateTime? @map("birth_date") @db.Date
+  /// True when only the age was known and birthDate was derived from it.
+  birthDateEstimated Boolean   @default(false) @map("birth_date_estimated")
+  /// E.164, e.g. +9647701234567
+  phone              String?
+  phone2             String?
+  address            String?
+  referralSource     String?   @map("referral_source")
+  notes              String?
+  /// Normalized name + code + phones for Arabic-aware search (pg_trgm index).
+  searchText         String    @map("search_text")
+  createdById        String?   @map("created_by_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  createdBy        User?            @relation("PatientCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  medicalHistories MedicalHistory[]
+  attachments      Attachment[]
+  toothFindings    ToothFinding[]
+  treatmentPlans   TreatmentPlan[]
+  appointments     Appointment[]
+
+  @@index([phone])
+  @@index([createdAt])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "patient_search_text_trgm_idx")
+  @@map("patient")
+}
+
+/// Append-only: every save adds a new version; the highest version is current.
+model MedicalHistory {
+  id              String   @id @default(uuid()) @db.Uuid
+  patientId       String   @map("patient_id") @db.Uuid
+  version         Int
+  /// The patient explicitly declared no conditions, allergies or medications
+  /// (distinguishes "none" from "never asked").
+  noneDeclared    Boolean  @default(false) @map("none_declared")
+  /// Codes from MEDICAL_CONDITIONS (src/features/patients/medical.ts)
+  conditions      String[]
+  otherConditions String?  @map("other_conditions")
+  /// Codes from ALLERGIES
+  allergies       String[]
+  otherAllergies  String?  @map("other_allergies")
+  medications     String?
+  pregnant        Boolean  @default(false)
+  smoker          Boolean  @default(false)
+  notes           String?
+  recordedById    String?  @map("recorded_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recordedBy User?   @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@unique([patientId, version])
+  @@map("medical_history")
+}
+
+enum AttachmentKind {
+  xray
+  photo
+  document
+}
+
+model Attachment {
+  id           String         @id @default(uuid()) @db.Uuid
+  patientId    String         @map("patient_id") @db.Uuid
+  kind         AttachmentKind
+  /// Name the user uploaded (display only — never used as a path).
+  originalName String         @map("original_name")
+  /// Random name on disk: <uuid>.<ext>, inside UPLOAD_DIR.
+  storedName   String         @unique @map("stored_name")
+  mimeType     String         @map("mime_type")
+  sizeBytes    Int            @map("size_bytes")
+  sha256       String
+  takenAt      DateTime?      @map("taken_at") @db.Date
+  notes        String?
+  uploadedById String?        @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt    DateTime?      @map("deleted_at") @db.Timestamptz(3)
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  uploadedBy User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId, createdAt])
+  @@map("attachment")
+}
+
+// ─── Treatment catalog ───────────────────────────────────────────────────────
+
+enum Currency {
+  IQD
+  USD
+}
+
+/// Which part of the mouth a procedure is done on.
+enum ToothScope {
+  none // whole mouth: consultation, cleaning, x-ray
+  tooth // one or more whole teeth: extraction, crown, root canal
+  surfaces // specific surfaces: filling
+}
+
+model ProcedureCategory {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @unique
+  sortOrder  Int       @default(0) @map("sort_order")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  procedures Procedure[]
+
+  @@map("procedure_category")
+}
+
+model Procedure {
+  id              String     @id @default(uuid()) @db.Uuid
+  name            String
+  categoryId      String     @map("category_id") @db.Uuid
+  price           Decimal    @db.Decimal(14, 2)
+  currency        Currency   @default(IQD)
+  toothScope      ToothScope @default(tooth) @map("tooth_scope")
+  /// Condition drawn on the chart once this procedure is done (e.g. "filling", "missing").
+  chartResult     String?    @map("chart_result")
+  durationMinutes Int?       @map("duration_minutes")
+  requiresLab     Boolean    @default(false) @map("requires_lab")
+  createdById     String?    @map("created_by_id") @db.Uuid
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt      DateTime?  @map("archived_at") @db.Timestamptz(3)
+
+  category     ProcedureCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy    User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  planItems    TreatmentPlanItem[]
+  appointments Appointment[]
+
+  @@unique([categoryId, name])
+  @@map("procedure")
+}
+
+// ─── Tooth chart ─────────────────────────────────────────────────────────────
+
+/// Something observed on a tooth (existing state, not treatment we did):
+/// caries, an old filling, a missing tooth… Treatment we do is a plan item.
+model ToothFinding {
+  id           String    @id @default(uuid()) @db.Uuid
+  patientId    String    @map("patient_id") @db.Uuid
+  /// FDI tooth number: 11–48 permanent, 51–85 primary.
+  tooth        Int
+  /// Surface codes (M, D, O, B, L); empty = whole tooth.
+  surfaces     String[]
+  /// Code from TOOTH_CONDITIONS (src/features/chart/teeth.ts)
+  condition    String
+  notes        String?
+  recordedById String?   @map("recorded_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Set when the finding no longer applies (e.g. caries treated elsewhere).
+  resolvedAt   DateTime? @map("resolved_at") @db.Timestamptz(3)
+
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  recordedBy User?   @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@map("tooth_finding")
+}
+
+// ─── Treatment plans ─────────────────────────────────────────────────────────
+
+enum PlanStatus {
+  proposed // discussed with the patient
+  accepted // patient agreed
+  completed
+  cancelled
+}
+
+enum PlanItemStatus {
+  planned
+  in_progress
+  done
+  cancelled
+}
+
+model TreatmentPlan {
+  id          String     @id @default(uuid()) @db.Uuid
+  patientId   String     @map("patient_id") @db.Uuid
+  title       String
+  status      PlanStatus @default(proposed)
+  notes       String?
+  createdById String?    @map("created_by_id") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  acceptedAt  DateTime?  @map("accepted_at") @db.Timestamptz(3)
+
+  patient   Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  createdBy User?               @relation("PlanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items     TreatmentPlanItem[]
+
+  @@index([patientId, createdAt])
+  @@map("treatment_plan")
+}
+
+model TreatmentPlanItem {
+  id          String         @id @default(uuid()) @db.Uuid
+  planId      String         @map("plan_id") @db.Uuid
+  procedureId String         @map("procedure_id") @db.Uuid
+  /// FDI tooth number, or null for whole-mouth procedures.
+  tooth       Int?
+  surfaces    String[]
+  /// Treatment phase (1 = first). Items in a phase are done before the next.
+  phase       Int            @default(1)
+  /// Price copied from the catalog when added (later catalog changes don't affect it).
+  price       Decimal        @db.Decimal(14, 2)
+  currency    Currency
+  discount    Decimal        @default(0) @db.Decimal(14, 2)
+  status      PlanItemStatus @default(planned)
+  dentistId   String?        @map("dentist_id") @db.Uuid
+  notes       String?
+  completedAt DateTime?      @map("completed_at") @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  plan      TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  procedure Procedure     @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  dentist   User?         @relation("PlanItemDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@map("treatment_plan_item")
+}
+
+// ─── Appointments ────────────────────────────────────────────────────────────
+
+/// Treatment rooms / chairs.
+model Room {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @unique
+  sortOrder  Int       @default(0) @map("sort_order")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  appointments Appointment[]
+
+  @@map("room")
+}
+
+enum AppointmentStatus {
+  pending // booked, waiting
+  in_progress // patient in the chair
+  completed
+  cancelled
+  no_show
+}
+
+enum AppointmentPriority {
+  normal
+  urgent
+}
+
+model Appointment {
+  id          String              @id @default(uuid()) @db.Uuid
+  patientId   String              @map("patient_id") @db.Uuid
+  dentistId   String?             @map("dentist_id") @db.Uuid
+  roomId      String?             @map("room_id") @db.Uuid
+  procedureId String?             @map("procedure_id") @db.Uuid
+  startsAt    DateTime            @map("starts_at") @db.Timestamptz(3)
+  endsAt      DateTime            @map("ends_at") @db.Timestamptz(3)
+  status      AppointmentStatus   @default(pending)
+  priority    AppointmentPriority @default(normal)
+  notes       String?
+  createdById String?             @map("created_by_id") @db.Uuid
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  dentist   User?      @relation("AppointmentDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+  room      Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  procedure Procedure? @relation(fields: [procedureId], references: [id], onDelete: SetNull)
+  createdBy User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([startsAt])
+  @@index([patientId, startsAt])
+  @@map("appointment")
+}
+
+/// One-off days the clinic is closed ("rest days"), in addition to weekly days off.
+model ClinicHoliday {
+  id          String   @id @default(uuid()) @db.Uuid
+  date        DateTime @unique @db.Date
+  reason      String?
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("clinic_holiday")
+}

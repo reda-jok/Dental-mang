@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main, v2]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: dental
+          POSTGRES_PASSWORD: dental
+          POSTGRES_DB: dental
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dental -d dental"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://dental:dental@localhost:5432/dental?schema=public
+      BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci-secret-00
+      BETTER_AUTH_URL: http://localhost:3100
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Migrations apply cleanly to a fresh database
+        run: pnpm --filter clinic db:deploy
+      - run: pnpm build
+      - name: Install Playwright browser
+        run: pnpm --filter clinic exec playwright install --with-deps chromium
+      - name: End-to-end tests (own throwaway database)
+        run: pnpm --filter clinic test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: apps/clinic/test-results/

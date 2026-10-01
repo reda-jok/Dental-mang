@@ -1,0 +1,78 @@
+import { test, type Page } from "@playwright/test"
+
+import { loginAsOwner, logout, query } from "./fixtures"
+
+// Screenshots of every screen for design review. Runs only when asked:
+//   VISUAL_TOUR_DIR=/tmp/tour pnpm --filter clinic test:e2e e2e/visual-tour.spec.ts
+// (after the other specs, so the clinic has patients, plans and files to show).
+const dir = process.env.VISUAL_TOUR_DIR
+
+test.skip(!dir, "set VISUAL_TOUR_DIR to take screenshots")
+
+test("visual tour", async ({ page }, testInfo) => {
+  test.setTimeout(120_000)
+  let n = 0
+  const shot = async (name: string) => {
+    await page.waitForLoadState("networkidle")
+    await page.screenshot({
+      path: `${dir}/${testInfo.project.name}-${String(++n).padStart(2, "0")}-${name}.png`,
+      fullPage: true,
+    })
+  }
+  const patientUrl = async (namePart: string) => {
+    const [row] = await query<{ id: string }>(
+      "select id from patient where full_name like $1 and deleted_at is null order by created_at limit 1",
+      [`%${namePart}%`],
+    )
+    return row ? `/patients/${row.id}` : null
+  }
+  const visit = async (page: Page, url: string | null, name: string) => {
+    if (!url) return
+    await page.goto(url)
+    await shot(name)
+  }
+
+  await logout(page)
+  await page.goto("/login")
+  await shot("login")
+
+  await loginAsOwner(page)
+  await shot("dashboard")
+  await visit(page, "/patients", "patients")
+  await visit(page, "/patients/new", "patient-new")
+
+  const charted = await patientUrl("مريض المخطط")
+  await visit(page, charted, "patient-overview")
+  await visit(page, charted && `${charted}/chart`, "patient-chart")
+  await visit(page, charted && `${charted}/plans`, "patient-plans")
+  await visit(page, charted && `${charted}/medical`, "patient-medical")
+  const xrays = await patientUrl("مريض أشعة")
+  await visit(page, xrays && `${xrays}/files`, "patient-files")
+  const allergic = await patientUrl("مريض استقبال")
+  await visit(page, allergic, "patient-alert")
+
+  const [appt] = await query<{ day: string }>(
+    "select to_char(starts_at at time zone 'Asia/Baghdad', 'YYYY-MM-DD') as day from appointment order by starts_at limit 1",
+  )
+  if (appt) {
+    await visit(page, `/dashboard?cal=${appt.day}&view=month`, "dashboard-calendar")
+    await visit(page, `/appointments?date=${appt.day}`, "appointments-day")
+    await page
+      .locator(`[data-day]`)
+      .first()
+      .waitFor({ state: "detached" })
+      .catch(() => {})
+    await page.goto(`/dashboard?cal=${appt.day}&view=month`)
+    await page.locator(`[data-day="${appt.day}"]`).click()
+    await shot("calendar-day-popup")
+    await page.keyboard.press("Escape")
+  }
+  await page.getByRole("button", { name: "موعد جديد" }).click()
+  await shot("booking-dialog")
+  await page.keyboard.press("Escape")
+
+  await visit(page, "/settings/schedule", "settings-schedule")
+  await visit(page, "/settings/clinic", "settings-clinic")
+  await visit(page, "/settings/procedures", "settings-procedures")
+  await visit(page, "/settings/users", "settings-users")
+})
