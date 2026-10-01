@@ -6,6 +6,7 @@ import {
   CheckCircle2Icon,
   FileImageIcon,
   HeartPulseIcon,
+  PillIcon,
   UserIcon,
   WalletIcon,
 } from "lucide-react"
@@ -35,6 +36,12 @@ export function PatientTabs({
           { key: "chart", label: t("chart"), icon: ActivityIcon, href: `${base}/chart` },
           { key: "plans", label: t("plans"), icon: CheckCircle2Icon, href: `${base}/plans` },
           { key: "files", label: t("files"), icon: FileImageIcon, href: `${base}/files` },
+          {
+            key: "prescriptions",
+            label: t("prescriptions"),
+            icon: PillIcon,
+            href: `${base}/prescriptions`,
+          },
           { key: "medical", label: t("medical"), icon: HeartPulseIcon, href: `${base}/medical` },
         ]
       : []),

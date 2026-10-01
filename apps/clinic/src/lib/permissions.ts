@@ -13,7 +13,8 @@ import { adminAc, defaultStatements } from "better-auth/plugins/admin/access"
 export const statements = {
   ...defaultStatements,
   patient: ["read", "write", "delete"],
-  clinical: ["read", "write"],
+  /** "prescribe": write prescriptions (dentists and the owner, not assistants). */
+  clinical: ["read", "write", "prescribe"],
   appointment: ["read", "write"],
   billing: ["read", "write", "discount", "void", "refund"],
   lab: ["read", "write"],
@@ -28,7 +29,7 @@ export const ac = createAccessControl(statements)
 
 const everything = {
   patient: ["read", "write", "delete"],
-  clinical: ["read", "write"],
+  clinical: ["read", "write", "prescribe"],
   appointment: ["read", "write"],
   billing: ["read", "write", "discount", "void", "refund"],
   lab: ["read", "write"],
@@ -51,7 +52,7 @@ export const roles = {
   }),
   dentist: ac.newRole({
     patient: ["read", "write"],
-    clinical: ["read", "write"],
+    clinical: ["read", "write", "prescribe"],
     appointment: ["read", "write"],
     billing: ["read"],
     lab: ["read", "write"],

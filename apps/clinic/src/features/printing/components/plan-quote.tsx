@@ -6,12 +6,12 @@ import { ageInYears, parseIsoDate } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
 import { formatLocalPhone } from "@/lib/validation"
 
-import { A4Sheet, Amount, LetterheadBlock } from "./sheets"
+import { Amount, LetterheadBlock, PaperSheet } from "./sheets"
 
 /** How long a printed quote's prices hold. */
 export const QUOTE_VALID_DAYS = 30
 
-/** A treatment plan as an A4 quote the patient takes home. */
+/** A treatment plan as a quote the patient takes home (A5 or A4, per clinic settings). */
 export async function PlanQuote({
   plan,
   letterhead,
@@ -26,9 +26,11 @@ export async function PlanQuote({
   const format = await getFormatter()
   const money = (amount: string) => <Amount value={formatMoney(amount, "IQD")} />
   const age = plan.patient.birthDate ? ageInYears(plan.patient.birthDate, today) : null
+  const discounts = plan.items.some((item) => item.discount !== "0")
+  const columns = discounts ? 5 : 4
 
   return (
-    <A4Sheet>
+    <PaperSheet paper={letterhead.paper}>
       <div className="flex items-start justify-between gap-6 border-b-2 border-black pb-4">
         <LetterheadBlock letterhead={letterhead} align="start" />
         <div className="text-end">
@@ -37,7 +39,7 @@ export async function PlanQuote({
         </div>
       </div>
 
-      <dl className="mt-5 grid grid-cols-2 gap-x-8 gap-y-1.5">
+      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1">
         <div className="flex gap-2">
           <dt className="text-slate-600">{t("patient")}:</dt>
           <dd className="font-semibold">{plan.patient.fullName}</dd>
@@ -78,17 +80,17 @@ export async function PlanQuote({
         <thead>
           <tr className="border-b-2 border-black">
             <th className="py-2 text-start font-semibold">{t("procedure")}</th>
-            <th className="w-20 py-2 text-start font-semibold">{tp("tooth")}</th>
-            <th className="w-32 py-2 text-end font-semibold">{t("price")}</th>
-            <th className="w-28 py-2 text-end font-semibold">{t("discount")}</th>
-            <th className="w-32 py-2 text-end font-semibold">{t("net")}</th>
+            <th className="w-14 py-2 text-start font-semibold">{tp("tooth")}</th>
+            <th className="w-28 py-2 text-end font-semibold">{t("price")}</th>
+            {discounts && <th className="w-24 py-2 text-end font-semibold">{t("discount")}</th>}
+            <th className="w-28 py-2 text-end font-semibold">{t("net")}</th>
           </tr>
         </thead>
         {plan.phases.map((phase) => (
           <tbody key={phase} className="break-inside-avoid">
             {plan.phases.length > 1 && (
               <tr>
-                <td colSpan={5} className="pt-3 pb-1 font-semibold">
+                <td colSpan={columns} className="pt-3 pb-1 font-semibold">
                   {tp("phase", { phase: String(phase) })}
                 </td>
               </tr>
@@ -104,9 +106,11 @@ export async function PlanQuote({
                     )}
                   </td>
                   <td className="py-1.5 text-end">{money(item.price)}</td>
-                  <td className="py-1.5 text-end">
-                    {item.discount === "0" ? "—" : money(item.discount)}
-                  </td>
+                  {discounts && (
+                    <td className="py-1.5 text-end">
+                      {item.discount === "0" ? "—" : money(item.discount)}
+                    </td>
+                  )}
                   <td className="py-1.5 text-end font-medium">{money(item.net)}</td>
                 </tr>
               ))}
@@ -143,7 +147,7 @@ export async function PlanQuote({
         <li>{t("quoteMayChange")}</li>
       </ul>
 
-      <div className="mt-16 grid grid-cols-2 gap-16 text-center">
+      <div className="mt-12 grid grid-cols-2 gap-10 text-center">
         <div className="border-t border-black pt-2">{t("dentistSignature")}</div>
         <div className="border-t border-black pt-2">{t("patientSignature")}</div>
       </div>
@@ -153,6 +157,6 @@ export async function PlanQuote({
           {letterhead.footer}
         </p>
       )}
-    </A4Sheet>
+    </PaperSheet>
   )
 }

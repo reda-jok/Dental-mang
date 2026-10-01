@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useTranslations } from "next-intl"
 import { useTransition } from "react"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import type { z } from "zod"
 import { toast } from "sonner"
 
@@ -11,11 +11,18 @@ import { InfoHint } from "@/components/info-hint"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useActionErrorHandler, useValidationMessage, useInvalidHandler } from "@/lib/form"
 
 import { updateClinicSettingsAction } from "../actions"
-import { clinicSettingsSchema, type ClinicSettingsInput } from "../schemas"
+import { clinicSettingsSchema, PRINT_PAPERS, type ClinicSettingsInput } from "../schemas"
 
 type Props = {
   initial: {
@@ -24,6 +31,7 @@ type Props = {
     address: string | null
     receiptFooter: string | null
     invoiceDueDays: number
+    printPaper: "A5" | "A4"
   }
   canEdit: boolean
 }
@@ -44,6 +52,7 @@ export function ClinicSettingsForm({ initial, canEdit }: Props) {
       address: initial.address ?? "",
       receiptFooter: initial.receiptFooter ?? "",
       invoiceDueDays: String(initial.invoiceDueDays),
+      printPaper: initial.printPaper,
     },
   })
   const { errors, isDirty } = form.formState
@@ -128,6 +137,31 @@ export function ClinicSettingsForm({ initial, canEdit }: Props) {
               {...form.register("invoiceDueDays")}
             />
             <FieldError>{vm(errors.invoiceDueDays?.message)}</FieldError>
+          </Field>
+
+          <Field className="max-w-64">
+            <FieldLabel htmlFor="printPaper">
+              {t("printPaper")}
+              <InfoHint>{t("printPaperHint")}</InfoHint>
+            </FieldLabel>
+            <Controller
+              control={form.control}
+              name="printPaper"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id="printPaper">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRINT_PAPERS.map((paper) => (
+                      <SelectItem key={paper} value={paper}>
+                        {t(`papers.${paper}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </Field>
 
           {canEdit && (

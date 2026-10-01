@@ -23,7 +23,14 @@ export async function getClinicSettingsForEdit() {
   await authorize("settings:read")
   return db.clinicSettings.findUnique({
     where: { id: 1 },
-    select: { name: true, phone: true, address: true, receiptFooter: true, invoiceDueDays: true },
+    select: {
+      name: true,
+      phone: true,
+      address: true,
+      receiptFooter: true,
+      invoiceDueDays: true,
+      printPaper: true,
+    },
   })
 }
 
@@ -32,7 +39,14 @@ export const getLetterhead = cache(async () => {
   await requireUser()
   const settings = await db.clinicSettings.findUnique({
     where: { id: 1 },
-    select: { name: true, phone: true, address: true, receiptFooter: true, timezone: true },
+    select: {
+      name: true,
+      phone: true,
+      address: true,
+      receiptFooter: true,
+      timezone: true,
+      printPaper: true,
+    },
   })
   return {
     name: settings?.name ?? "",
@@ -40,6 +54,7 @@ export const getLetterhead = cache(async () => {
     address: settings?.address ?? null,
     footer: settings?.receiptFooter ?? null,
     timezone: settings?.timezone ?? "Asia/Baghdad",
+    paper: settings?.printPaper ?? "A5",
   }
 })
 

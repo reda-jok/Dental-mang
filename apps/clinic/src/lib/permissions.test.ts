@@ -20,6 +20,11 @@ describe("hasPermission", () => {
     expect(allowed.sort()).toEqual(["admin", "owner"])
   })
 
+  it("lets only dentists and the owner prescribe", () => {
+    const allowed = ROLE_NAMES.filter((role) => hasPermission(role, "clinical:prescribe"))
+    expect(allowed.sort()).toEqual(["dentist", "owner"])
+  })
+
   it("lets only the owner decide who may discount or void", () => {
     const allowed = ROLE_NAMES.filter((role) => hasPermission(role, "settings:permissions"))
     expect(allowed).toEqual(["owner"])

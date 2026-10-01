@@ -29,7 +29,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - **Offline:** no runtime CDN or external calls. Anything that needs internet goes through a queue.
 - **Schema changes:** edit `schema.prisma`, then `pnpm --filter clinic db:migrate`. Commit the migration. Exclusion constraints, sequences and triggers go in custom SQL in the migration.
 - **Transactions:** a transaction is one connection, and pg warns about overlapping queries (and will refuse them in v9). Inside `db.$transaction(async (tx) => …)`: await queries one at a time (never `Promise.all` on `tx`), and select at most one relation per query, because Prisma loads several relations in parallel. Don't wrap a list page's count + rows in a transaction; use `Promise.all` on `db`.
-- **Demo data:** every feature adds realistic demo data to `prisma/demo/seed.ts`. `pnpm --filter clinic db:demo` rebuilds the separate `dental_demo` database (history up to today); `pnpm --filter clinic dev:demo` runs the app on it at http://localhost:3300. Money goes through the real services (with a past `Clock`), never raw inserts.
+- **Demo data:** every feature adds realistic demo data to `prisma/demo/seed.ts`: as a step in `topUps()` (checks whether its data exists), so databases seeded earlier catch up. `pnpm --filter clinic db:seed` adds/tops up the demo data in the development database (keeps its settings, owner and patients); `pnpm --filter clinic db:demo` rebuilds the separate `dental_demo` database and `dev:demo` serves it at http://localhost:3300. Money goes through the real services (with a past `Clock`), never raw inserts.
 
 ## Validation
 
@@ -62,7 +62,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - Wide content (the tooth chart, tables) scrolls inside its own box. Grid and flex children that contain it need `min-w-0`.
 - Money: amounts are strings, handled with `src/lib/money.ts` (exact minor units, totals per currency, `formatMoney`). Never use `Number` for arithmetic.
 - Destructive actions need an `AlertDialog` that says what happens and whether it can be undone.
-- **Printing:** printable pages live under `src/app/print/` (no app shell), wrap their content in `ThermalSheet` (80 mm receipts) or `A4Sheet` (`features/printing/components/sheets.tsx`), start with `PrintToolbar`, and are opened with `PrintLink` (new tab, print dialog opens by itself). Each must print on one page (the e2e tests check the PDF).
+- **Printing:** printable pages live under `src/app/print/` (no app shell), wrap their content in `ThermalSheet` (80 mm receipts) or `PaperSheet` (A5 or A4, the clinic's setting; `features/printing/components/sheets.tsx`), start with `PrintToolbar`, and are opened with `PrintLink` (new tab, print dialog opens by itself). Each must print on one page (the e2e tests check the PDF).
 
 ## Keeping records in sync
 

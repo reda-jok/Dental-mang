@@ -16,7 +16,14 @@ export async function updateClinicSettings(
   await db.$transaction(async (tx) => {
     const before = await tx.clinicSettings.findUnique({
       where: { id: 1 },
-      select: { name: true, phone: true, address: true, receiptFooter: true, invoiceDueDays: true },
+      select: {
+        name: true,
+        phone: true,
+        address: true,
+        receiptFooter: true,
+        invoiceDueDays: true,
+        printPaper: true,
+      },
     })
     if (!before) throw new AppError("not_found")
 

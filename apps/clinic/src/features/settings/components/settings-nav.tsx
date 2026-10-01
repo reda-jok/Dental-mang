@@ -4,6 +4,7 @@ import {
   Building2Icon,
   CalendarClockIcon,
   ListChecksIcon,
+  PillIcon,
   ShieldCheckIcon,
   UsersIcon,
 } from "lucide-react"
@@ -21,6 +22,7 @@ export function SettingsNav({
   const t = useTranslations("settings")
   const ta = useTranslations("appointments.settings")
   const tp = useTranslations("permissions")
+  const tm = useTranslations("medications")
   const items: PillNavItem[] = [
     { key: "clinic", label: t("clinicTab"), icon: Building2Icon, href: "/settings/clinic" },
     {
@@ -30,6 +32,7 @@ export function SettingsNav({
       href: "/settings/procedures",
     },
     { key: "schedule", label: ta("tab"), icon: CalendarClockIcon, href: "/settings/schedule" },
+    { key: "medications", label: tm("tab"), icon: PillIcon, href: "/settings/medications" },
     ...(showUsers
       ? [{ key: "users", label: t("usersTab"), icon: UsersIcon, href: "/settings/users" }]
       : []),

@@ -13,11 +13,22 @@ export function ThermalSheet({ children }: { children: ReactNode }) {
   )
 }
 
-/** An A4 page; on small screens it scrolls sideways rather than reflowing. */
-export function A4Sheet({ children }: { children: ReactNode }) {
+/**
+ * A page on the clinic's paper (Settings → clinic: A5 or A4). On small screens it
+ * scrolls sideways rather than reflowing.
+ */
+export function PaperSheet({ paper, children }: { paper: "A5" | "A4"; children: ReactNode }) {
   return (
     <div className="overflow-x-auto print:overflow-visible">
-      <article className="print-a4 mx-auto min-h-[297mm] w-[210mm] bg-white p-[14mm] text-[13px] text-black shadow-sm print:min-h-0 print:w-auto print:p-0 print:shadow-none">
+      <article
+        data-paper={paper}
+        className={cn(
+          "mx-auto bg-white text-black shadow-sm print:min-h-0 print:w-auto print:p-0 print:shadow-none",
+          paper === "A5"
+            ? "print-a5 min-h-[210mm] w-[148mm] p-[10mm] text-[11.5px]"
+            : "print-a4 min-h-[297mm] w-[210mm] p-[14mm] text-[13px]",
+        )}
+      >
         {children}
       </article>
     </div>

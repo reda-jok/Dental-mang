@@ -147,6 +147,11 @@
   margin: 14mm 12mm;
 }
 
+@page a5 {
+  size: A5 portrait;
+  margin: 10mm 9mm;
+}
+
 @media print {
   /* The app shell stretches to the screen; on paper the page is as tall as its content. */
   html,
@@ -166,9 +171,14 @@
     page: a4;
   }
 
+  body:has(.print-a5) {
+    page: a5;
+  }
+
   /* Print exact colours (dividers, the "void" stamp) instead of dropping them. */
   .print-thermal,
-  .print-a4 {
+  .print-a4,
+  .print-a5 {
     print-color-adjust: exact;
   }
 }

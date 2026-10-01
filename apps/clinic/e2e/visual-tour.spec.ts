@@ -99,6 +99,10 @@ test("visual tour", async ({ page }, testInfo) => {
   )
   if (printable?.payment) await visit(page, `/print/receipt/${printable.payment}`, "print-receipt")
   if (printable?.plan) await visit(page, `/print/quote/${printable.plan}`, "print-quote")
+  const [prescription] = await query<{ id: string }>("select id from prescription limit 1")
+  if (prescription)
+    await visit(page, `/print/prescription/${prescription.id}`, "print-prescription")
+  await visit(page, "/settings/medications", "settings-medications")
 
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")

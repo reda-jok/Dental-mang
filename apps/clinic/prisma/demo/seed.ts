@@ -33,10 +33,14 @@ import {
 } from "@/features/billing/service"
 import { buildSearchText } from "@/features/patients/search"
 import { shouldCompletePlan } from "@/features/plans/rules"
+import { createPrescriptionSchema } from "@/features/prescriptions/schemas"
+import { createPrescription } from "@/features/prescriptions/service"
+import { STARTER_MEDICATIONS } from "@/features/prescriptions/starter"
 import { STARTER_CATALOG } from "@/features/procedures/starter"
 import { addDays, todayIso, weekdayOf, zonedInstant } from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
+import { detectFileType, saveUpload } from "@/server/storage"
 import type { CurrentUser } from "@/server/session"
 
 import {
@@ -56,6 +60,7 @@ import {
   ROOMS,
   STAFF,
 } from "./data"
+import { intraoralPhoto, panoramicXray, periapicalXray, referralPdf } from "./images"
 import { chance, int, pick, rand, weighted } from "./random"
 
 const TZ = "Asia/Baghdad"
@@ -101,6 +106,7 @@ const counts = {
   voidedPayments: 0,
   refunds: 0,
   closes: 0,
+  files: 0,
 }
 
 /** Clinic-time moment on `day` at `minutes` after midnight. */
@@ -113,15 +119,151 @@ const dinars = (minor: bigint) => fromMinor(minor)
 /** Rounds down to whole thousands of dinars (how people pay). */
 const roundThousands = (minor: bigint) => (minor / 100_000n) * 100_000n
 
-export async function seedDemo({ patients: patientCount }: { patients: number }) {
-  console.log(`Demo clinic: ${patientCount} patients, ${HISTORY_DAYS} days of history…`)
+/**
+ * "fresh": an empty database (the separate demo database).
+ * "into": an existing clinic (e.g. the development database): its settings, owner
+ * account, catalog and patients are kept and used; only what's missing is added.
+ */
+export type SeedMode = "fresh" | "into"
+
+export async function seedDemo(options: { patients: number; mode: SeedMode }) {
+  // The history is added once per database; newer features add their own demo data on
+  // top (topUps), so a database seeded earlier catches up by running the seed again.
+  const seeded = await db.user.findUnique({ where: { username: "sara" }, select: { id: true } })
+  if (seeded) console.log("Demo history already present: adding newer features' demo data only.")
+  else await seedHistory(options)
+  await topUps()
+}
+
+/**
+ * Demo data for features built after a database was first seeded. Each step checks
+ * whether its data is already there.
+ */
+async function topUps() {
+  await seedPrescriptions()
+}
+
+/**
+ * Prescriptions (2026-10-01): the starter medicines list, and a prescription after each
+ * past extraction, root canal and implant, by the dentist who did it, chosen around the
+ * patient's recorded allergies and conditions.
+ */
+async function seedPrescriptions() {
+  if ((await db.medication.count()) === 0) {
+    await db.medication.createMany({
+      data: STARTER_MEDICATIONS.map((m, index) => ({
+        ...m,
+        duration: m.duration || null,
+        group: m.group ?? null,
+        sortOrder: index,
+      })),
+    })
+  }
+  if ((await db.prescription.count()) > 0) return
+  const meds = new Map(
+    (
+      await db.medication.findMany({
+        select: { id: true, name: true, dose: true, frequency: true, duration: true },
+      })
+    ).map((m) => [m.name, m]),
+  )
+  const line = (name: string) => {
+    const m = meds.get(name)!
+    return {
+      medicationId: m.id,
+      name: m.name,
+      dose: m.dose ?? "",
+      frequency: m.frequency ?? "",
+      duration: m.duration ?? "",
+    }
+  }
+
+  const visits = await db.$queryRaw<
+    { patient_id: string; day: string; dentist_id: string; dentist_name: string; kind: string }[]
+  >`
+    select distinct on (p.patient_id, (i.completed_at at time zone 'Asia/Baghdad')::date)
+      p.patient_id, to_char((i.completed_at at time zone 'Asia/Baghdad')::date, 'YYYY-MM-DD') as day,
+      i.dentist_id, u.name as dentist_name,
+      case when pr.name like 'قلع%' then 'extraction' when pr.name like 'زرعة%' then 'implant' else 'rootCanal' end as kind
+    from treatment_plan_item i
+    join treatment_plan p on p.id = i.plan_id
+    join procedure pr on pr.id = i.procedure_id
+    join "user" u on u.id = i.dentist_id
+    where i.status = 'done' and i.completed_at is not null
+      and (pr.name like 'قلع%' or pr.name like 'زرعة%' or pr.name like 'علاج عصب%' or pr.name like 'إعادة علاج عصب%')
+    order by p.patient_id, (i.completed_at at time zone 'Asia/Baghdad')::date`
+  let written = 0
+  for (const visit of visits) {
+    const history = await db.medicalHistory.findFirst({
+      where: { patientId: visit.patient_id },
+      orderBy: { version: "desc" },
+      select: { allergies: true, conditions: true },
+    })
+    const allergies = history?.allergies ?? []
+    const conditions = history?.conditions ?? []
+    const noNsaids =
+      allergies.includes("nsaids") ||
+      conditions.some((c) =>
+        ["anticoagulants", "bleeding_disorder", "kidney_disease", "asthma"].includes(c),
+      )
+    const items = [
+      line(
+        allergies.includes("penicillin")
+          ? "Clindamycin 300 mg"
+          : pick(["Amoxicillin 500 mg", "Amoxicillin / Clavulanic acid 625 mg"]),
+      ),
+      line(noNsaids ? "Paracetamol 500 mg" : pick(["Ibuprofen 400 mg", "Ibuprofen 600 mg"])),
+      ...(visit.kind !== "rootCanal" && !allergies.includes("chlorhexidine") && chance(0.6)
+        ? [line("Chlorhexidine 0.12% mouthwash")]
+        : []),
+    ]
+    await createPrescription(
+      { id: visit.dentist_id, name: visit.dentist_name, username: null, role: "dentist" },
+      createPrescriptionSchema.parse({
+        patientId: visit.patient_id,
+        items,
+        notes:
+          visit.kind === "extraction"
+            ? "عض على الشاش نصف ساعة. لا تمضمض ولا تأكل شيئاً ساخناً اليوم."
+            : visit.kind === "implant"
+              ? "كمادات باردة على الخد أول يوم. طعام لين لثلاثة أيام."
+              : "",
+        acknowledged: [],
+      }),
+      visit.day,
+    )
+    written++
+  }
+  console.log(`Prescriptions: ${meds.size} medicines, ${written} prescriptions.`)
+}
+
+async function seedHistory({ patients: patientCount, mode }: { patients: number; mode: SeedMode }) {
+  console.log(`Demo clinic (${mode}): ${patientCount} patients, ${HISTORY_DAYS} days of history…`)
 
   // ─── Clinic, staff, rooms, days off ────────────────────────────────────────
-  await db.clinicSettings.create({ data: { id: 1, ...CLINIC, invoiceDueDays: 30 } })
+  const settings = await db.clinicSettings.findUnique({
+    where: { id: 1 },
+    select: { phone: true, address: true, receiptFooter: true },
+  })
+  if (!settings) {
+    await db.clinicSettings.create({ data: { id: 1, ...CLINIC, invoiceDueDays: 30 } })
+  } else {
+    // Keep the clinic's own settings; fill only what's empty so printouts are complete.
+    await db.clinicSettings.update({
+      where: { id: 1 },
+      data: {
+        phone: settings.phone ?? CLINIC.phone,
+        address: settings.address ?? CLINIC.address,
+        receiptFooter: settings.receiptFooter ?? CLINIC.receiptFooter,
+      },
+    })
+  }
 
   const passwordHash = await hashPassword(PASSWORD)
-  const staff = {} as Record<(typeof STAFF)[number]["username"], CurrentUser>
-  for (const member of STAFF) {
+  const createUser = async (
+    member: { username: string; name: string; role: string },
+    extra: { banned?: boolean; banReason?: string } = {},
+  ) => {
     const user = await db.user.create({
       data: {
         name: member.name,
@@ -131,6 +273,7 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
         displayUsername: member.username,
         role: member.role,
         createdAt: zonedInstant(addDays(start, -30), 10 * 60, TZ),
+        ...extra,
       },
     })
     await db.account.create({
@@ -141,53 +284,109 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
         password: passwordHash,
       },
     })
+    return user
+  }
+  const staff = {} as Record<(typeof STAFF)[number]["username"], CurrentUser>
+  for (const member of STAFF) {
+    // An existing owner (the clinic's own account) plays the owner.
+    const existing =
+      member.role === "owner"
+        ? await db.user.findFirst({
+            where: { role: "owner" },
+            orderBy: { createdAt: "asc" },
+            select: { id: true, name: true, username: true },
+          })
+        : null
+    const user = existing ?? (await createUser(member))
     staff[member.username] = {
       id: user.id,
-      name: member.name,
-      username: member.username,
+      name: user.name,
+      username: user.username,
       role: member.role,
     }
   }
+  // A former employee whose account was disabled (Settings → Users).
+  await createUser(
+    { username: "ali.old", name: "علي الموظف السابق", role: "reception" },
+    { banned: true, banReason: "ترك العمل" },
+  )
   const dentists = [staff.sara, staff.haider]
   const { owner, reem: reception } = staff
 
-  const rooms = await Promise.all(
-    ROOMS.map((name, sortOrder) => db.room.create({ data: { name, sortOrder } })),
-  )
+  const rooms = []
+  for (const [sortOrder, name] of ROOMS.entries()) {
+    rooms.push(
+      (await db.room.findUnique({ where: { name } })) ??
+        (await db.room.create({ data: { name, sortOrder } })),
+    )
+  }
 
   const holidays = new Set([nextOpen(addDays(start, 20)), nextOpen(addDays(today, 9))])
   for (const date of holidays) {
-    await db.clinicHoliday.create({
-      data: { date: new Date(`${date}T00:00:00Z`), reason: "عطلة رسمية", createdById: owner.id },
+    await db.clinicHoliday.upsert({
+      where: { date: new Date(`${date}T00:00:00Z`) },
+      create: {
+        date: new Date(`${date}T00:00:00Z`),
+        reason: "عطلة رسمية",
+        createdById: owner.id,
+      },
+      update: {},
     })
   }
 
   // The owner lets reception give discounts (Settings → Permissions).
-  await db.rolePermission.create({
-    data: {
+  await db.rolePermission.upsert({
+    where: { role_permission: { role: "reception", permission: "billing:discount" } },
+    create: {
       role: "reception",
       permission: "billing:discount",
       granted: true,
       updatedById: owner.id,
     },
+    update: { granted: true },
   })
 
-  // ─── Catalog with prices ───────────────────────────────────────────────────
+  // ─── Catalog with prices (existing procedures keep their price unless unset) ─
   const procedures = new Map<string, { id: string; price: string }>()
   for (const [index, group] of STARTER_CATALOG.entries()) {
-    const category = await db.procedureCategory.create({
-      data: { name: group.category, sortOrder: index },
+    const category = await db.procedureCategory.upsert({
+      where: { name: group.category },
+      create: { name: group.category, sortOrder: index },
+      update: {},
     })
     for (const p of group.procedures) {
       const price = String(PRICES[p.name] ?? 0)
-      const created = await db.procedure.create({
-        data: { ...p, categoryId: category.id, price, currency: "IQD", createdById: owner.id },
+      const existing = await db.procedure.findFirst({
+        where: { categoryId: category.id, name: p.name },
+        select: { id: true, price: true },
       })
-      procedures.set(p.name, { id: created.id, price })
+      if (existing) {
+        const unset = existing.price.toString() === "0"
+        if (unset) await db.procedure.update({ where: { id: existing.id }, data: { price } })
+        procedures.set(p.name, {
+          id: existing.id,
+          price: unset ? price : existing.price.toString(),
+        })
+      } else {
+        const created = await db.procedure.create({
+          data: { ...p, categoryId: category.id, price, currency: "IQD", createdById: owner.id },
+        })
+        procedures.set(p.name, { id: created.id, price })
+      }
     }
   }
 
   // ─── Patients ──────────────────────────────────────────────────────────────
+  // Existing patients are used first (an existing clinic); more are created if needed.
+  const pool =
+    mode === "into"
+      ? await db.patient.findMany({
+          where: { deletedAt: null },
+          orderBy: { code: "asc" },
+          take: patientCount,
+          select: { id: true, gender: true, birthDate: true },
+        })
+      : []
   // Most patients come in during the history window; the rest are older records.
   const activeCount = Math.min(Math.round(patientCount * 0.85), 600)
   const states: PatientState[] = []
@@ -211,8 +410,15 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
       : firstDay > today
         ? addDays(today, -int(0, 3))
         : firstDay
-    const id = await createPatient(registeredOn)
+    const existing = pool[i]
+    const id = existing ? existing.id : await createPatient(registeredOn)
+    if (existing) await ensureMedicalHistory(existing, registeredOn)
     if (!active) continue
+
+    // Some histories are updated later (a new medicine, a new condition).
+    if (firstDay! < today && chance(0.08)) {
+      await updateMedicalHistory(id, nextOpen(addDays(firstDay!, int(10, 40))))
+    }
 
     const template = weighted<Template>([
       ["fillings", 35],
@@ -390,7 +596,7 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
     db.journalEntry.count(),
   ])
   console.log(`Payment reminders: ${reminders} to ${late.length} late patients.`)
-  console.log(`Cash closes: ${counts.closes} days (today left open).`)
+  console.log(`Cash closes: ${counts.closes} days (today left open). Files: ${counts.files}.`)
   console.log(
     `Done: ${summary[0]} patients, ${summary[1]} appointments, ${summary[2]} plans, ` +
       `${summary[3]} invoices (${counts.voidedInvoices} void), ${summary[4]} payments ` +
@@ -439,6 +645,125 @@ export async function seedDemo({ patients: patientCount }: { patients: number })
         })
       }
     }
+    await firstExamExtras(state, dentist, day, createdAt)
+  }
+
+  /**
+   * What else a first exam records: old dental work on the chart, X-rays / photos /
+   * documents, and sometimes a second plan the patient is still thinking about (or
+   * turned down).
+   */
+  async function firstExamExtras(
+    state: PatientState,
+    dentist: CurrentUser,
+    day: string,
+    createdAt: Date,
+  ) {
+    const planned = new Set(state.specs.map((s) => s.tooth))
+    if (chance(0.45)) {
+      for (let k = int(1, 3); k > 0; k--) {
+        const tooth = pick([...BACK_TEETH, ...FRONT_TEETH])
+        if (planned.has(tooth)) continue
+        planned.add(tooth)
+        const condition = weighted([
+          ["filling", 5],
+          ["crown", 2],
+          ["root_canal", 2],
+          ["missing", 2],
+        ] as const)
+        await db.toothFinding.create({
+          data: {
+            patientId: state.id,
+            tooth,
+            surfaces: condition === "filling" ? pick([["O"], ["M", "O"], ["O", "D"]]) : [],
+            condition,
+            notes: "عمل سابق في عيادة أخرى",
+            recordedById: dentist.id,
+            createdAt,
+          },
+        })
+      }
+    }
+
+    // Files: a panoramic X-ray for most new patients, sometimes more.
+    if (chance(0.55)) await attach(state.id, dentist, day, "xray", "panoramic.png", panoramicXray())
+    if (chance(0.25))
+      await attach(state.id, dentist, day, "xray", "periapical.png", periapicalXray())
+    if (chance(0.12))
+      await attach(state.id, dentist, day, "photo", "intraoral.png", intraoralPhoto())
+    if (chance(0.06)) {
+      await attach(
+        state.id,
+        dentist,
+        day,
+        "document",
+        "referral.pdf",
+        referralPdf("Referral letter"),
+      )
+    }
+
+    // A second, optional plan: still proposed, or declined by the patient.
+    const extra = chance(0.12) ? "proposed" : chance(0.05) ? "cancelled" : null
+    if (!extra) return
+    const plan = await db.treatmentPlan.create({
+      data: {
+        patientId: state.id,
+        title: extra === "proposed" ? "تجميل الأسنان الأمامية" : "تاج بديل (رفضه المريض)",
+        status: extra,
+        notes: extra === "proposed" ? "يفكر المريض ويعود للقرار" : "فضّل المريض تأجيل العلاج",
+        createdById: dentist.id,
+        createdAt,
+      },
+    })
+    const items =
+      extra === "proposed"
+        ? [
+            { procedure: "تبييض", tooth: null },
+            { procedure: "فينير", tooth: pick(FRONT_TEETH) },
+          ]
+        : [{ procedure: "تاج زيركون", tooth: pick(MOLARS) }]
+    for (const item of items) {
+      const procedure = procedures.get(item.procedure)!
+      await db.treatmentPlanItem.create({
+        data: {
+          planId: plan.id,
+          procedureId: procedure.id,
+          tooth: item.tooth,
+          surfaces: [],
+          price: procedure.price,
+          currency: "IQD",
+          status: extra === "cancelled" ? "cancelled" : "planned",
+          createdAt,
+        },
+      })
+    }
+  }
+
+  async function attach(
+    patientId: string,
+    dentist: CurrentUser,
+    day: string,
+    kind: "xray" | "photo" | "document",
+    originalName: string,
+    bytes: Buffer,
+  ) {
+    const type = detectFileType(bytes)!
+    const { storedName, sha256 } = await saveUpload(bytes, type)
+    await db.attachment.create({
+      data: {
+        patientId,
+        kind,
+        originalName,
+        storedName,
+        mimeType: type.mime,
+        sizeBytes: bytes.length,
+        sha256,
+        takenAt: new Date(`${day}T00:00:00Z`),
+        uploadedById: dentist.id,
+        createdAt: zonedInstant(day, DAY_START + 10, TZ),
+      },
+    })
+    counts.files++
   }
 
   /** Does the next one or two planned treatments (in phase order). */
@@ -885,19 +1210,90 @@ async function createPatient(registeredOn: string) {
     where: { id: patient.id },
     data: { searchText: buildSearchText({ ...columns, code: patient.code }) },
   })
-  // Intake questionnaire: most declare nothing; some have conditions or allergies.
+  await recordIntake(patient.id, { gender, age }, createdAt)
+  return patient.id
+}
+
+/**
+ * The intake questionnaire: most patients declare nothing; some have conditions,
+ * allergies, regular medicines, or (women 20–40) a pregnancy.
+ */
+async function recordIntake(
+  patientId: string,
+  patient: { gender: string; age: number },
+  createdAt: Date,
+) {
   const conditions = rand() < 0.25 ? [pick(CONDITIONS)] : []
   const allergies = rand() < 0.08 ? [pick(ALLERGIES)] : []
+  const pregnant =
+    patient.gender === "female" && patient.age >= 20 && patient.age <= 40 && rand() < 0.06
   await db.medicalHistory.create({
     data: {
-      patientId: patient.id,
+      patientId,
       version: 1,
-      noneDeclared: conditions.length === 0 && allergies.length === 0,
+      noneDeclared: conditions.length === 0 && allergies.length === 0 && !pregnant,
       conditions,
       allergies,
+      medications: conditions.includes("anticoagulants")
+        ? "Aspirin 100 mg يومياً"
+        : conditions.includes("diabetes")
+          ? "Metformin 500 mg مرتين يومياً"
+          : conditions.includes("hypertension")
+            ? "Amlodipine 5 mg يومياً"
+            : null,
+      pregnant,
       smoker: rand() < 0.2,
       createdAt,
     },
   })
-  return patient.id
+}
+
+/** Existing patients without an intake get one (an existing clinic's records). */
+async function ensureMedicalHistory(
+  patient: { id: string; gender: string; birthDate: Date | null },
+  registeredOn: string,
+) {
+  const has = await db.medicalHistory.findFirst({
+    where: { patientId: patient.id },
+    select: { id: true },
+  })
+  if (has) return
+  const age = patient.birthDate ? 2026 - patient.birthDate.getUTCFullYear() : int(10, 70)
+  await recordIntake(
+    patient.id,
+    { gender: patient.gender, age },
+    zonedInstant(registeredOn, DAY_START - 15, TZ),
+  )
+}
+
+/** A later version of the history: the patient started a medicine or reported a condition. */
+async function updateMedicalHistory(patientId: string, day: string) {
+  if (day > today) return
+  const latest = await db.medicalHistory.findFirst({
+    where: { patientId },
+    orderBy: { version: "desc" },
+  })
+  if (!latest) return
+  const added = pick(["anticoagulants", "hypertension", "diabetes"] as const)
+  await db.medicalHistory.create({
+    data: {
+      patientId,
+      version: latest.version + 1,
+      noneDeclared: false,
+      conditions: [...new Set([...latest.conditions, added])],
+      otherConditions: latest.otherConditions,
+      allergies: latest.allergies,
+      otherAllergies: latest.otherAllergies,
+      medications:
+        added === "anticoagulants"
+          ? "Aspirin 100 mg يومياً (بدأ حديثاً)"
+          : added === "diabetes"
+            ? "Metformin 500 mg مرتين يومياً"
+            : "Amlodipine 5 mg يومياً",
+      pregnant: false,
+      smoker: latest.smoker,
+      notes: "تحديث عند زيارة المتابعة",
+      createdAt: zonedInstant(day, DAY_START, TZ),
+    },
+  })
 }

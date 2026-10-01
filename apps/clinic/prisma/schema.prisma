@@ -52,6 +52,7 @@ model User {
   refundsGiven          Refund[]
   paymentReminders      PaymentReminder[]
   cashCloses            CashClose[]
+  prescriptions         Prescription[]
 
   @@map("user")
 }
@@ -126,7 +127,9 @@ model ClinicSettings {
   /// Weekly days off (0 = Sunday … 6 = Saturday). Default: Friday.
   weeklyOffDays   Int[]    @default([5]) @map("weekly_off_days")
   /// Days a patient has to pay an invoice; sets each new invoice's default due date.
-  invoiceDueDays  Int      @default(30) @map("invoice_due_days")
+  invoiceDueDays  Int        @default(30) @map("invoice_due_days")
+  /// Paper for prescriptions and treatment quotes (receipts are always 80 mm thermal).
+  printPaper      PrintPaper @default(A5) @map("print_paper")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -147,6 +150,11 @@ model RolePermission {
 
   @@id([role, permission])
   @@map("role_permission")
+}
+
+enum PrintPaper {
+  A5
+  A4
 }
 
 // ─── Audit ───────────────────────────────────────────────────────────────────
@@ -210,6 +218,7 @@ model Patient {
   payments         Payment[]
   refunds          Refund[]
   paymentReminders PaymentReminder[]
+  prescriptions    Prescription[]
 
   @@index([phone])
   @@index([createdAt])
@@ -818,4 +827,81 @@ model CashCloseItem {
   @@unique([kind, sourceId])
   @@index([closeId])
   @@map("cash_close_item")
+}
+
+// ─── Prescriptions ───────────────────────────────────────────────────────────
+
+enum MedicationForm {
+  tablet
+  capsule
+  syrup
+  suspension
+  mouthwash
+  gel
+  ointment
+  drops
+  injection
+  other
+}
+
+/// The clinic's medicines list (Settings → Medicines), with suggested instructions.
+model Medication {
+  id         String         @id @default(uuid()) @db.Uuid
+  /// As dentists write it, e.g. "Amoxicillin 500 mg".
+  name       String         @unique
+  form       MedicationForm
+  /// Suggested instructions (Arabic); the dentist can change them on each prescription.
+  dose       String?
+  frequency  String?
+  duration   String?
+  /// Allergy code it belongs to (ALLERGIES in patients/medical.ts), e.g. "penicillin",
+  /// "nsaids": used to warn about the patient's allergies and conditions.
+  group      String?
+  sortOrder  Int            @default(0) @map("sort_order")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt DateTime?      @map("archived_at") @db.Timestamptz(3)
+
+  items PrescriptionItem[]
+
+  @@map("medication")
+}
+
+model Prescription {
+  id             String    @id @default(uuid()) @db.Uuid
+  patientId      String    @map("patient_id") @db.Uuid
+  prescribedById String?   @map("prescribed_by_id") @db.Uuid
+  /// Clinic calendar day.
+  issuedOn       DateTime  @map("issued_on") @db.Date
+  notes          String?
+  /// Allergy warnings the dentist saw and confirmed when prescribing (allergy codes).
+  acknowledged   String[]
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  patient      Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  prescribedBy User?              @relation(fields: [prescribedById], references: [id], onDelete: SetNull)
+  items        PrescriptionItem[]
+
+  @@index([patientId, issuedOn])
+  @@map("prescription")
+}
+
+model PrescriptionItem {
+  id             String          @id @default(uuid()) @db.Uuid
+  prescriptionId String          @map("prescription_id") @db.Uuid
+  sortOrder      Int             @map("sort_order")
+  /// From the medicines list, or null for a medicine written in by hand.
+  medicationId   String?         @map("medication_id") @db.Uuid
+  name           String
+  form           MedicationForm?
+  dose           String?
+  frequency      String?
+  duration       String?
+  notes          String?
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medication   Medication?  @relation(fields: [medicationId], references: [id], onDelete: Restrict)
+
+  @@index([prescriptionId])
+  @@map("prescription_item")
 }
