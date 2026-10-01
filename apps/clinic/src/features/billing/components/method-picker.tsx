@@ -13,21 +13,35 @@ const ICONS: Record<PaymentMethod, LucideIcon> = {
   wallet: SmartphoneIcon,
 }
 
-/** Cash / card / wallet as three large buttons (easy to tap at the front desk). */
-export function MethodPicker({
+/**
+ * Cash / card / wallet as large buttons (easy to tap at the front desk). `methods`
+ * limits the choice (labs: cash or transfer); `label` / `hint` replace the wording.
+ */
+export function MethodPicker<M extends PaymentMethod>({
   value,
   onChange,
   labelId,
+  methods = PAYMENT_METHODS as unknown as readonly M[],
+  label,
+  hint,
 }: {
-  value: PaymentMethod
-  onChange: (method: PaymentMethod) => void
+  value: M
+  onChange: (method: M) => void
   labelId: string
+  methods?: readonly M[]
+  label?: (method: M) => string
+  hint?: (method: M) => string
 }) {
   const t = useTranslations("billing")
   return (
-    <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-3 gap-2">
-      {PAYMENT_METHODS.map((method) => {
-        const Icon = ICONS[method]
+    <div
+      role="radiogroup"
+      aria-labelledby={labelId}
+      className={cn("grid gap-2", methods.length === 2 ? "grid-cols-2" : "grid-cols-3")}
+    >
+      {methods.map((method) => {
+        const base: PaymentMethod = method
+        const Icon = ICONS[base]
         return (
           <button
             key={method}
@@ -43,9 +57,11 @@ export function MethodPicker({
             )}
           >
             <Icon className="size-5 text-blue-600" aria-hidden />
-            <span className="text-sm font-medium">{t(`methods.${method}`)}</span>
+            <span className="text-sm font-medium">
+              {label ? label(method) : t(`methods.${base}`)}
+            </span>
             <span className="hidden text-xs text-slate-500 sm:block">
-              {t(`methodHints.${method}`)}
+              {hint ? hint(method) : t(`methodHints.${base}`)}
             </span>
           </button>
         )

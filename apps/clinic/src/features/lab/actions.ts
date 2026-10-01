@@ -3,22 +3,30 @@
 import { revalidatePath } from "next/cache"
 
 import { defineAction } from "@/server/action"
+import { AppError } from "@/server/errors"
+import { can } from "@/server/permissions"
 
 import {
   archiveLabSchema,
   createLabCaseSchema,
   createLabSchema,
+  labAdjustmentSchema,
   labCaseStepSchema,
+  labPaymentSchema,
   updateLabCaseSchema,
   updateLabSchema,
+  voidLabPaymentSchema,
 } from "./schemas"
 import {
+  addLabAdjustment,
   archiveLab,
   createLab,
   createLabCase,
+  recordLabPayment,
   stepLabCase,
   updateLab,
   updateLabCase,
+  voidLabPayment,
 } from "./service"
 
 const refresh = () => {
@@ -84,5 +92,44 @@ export const archiveLabAction = defineAction({
     await archiveLab(user, input)
     refresh()
     return null
+  },
+})
+
+/** Money changes the lab accounts and the cash drawer. */
+const refreshMoney = () => {
+  revalidatePath("/lab", "layout")
+  revalidatePath("/billing/cash")
+}
+
+/** `lab:pay` is adjustable: the owner decides which roles may pay labs. */
+export const recordLabPaymentAction = defineAction({
+  schema: labPaymentSchema,
+  permission: "lab:pay",
+  handler: async (input, { user }) => {
+    const result = await recordLabPayment(user, input)
+    refreshMoney()
+    return result
+  },
+})
+
+/** Voiding money is the same permission as voiding a patient's payment. */
+export const voidLabPaymentAction = defineAction({
+  schema: voidLabPaymentSchema,
+  permission: "billing:void",
+  handler: async (input, { user }) => {
+    if (!(await can(user, "lab:pay"))) throw new AppError("forbidden")
+    const result = await voidLabPayment(user, input)
+    refreshMoney()
+    return result
+  },
+})
+
+export const addLabAdjustmentAction = defineAction({
+  schema: labAdjustmentSchema,
+  permission: "lab:pay",
+  handler: async (input, { user }) => {
+    const result = await addLabAdjustment(user, input)
+    refreshMoney()
+    return result
   },
 })

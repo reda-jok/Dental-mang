@@ -20,7 +20,8 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - **Money:** `Decimal(14,2)` + currency, never float or `parseFloat`. Balances are calculated, never stored.
 - **Ledger:** every money event (invoice issued, payment, refund…) posts a balanced journal entry with `postJournal(tx, …)` (`features/ledger/service.ts`) in the same transaction. Fix mistakes with `reverseJournal`; the database refuses edits, deletes and unbalanced entries. The clinic works in IQD only.
 - **Patient money:** billing writes that change what a patient owes (invoice, payment, refund, void) lock the patient row (`lockPatient`) and re-apply credit (`settle`) in the same transaction (`features/billing/service.ts`). Paid amounts and balances come from allocations at read time.
-- **Cash drawer:** each daily close takes in every money movement not yet closed (`unclosedMovements` in `features/billing/service.ts`). A new kind of cash movement (e.g. an expense paid from the drawer) must be added there, or the close won't count it.
+- **Cash drawer:** each daily close takes in every money movement not yet closed (`unclosedMovements` in `features/billing/service.ts`; today: patient payments, voids, refunds, and cash paid to labs). A new kind of cash movement (e.g. an expense paid from the drawer) must be added there and to `CashMovement`, or the close won't count it.
+- **Money owed to others** (labs now; suppliers later): the bill posts Dr expense / Cr payables when it's incurred, payments post Dr payables / Cr cash, and corrections are append-only adjustments. What's owed per lab is calculated from bills − payments ± adjustments and must equal the payables in the ledger.
 - **Dates:** `@db.Timestamptz(3)`, stored in UTC and shown in the clinic time zone (`Asia/Baghdad`).
 - **IDs:** UUID. Human-readable numbers (patient code, invoice number) come from Postgres sequences, never `count() + 1`.
 - **Clinical and financial rows** get `deletedAt` (soft delete). Issued invoices and journal entries are never edited, only reversed.
@@ -46,7 +47,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - The CSP is set per request in `proxy.ts` (nonce). No inline scripts and no external origins.
 - Sensitive actions (role change, disable, password reset) sign the user out everywhere.
 - Money amounts on invoices come from the server (plan item or catalog price), never from the browser; the browser sends only ids, quantities and discounts.
-- Discount and void are *adjustable* (`ADJUSTABLE_PERMISSIONS`): the owner sets them per role in Settings → Permissions. Check them on the server with `authorize()` or `await can(user, …)` (`src/server/permissions.ts`). The synchronous `hasPermission` only accepts fixed permissions, so TypeScript catches misuse.
+- Discount, void, refund and paying labs are *adjustable* (`ADJUSTABLE_PERMISSIONS`): the owner sets them per role in Settings → Permissions. Check them on the server with `authorize()` or `await can(user, …)` (`src/server/permissions.ts`). The synchronous `hasPermission` only accepts fixed permissions, so TypeScript catches misuse.
 
 ## UI
 

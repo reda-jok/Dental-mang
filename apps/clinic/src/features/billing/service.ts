@@ -37,7 +37,7 @@ import type {
  */
 export type Clock = { day: string; at: Date }
 
-async function clockOf(tx: Db, clock?: Clock): Promise<Clock> {
+export async function clockOf(tx: Db, clock?: Clock): Promise<Clock> {
   if (clock) return clock
   const settings = await tx.clinicSettings.findUnique({
     where: { id: 1 },
@@ -613,11 +613,17 @@ export async function logPaymentReminder(
 export type OpenMovement = Movement & {
   sourceId: string
   number: string
-  patientName: string
+  /** The patient, or the lab for a lab payment. */
+  party: string
   at: Date
 }
 
-/** Money movements not taken in by any close yet (oldest first). */
+/**
+ * Money movements not taken in by any close yet (oldest first): patients' payments,
+ * voided payments and refunds (every method: card and wallet totals are checked against
+ * the machine and statements), and cash paid to labs (and its voids). A transfer to a lab
+ * never touches the drawer, so it isn't part of a close.
+ */
 export async function unclosedMovements(tx: Db): Promise<OpenMovement[]> {
   const rows = await tx.$queryRaw<
     {
@@ -626,12 +632,12 @@ export async function unclosedMovements(tx: Db): Promise<OpenMovement[]> {
       method: Movement["method"]
       amount: string
       number: string
-      patient_name: string
+      party: string
       at: Date
     }[]
   >`
     select 'payment' as kind, p.id as source_id, p.method::text as method,
-           p.amount::text as amount, p.number, pt.full_name as patient_name, p.created_at as at
+           p.amount::text as amount, p.number, pt.full_name as party, p.created_at as at
     from payment p join patient pt on pt.id = p.patient_id
     where not exists (select 1 from cash_close_item c where c.kind = 'payment' and c.source_id = p.id)
     union all
@@ -643,6 +649,16 @@ export async function unclosedMovements(tx: Db): Promise<OpenMovement[]> {
     select 'refund', r.id, r.method::text, r.amount::text, r.number, pt.full_name, r.created_at
     from refund r join patient pt on pt.id = r.patient_id
     where not exists (select 1 from cash_close_item c where c.kind = 'refund' and c.source_id = r.id)
+    union all
+    select 'lab_payment', lp.id, lp.method::text, lp.amount::text, lp.number, l.name, lp.created_at
+    from lab_payment lp join lab l on l.id = lp.lab_id
+    where lp.method = 'cash'
+      and not exists (select 1 from cash_close_item c where c.kind = 'lab_payment' and c.source_id = lp.id)
+    union all
+    select 'lab_payment_void', lp.id, lp.method::text, lp.amount::text, lp.number, l.name, lp.voided_at
+    from lab_payment lp join lab l on l.id = lp.lab_id
+    where lp.method = 'cash' and lp.voided_at is not null
+      and not exists (select 1 from cash_close_item c where c.kind = 'lab_payment_void' and c.source_id = lp.id)
     order by at`
   return rows.map((r) => ({
     kind: r.kind,
@@ -650,7 +666,7 @@ export async function unclosedMovements(tx: Db): Promise<OpenMovement[]> {
     method: r.method,
     amount: r.amount,
     number: r.number,
-    patientName: r.patient_name,
+    party: r.party,
     at: r.at,
   }))
 }

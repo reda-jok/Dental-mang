@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { FlaskConicalIcon, PencilIcon, PlusIcon } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useFormatter, useTranslations } from "next-intl"
 import { useState, useTransition } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { addDays } from "@/lib/dates"
+import { addDays, parseIsoDate } from "@/lib/dates"
 import { useActionErrorHandler, useInvalidHandler, useValidationMessage } from "@/lib/form"
 
 import { createLabCaseAction, updateLabCaseAction } from "../actions"
@@ -93,8 +93,11 @@ function LabCaseForm({
   const vm = useValidationMessage()
   const handleError = useActionErrorHandler()
   const onInvalid = useInvalidHandler()
+  const format = useFormatter()
   const [pending, startTransition] = useTransition()
   const firstLab = options.labs[0]
+  // Billed when it first came back: the lab and the cost are locked (server and database too).
+  const billed = !!labCase?.billedOn
 
   const form = useForm<LabCaseInput, unknown, z.output<typeof createLabCaseSchema>>({
     resolver: zodResolver(createLabCaseSchema as never) as never,
@@ -179,6 +182,7 @@ function LabCaseForm({
     label: string,
     items: { value: string; label: string }[],
     onChange?: (value: string) => void,
+    disabled = false,
   ) => (
     <Controller
       control={form.control}
@@ -188,6 +192,7 @@ function LabCaseForm({
           <FieldLabel htmlFor={name}>{label}</FieldLabel>
           <Select
             value={field.value || "_none"}
+            disabled={disabled}
             onValueChange={(v) => {
               field.onChange(v === "_none" ? "" : v)
               onChange?.(v)
@@ -242,6 +247,7 @@ function LabCaseForm({
             t("lab"),
             options.labs.map((l) => ({ value: l.id, label: l.name })),
             (id) => setDueFor(id),
+            billed,
           )}
           {select("dentistId", t("dentist"), [
             { value: "", label: t("noDentist") },
@@ -321,6 +327,17 @@ function LabCaseForm({
             label={t("cost")}
             info={t("costHint")}
             optional
+            readOnly={billed}
+            description={
+              labCase?.billedOn &&
+              t("billedLocked", {
+                date: format.dateTime(parseIsoDate(labCase.billedOn)!, {
+                  day: "numeric",
+                  month: "long",
+                  timeZone: "UTC",
+                }),
+              })
+            }
             error={errors.cost?.message}
             {...form.register("cost")}
           />

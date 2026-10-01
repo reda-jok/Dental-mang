@@ -24,6 +24,26 @@ describe("summarize", () => {
     })
   })
 
+  it("counts cash paid to a lab as cash out, and a voided lab payment as cash back", () => {
+    const summary = summarize([
+      { kind: "payment", method: "cash", amount: "100000" },
+      { kind: "lab_payment", method: "cash", amount: "60000" },
+      { kind: "lab_payment", method: "cash", amount: "20000" },
+      { kind: "lab_payment_void", method: "cash", amount: "20000" },
+      // A transfer to a lab doesn't touch the drawer or the wallet money received.
+      { kind: "lab_payment", method: "wallet", amount: "90000" },
+    ])
+    expect(summary).toMatchObject({
+      cashIn: "120000",
+      cashOut: "80000",
+      expected: "40000",
+      wallet: "0",
+      counts: { cashIn: 2, cashOut: 2, card: 0, wallet: 0 },
+    })
+    expect(signedAmount({ kind: "lab_payment", method: "cash", amount: "100" })).toBe("-100")
+    expect(signedAmount({ kind: "lab_payment_void", method: "cash", amount: "100" })).toBe("100")
+  })
+
   it("is zero for a day without money", () => {
     expect(summarize([])).toMatchObject({ cashIn: "0", cashOut: "0", expected: "0" })
   })

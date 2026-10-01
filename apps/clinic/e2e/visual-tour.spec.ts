@@ -108,6 +108,11 @@ test("visual tour", async ({ page }, testInfo) => {
   await visit(page, "/lab/labs", "labs")
   const labPatient = await patientUrl("مريض مختبر")
   await visit(page, labPatient && `${labPatient}/lab`, "patient-lab")
+  await visit(page, "/lab/accounts", "lab-accounts")
+  const [labAccount] = await query<{ id: string }>(
+    "select lab_id as id from lab_payment order by created_at desc limit 1",
+  )
+  await visit(page, labAccount ? `/lab/accounts/${labAccount.id}` : null, "lab-statement")
 
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")

@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { isMoneyIn } from "@/features/billing/cash"
 import { CashCloseForm } from "@/features/billing/components/cash-close-form"
 import { getCashDrawer } from "@/features/billing/data"
 import { StatCard } from "@/features/dashboard/components/stat-card"
@@ -178,7 +179,7 @@ export default async function CashPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="ps-6">{t("movementColumns.number")}</TableHead>
-                  <TableHead>{t("movementColumns.patient")}</TableHead>
+                  <TableHead>{t("movementColumns.party")}</TableHead>
                   <TableHead>{t("movementColumns.kind")}</TableHead>
                   <TableHead className="text-end">{t("movementColumns.amount")}</TableHead>
                   <TableHead className="hidden sm:table-cell">
@@ -192,17 +193,17 @@ export default async function CashPage() {
                     <TableCell className="ps-6">
                       <bdi className="font-mono text-sm">{m.number}</bdi>
                     </TableCell>
-                    <TableCell>{m.patientName}</TableCell>
+                    <TableCell>{m.party}</TableCell>
                     <TableCell>
                       {t(`movementKinds.${m.kind}`)} · {t(`methods.${m.method}`)}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "text-end font-medium whitespace-nowrap",
-                        m.kind === "payment" ? "text-green-700" : "text-red-700",
+                        isMoneyIn(m.kind) ? "text-green-700" : "text-red-700",
                       )}
                     >
-                      {m.kind === "payment" ? "+" : "−"}
+                      {isMoneyIn(m.kind) ? "+" : "−"}
                       {money(m.amount)}
                     </TableCell>
                     <TableCell className="hidden text-sm text-slate-500 sm:table-cell">

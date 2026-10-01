@@ -3,10 +3,12 @@ import "server-only"
 import type { Prisma } from "@/generated/prisma/client"
 import { searchTokens } from "@/lib/arabic"
 import { todayIso, toIsoDate } from "@/lib/dates"
+import { fromMinor, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
 import { authorize } from "@/server/session"
 
 import { getClinicSettings } from "../settings/data"
+import { labStatement, monthRange, owedFrom, type LabEntry } from "./money"
 import { dueState, type LabStatus } from "./rules"
 import type { LAB_FILTERS } from "./schemas"
 
@@ -31,6 +33,7 @@ const caseSelect = {
   fittedOn: true,
   remakes: true,
   cancelReason: true,
+  billedOn: true,
   planItemId: true,
   labId: true,
   dentistId: true,
@@ -50,6 +53,7 @@ function toView(row: CaseRow, today: string) {
     dueOn,
     receivedOn: row.receivedOn ? toIsoDate(row.receivedOn) : null,
     fittedOn: row.fittedOn ? toIsoDate(row.fittedOn) : null,
+    billedOn: row.billedOn ? toIsoDate(row.billedOn) : null,
     labName: row.lab.name,
     dentistName: row.dentist?.name ?? null,
     due: dueState(row.status as LabStatus, dueOn, today),
@@ -182,3 +186,210 @@ export async function getLabPlanItems(patientId: string) {
 }
 
 export type LabPlanItem = Awaited<ReturnType<typeof getLabPlanItems>>[number]
+
+// ─── Lab money (needs lab:pay) ───────────────────────────────────────────────
+
+const money = (value: { toString(): string } | null | undefined) => value?.toString() ?? "0"
+
+/** Every lab's bills, extra charges, payments and discounts in a date range, summed. */
+async function labSums(range: { from?: string; before?: string }) {
+  const on = {
+    ...(range.from && { gte: asDate(range.from) }),
+    ...(range.before && { lt: asDate(range.before) }),
+  }
+  const [bills, payments, adjustments] = await Promise.all([
+    db.labCase.groupBy({
+      by: ["labId"],
+      where: { billedOn: { not: null, ...on } },
+      _sum: { cost: true },
+    }),
+    db.labPayment.groupBy({
+      by: ["labId"],
+      where: { voidedAt: null, paidOn: on },
+      _sum: { amount: true },
+    }),
+    db.labAdjustment.groupBy({
+      by: ["labId", "kind"],
+      where: { madeOn: on },
+      _sum: { amount: true },
+    }),
+  ])
+  return (labId: string) => ({
+    billed: money(bills.find((b) => b.labId === labId)?._sum.cost),
+    paid: money(payments.find((p) => p.labId === labId)?._sum.amount),
+    charged: money(adjustments.find((a) => a.labId === labId && a.kind === "charge")?._sum.amount),
+    discounted: money(
+      adjustments.find((a) => a.labId === labId && a.kind === "discount")?._sum.amount,
+    ),
+  })
+}
+
+/** What the clinic owes each lab now, and this month's bills and payments. */
+export async function getLabAccounts() {
+  await authorize("lab:pay")
+  const today = await clinicToday()
+  const month = today.slice(0, 7)
+  const [labs, allTime, thisMonth, lastPaid] = await Promise.all([
+    db.lab.findMany({
+      orderBy: [{ archivedAt: { sort: "asc", nulls: "first" } }, { name: "asc" }],
+      select: { id: true, name: true, archivedAt: true },
+    }),
+    labSums({}),
+    labSums({ from: monthRange(month).start }),
+    db.labPayment.groupBy({ by: ["labId"], where: { voidedAt: null }, _max: { paidOn: true } }),
+  ])
+  const rows = labs.map((lab) => {
+    const month = thisMonth(lab.id)
+    const last = lastPaid.find((p) => p.labId === lab.id)?._max.paidOn
+    return {
+      ...lab,
+      owed: owedFrom(allTime(lab.id)),
+      billedThisMonth: month.billed,
+      paidThisMonth: month.paid,
+      lastPaidOn: last ? toIsoDate(last) : null,
+    }
+  })
+  // Archived labs only matter while something is still owed either way.
+  const visible = rows.filter((r) => !r.archivedAt || r.owed !== "0")
+  const sum = (pick: (r: (typeof visible)[number]) => string) =>
+    fromMinor(visible.reduce((total, r) => total + toMinor(pick(r)), 0n))
+  return {
+    today,
+    month,
+    rows: visible,
+    totals: {
+      owed: sum((r) => r.owed),
+      billedThisMonth: sum((r) => r.billedThisMonth),
+      paidThisMonth: sum((r) => r.paidThisMonth),
+    },
+  }
+}
+
+export type LabAccounts = Awaited<ReturnType<typeof getLabAccounts>>
+
+const ENTRY_ORDER = { bill: 0, charge: 1, discount: 2, payment: 3 } as const
+
+/**
+ * A lab's account for one month ("YYYY-MM", default this month): the balance brought
+ * forward, every bill, payment and adjustment with the balance after it, and the totals.
+ */
+export async function getLabStatement(labId: string, requestedMonth: string) {
+  await authorize("lab:pay")
+  const today = await clinicToday()
+  const month = requestedMonth || today.slice(0, 7)
+  const range = monthRange(month)
+  const on = { gte: asDate(range.start), lt: asDate(range.end) }
+  const [lab, before, cases, payments, adjustments] = await Promise.all([
+    db.lab.findUnique({
+      where: { id: labId },
+      select: { id: true, name: true, phone: true, contactName: true, archivedAt: true },
+    }),
+    labSums({ before: range.start }),
+    db.labCase.findMany({
+      where: { labId, billedOn: on },
+      orderBy: [{ billedOn: "asc" }, { number: "asc" }],
+      select: {
+        id: true,
+        number: true,
+        work: true,
+        teeth: true,
+        cost: true,
+        billedOn: true,
+        status: true,
+        patient: { select: { id: true, fullName: true } },
+      },
+    }),
+    db.labPayment.findMany({
+      where: { labId, paidOn: on },
+      orderBy: [{ paidOn: "asc" }, { number: "asc" }],
+      select: {
+        id: true,
+        number: true,
+        method: true,
+        reference: true,
+        amount: true,
+        paidOn: true,
+        notes: true,
+        voidedAt: true,
+        voidReason: true,
+        paidBy: { select: { name: true } },
+      },
+    }),
+    db.labAdjustment.findMany({
+      where: { labId, madeOn: on },
+      orderBy: [{ madeOn: "asc" }, { createdAt: "asc" }],
+      select: { id: true, kind: true, amount: true, madeOn: true, reason: true },
+    }),
+  ])
+  if (!lab) return null
+
+  type Row = LabEntry & {
+    id: string
+    number: string | null
+    /** Bills: the patient, work and teeth. Payments: method and reference. Adjustments: why. */
+    patient?: { id: string; fullName: string }
+    work?: string
+    teeth?: number[]
+    method?: "cash" | "card" | "wallet"
+    reference?: string | null
+    reason?: string | null
+    paidByName?: string | null
+  }
+  const entries: Row[] = [
+    ...cases.map((c) => ({
+      kind: "bill" as const,
+      id: c.id,
+      number: c.number,
+      date: toIsoDate(c.billedOn!),
+      amount: c.cost.toString(),
+      patient: c.patient,
+      work: c.work,
+      teeth: c.teeth,
+    })),
+    ...adjustments.map((a) => ({
+      kind: a.kind,
+      id: a.id,
+      number: null,
+      date: toIsoDate(a.madeOn),
+      amount: a.amount.toString(),
+      reason: a.reason,
+    })),
+    ...payments.map((p) => ({
+      kind: "payment" as const,
+      id: p.id,
+      number: p.number,
+      date: toIsoDate(p.paidOn),
+      amount: p.amount.toString(),
+      voided: !!p.voidedAt,
+      method: p.method,
+      reference: p.reference,
+      reason: p.voidReason ?? p.notes,
+      paidByName: p.paidBy?.name ?? null,
+    })),
+  ].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      ENTRY_ORDER[a.kind] - ENTRY_ORDER[b.kind] ||
+      (a.number ?? "").localeCompare(b.number ?? ""),
+  )
+  return {
+    lab,
+    month,
+    range,
+    today,
+    isCurrentMonth: month === today.slice(0, 7),
+    ...labStatement(owedFrom(before(lab.id)), entries),
+  }
+}
+
+export type LabStatementView = NonNullable<Awaited<ReturnType<typeof getLabStatement>>>
+export type LabStatementRow = LabStatementView["rows"][number]
+
+/** Labs to switch between on the statement page. */
+export async function getLabChoices() {
+  await authorize("lab:pay")
+  return db.lab.findMany({
+    orderBy: [{ archivedAt: { sort: "asc", nulls: "first" } }, { name: "asc" }],
+    select: { id: true, name: true, archivedAt: true },
+  })
+}

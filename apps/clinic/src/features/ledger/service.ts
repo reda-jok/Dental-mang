@@ -8,7 +8,15 @@ import { ACCOUNTS } from "./accounts"
 import { postingProblem, reversalLines, type PostingLine } from "./rules"
 
 /** What a journal entry records; the business record it came from is `source.id`. */
-export type JournalSource = "invoice" | "payment" | "refund" | "cash_close" | "manual"
+export type JournalSource =
+  | "invoice"
+  | "payment"
+  | "refund"
+  | "cash_close"
+  | "lab_bill"
+  | "lab_payment"
+  | "lab_adjustment"
+  | "manual"
 
 type PostInput = {
   /** Accounting date: the clinic calendar day (YYYY-MM-DD). */

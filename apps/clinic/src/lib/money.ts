@@ -51,6 +51,25 @@ export function isAmount(value: string): boolean {
   return AMOUNT.test(value)
 }
 
+/** An amount of money received or paid out: more than zero (whole dinars for IQD). */
+export function positiveAmountField(currency: Currency = "IQD") {
+  return z.string({ error: "required" }).transform((v, ctx) => {
+    if (!v.trim()) {
+      ctx.addIssue({ code: "custom", message: "required" })
+      return z.NEVER
+    }
+    const amount = parseAmount(v, currency)
+    if (amount === null || toMinor(amount) === 0n) {
+      ctx.addIssue({
+        code: "custom",
+        message: amount === null ? "invalidAmount" : "amountPositive",
+      })
+      return z.NEVER
+    }
+    return amount
+  })
+}
+
 /** Optional amount typed in a form (discounts): empty → "0". */
 export function optionalAmountField(currency: Currency = "IQD") {
   return z

@@ -6,24 +6,33 @@ import { fromMinor, toMinor } from "@/lib/money"
 import type { PostingLine } from "../ledger/rules"
 import type { PaymentMethod } from "./payments"
 
-export type MovementKind = "payment" | "payment_void" | "refund"
+export type MovementKind =
+  "payment" | "payment_void" | "refund" | "lab_payment" | "lab_payment_void"
 
 /** A money movement not closed yet. `amount` is the positive size of the movement. */
 export type Movement = { kind: MovementKind; method: PaymentMethod; amount: string }
 
-/** As stored on a close item: received is positive, voided and refunded are negative. */
+/**
+ * Whether a movement brings money in: a patient's payment, or a lab payment voided
+ * (the money is back). Refunds, voided patient payments and lab payments take it out.
+ */
+export function isMoneyIn(kind: MovementKind): boolean {
+  return kind === "payment" || kind === "lab_payment_void"
+}
+
+/** As stored on a close item: money in is positive, money out negative. */
 export function signedAmount(m: Movement): string {
-  return m.kind === "payment" ? m.amount : `-${m.amount}`
+  return isMoneyIn(m.kind) ? m.amount : `-${m.amount}`
 }
 
 export type CashSummary = {
   /** Cash received. */
   cashIn: string
-  /** Cash given back or taken back: refunds and voided cash payments. */
+  /** Cash given back, taken back or paid out: refunds, voided payments, lab payments. */
   cashOut: string
   /** What the drawer should hold from these movements: cashIn − cashOut. */
   expected: string
-  /** Card and wallet money received, to check against the machine and statements. */
+  /** Card and wallet money received from patients, to check against the machine and statements. */
   card: string
   wallet: string
   counts: { cashIn: number; cashOut: number; card: number; wallet: number }
@@ -38,7 +47,7 @@ export function summarize(movements: readonly Movement[]): CashSummary {
   for (const m of movements) {
     const amount = toMinor(m.amount)
     if (m.method === "cash") {
-      if (m.kind === "payment") {
+      if (isMoneyIn(m.kind)) {
         cashIn += amount
         counts.cashIn++
       } else {

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { amountField, optionalAmountField, parseAmount, toMinor } from "@/lib/money"
+import { amountField, optionalAmountField, positiveAmountField } from "@/lib/money"
 import {
   isoDate,
   optionalMultiline,
@@ -62,18 +62,7 @@ export const invoiceSearchSchema = z.object({
 export type CreateInvoiceInput = z.input<typeof createInvoiceSchema>
 
 /** An amount of money received or paid out: whole dinars, more than zero. */
-const positiveAmount = z.string({ error: "required" }).transform((v, ctx) => {
-  if (!v.trim()) {
-    ctx.addIssue({ code: "custom", message: "required" })
-    return z.NEVER
-  }
-  const amount = parseAmount(v, "IQD")
-  if (amount === null || toMinor(amount) === 0n) {
-    ctx.addIssue({ code: "custom", message: amount === null ? "invalidAmount" : "amountPositive" })
-    return z.NEVER
-  }
-  return amount
-})
+const positiveAmount = positiveAmountField()
 
 export const recordPaymentSchema = z.strictObject({
   patientId: uuid,

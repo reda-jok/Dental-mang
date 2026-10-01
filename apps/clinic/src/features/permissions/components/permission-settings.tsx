@@ -1,6 +1,12 @@
 "use client"
 
-import { BadgePercentIcon, BanIcon, Undo2Icon, type LucideIcon } from "lucide-react"
+import {
+  BadgePercentIcon,
+  BanIcon,
+  FlaskConicalIcon,
+  Undo2Icon,
+  type LucideIcon,
+} from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useOptimistic, useTransition } from "react"
 import { toast } from "sonner"
@@ -19,6 +25,7 @@ const ICONS: Record<AdjustablePermission, LucideIcon> = {
   "billing:discount": BadgePercentIcon,
   "billing:void": BanIcon,
   "billing:refund": Undo2Icon,
+  "lab:pay": FlaskConicalIcon,
 }
 
 /** One card per adjustable permission, with a switch for each eligible role. */
@@ -29,7 +36,7 @@ export function PermissionSettings({ settings }: { settings: PermissionSetting[]
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {settings.map(({ permission, roles }) => {
-        const key = permission.split(":")[1] as "discount" | "void" | "refund"
+        const key = permission.split(":")[1] as "discount" | "void" | "refund" | "pay"
         const Icon = ICONS[permission]
         const titleId = `permission-${key}`
         return (

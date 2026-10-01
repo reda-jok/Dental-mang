@@ -17,7 +17,8 @@ export const statements = {
   clinical: ["read", "write", "prescribe"],
   appointment: ["read", "write"],
   billing: ["read", "write", "discount", "void", "refund"],
-  lab: ["read", "write"],
+  /** "pay": see what the clinic owes each lab, pay labs and record lab discounts. */
+  lab: ["read", "write", "pay"],
   accounting: ["read", "write"],
   hr: ["read", "write"],
   inventory: ["read", "write"],
@@ -32,7 +33,7 @@ const everything = {
   clinical: ["read", "write", "prescribe"],
   appointment: ["read", "write"],
   billing: ["read", "write", "discount", "void", "refund"],
-  lab: ["read", "write"],
+  lab: ["read", "write", "pay"],
   accounting: ["read", "write"],
   hr: ["read", "write"],
   inventory: ["read", "write"],
@@ -75,7 +76,7 @@ export const roles = {
   accountant: ac.newRole({
     patient: ["read"],
     billing: ["read", "write"],
-    lab: ["read"],
+    lab: ["read", "pay"],
     accounting: ["read", "write"],
     hr: ["read", "write"],
     inventory: ["read"],
@@ -98,6 +99,8 @@ export const ADJUSTABLE_PERMISSIONS = [
   { permission: "billing:discount", requires: "billing:write" },
   { permission: "billing:void", requires: "billing:write" },
   { permission: "billing:refund", requires: "billing:write" },
+  // Paying a lab takes money out of the clinic, so only roles that handle money.
+  { permission: "lab:pay", requires: "billing:write" },
 ] as const satisfies readonly { permission: Permission; requires: Permission }[]
 
 export type AdjustablePermission = (typeof ADJUSTABLE_PERMISSIONS)[number]["permission"]

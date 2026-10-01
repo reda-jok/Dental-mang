@@ -15,11 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { InfoHint } from "@/components/info-hint"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { addDays } from "@/lib/dates"
 import { useActionErrorHandler, useValidationMessage } from "@/lib/form"
+import { formatMoney } from "@/lib/money"
 
 import { stepLabCaseAction } from "../actions"
 import type { LabCaseView } from "../data"
@@ -90,14 +92,19 @@ function StepForm({
   const [pending, startTransition] = useTransition()
   const [date, setDate] = useState(action === "remake" ? addDays(today, 5) : today)
   const [reason, setReason] = useState("")
+  // What the lab charges, confirmed when the work first comes back (then it's the lab's bill).
+  const [cost, setCost] = useState(labCase.cost === "0" ? "" : labCase.cost)
   const [errors, setErrors] = useState<Record<string, string | undefined>>({})
+  const billed = !!labCase.billedOn
 
   const input =
-    action === "receive" || action === "fit"
-      ? { action, id: labCase.id, date }
-      : action === "remake"
-        ? { action, id: labCase.id, dueOn: date, reason }
-        : { action, id: labCase.id, reason }
+    action === "receive"
+      ? { action, id: labCase.id, date, cost: billed ? "" : cost }
+      : action === "fit"
+        ? { action, id: labCase.id, date }
+        : action === "remake"
+          ? { action, id: labCase.id, dueOn: date, reason }
+          : { action, id: labCase.id, reason }
 
   const submit = () => {
     const parsed = labCaseStepSchema.safeParse(input)
@@ -138,6 +145,29 @@ function StepForm({
             <FieldError>{vm(errors.date ?? errors.dueOn)}</FieldError>
           </Field>
         )}
+        {action === "receive" &&
+          (billed ? (
+            <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+              {t("receiveBilledNote", { amount: formatMoney(labCase.cost, "IQD") })}
+            </p>
+          ) : (
+            <Field data-invalid={!!errors.cost}>
+              <FieldLabel htmlFor="stepCost">
+                {t("receiveCost")}
+                <InfoHint>{t("costHint")}</InfoHint>
+              </FieldLabel>
+              <Input
+                id="stepCost"
+                dir="ltr"
+                inputMode="numeric"
+                value={cost}
+                aria-invalid={!!errors.cost}
+                onChange={(e) => setCost(e.target.value)}
+              />
+              {!errors.cost && <FieldDescription>{t("receiveCostHint")}</FieldDescription>}
+              <FieldError>{vm(errors.cost)}</FieldError>
+            </Field>
+          ))}
         {(action === "remake" || action === "cancel") && (
           <Field data-invalid={!!errors.reason}>
             <FieldLabel htmlFor="stepReason">{t(`stepReason.${action}`)}</FieldLabel>

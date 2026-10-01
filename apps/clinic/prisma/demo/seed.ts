@@ -31,15 +31,28 @@ import {
   voidPayment,
   type Clock,
 } from "@/features/billing/service"
-import { createLabCaseSchema } from "@/features/lab/schemas"
-import { createLabCase, stepLabCase } from "@/features/lab/service"
+import { monthRange } from "@/features/lab/money"
+import {
+  createLabCaseSchema,
+  labAdjustmentSchema,
+  labPaymentSchema,
+  voidLabPaymentSchema,
+} from "@/features/lab/schemas"
+import {
+  addLabAdjustment,
+  billLabCase,
+  createLabCase,
+  recordLabPayment,
+  stepLabCase,
+  voidLabPayment,
+} from "@/features/lab/service"
 import { buildSearchText } from "@/features/patients/search"
 import { shouldCompletePlan } from "@/features/plans/rules"
 import { createPrescriptionSchema } from "@/features/prescriptions/schemas"
 import { createPrescription } from "@/features/prescriptions/service"
 import { STARTER_MEDICATIONS } from "@/features/prescriptions/starter"
 import { STARTER_CATALOG } from "@/features/procedures/starter"
-import { addDays, todayIso, weekdayOf, zonedInstant } from "@/lib/dates"
+import { addDays, todayIso, toIsoDate, weekdayOf, zonedInstant } from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
 import { detectFileType, saveUpload } from "@/server/storage"
@@ -144,6 +157,7 @@ export async function seedDemo(options: { patients: number; mode: SeedMode }) {
 async function topUps() {
   await seedPrescriptions()
   await seedLabCases()
+  await seedLabMoney()
 }
 
 const LAB_WORK: Record<string, { cost: number; material: string }> = {
@@ -241,6 +255,7 @@ async function seedLabCases() {
       role: "dentist",
     }
     const planDay = toDay(item.createdAt)
+    const cost = String(LAB_WORK[work]!.cost)
     let sentOn: string
     let steps: Parameters<typeof stepLabCase>[1][] = []
     if (item.status === "done" && item.completedAt) {
@@ -253,11 +268,11 @@ async function seedLabCases() {
       steps =
         chance(0.08) && firstDelivery > sentOn
           ? [
-              { action: "receive", id: "", date: firstDelivery },
+              { action: "receive", id: "", date: firstDelivery, cost },
               { action: "remake", id: "", dueOn: receivedOn, reason: "اللون غير مطابق" },
-              { action: "receive", id: "", date: receivedOn },
+              { action: "receive", id: "", date: receivedOn, cost },
             ]
-          : [{ action: "receive", id: "", date: receivedOn }]
+          : [{ action: "receive", id: "", date: receivedOn, cost }]
       steps.push({ action: "fit", id: "", date: fittedOn })
       counts.fitted++
     } else if (item.plan.status === "cancelled") {
@@ -269,7 +284,9 @@ async function seedLabCases() {
       sentOn = minDay(today, addDays(planDay, int(1, 12)))
       const expected = addDays(sentOn, lab.turnaroundDays)
       if (expected < today && chance(0.6)) {
-        steps = [{ action: "receive", id: "", date: minDay(today, addDays(expected, int(-1, 2))) }]
+        steps = [
+          { action: "receive", id: "", date: minDay(today, addDays(expected, int(-1, 2))), cost },
+        ]
       }
       counts.open++
     } else {
@@ -289,7 +306,7 @@ async function seedLabCases() {
         instructions: chance(0.3)
           ? pick(["حواف كتفية", "تجربة قبل التلميع النهائي", "تطابق اللون مع السن المجاور"])
           : "",
-        cost: String(LAB_WORK[work]!.cost),
+        cost,
         sentOn,
         dueOn: addDays(sentOn, lab.turnaroundDays),
       }),
@@ -298,6 +315,155 @@ async function seedLabCases() {
   }
   console.log(
     `Lab: ${labs.length} labs, ${counts.fitted} fitted, ${counts.open} open, ${counts.cancelled} cancelled.`,
+  )
+}
+
+/**
+ * Lab money (2026-10-01): every case's cost billed when it came back (cases seeded before
+ * bills existed are billed on their receive day), each past month paid early the next
+ * month by transfer (those days' cash drawers are already closed), with the odd month-end
+ * discount, delivery charge, partial payment and a duplicate payment voided; this month is
+ * partly paid in cash today (it shows in today's drawer).
+ */
+async function seedLabMoney() {
+  if ((await db.labPayment.count()) > 0) return
+  const accountant = await db.user.findUnique({
+    where: { username: "mahmoud" },
+    select: { id: true, name: true, username: true },
+  })
+  if (!accountant) return
+  const actor: CurrentUser = { ...accountant, role: "accountant" }
+
+  const unbilled = await db.labCase.findMany({
+    where: { billedOn: null, receivedOn: { not: null }, cost: { gt: 0 } },
+    select: { id: true, number: true, cost: true, receivedOn: true, dentistId: true },
+  })
+  for (const c of unbilled) {
+    await db.$transaction((tx) =>
+      billLabCase(tx, {
+        id: c.id,
+        number: c.number,
+        cost: c.cost.toString(),
+        day: toIsoDate(c.receivedOn!),
+        userId: c.dentistId,
+      }),
+    )
+  }
+
+  const bills = await db.labCase.findMany({
+    where: { billedOn: { not: null } },
+    select: { labId: true, billedOn: true, cost: true },
+  })
+  const billed = new Map<string, Map<string, bigint>>() // lab → month → amount
+  for (const b of bills) {
+    const month = toIsoDate(b.billedOn!).slice(0, 7)
+    const months = billed.get(b.labId) ?? new Map<string, bigint>()
+    months.set(month, (months.get(month) ?? 0n) + toMinor(b.cost.toString()))
+    billed.set(b.labId, months)
+  }
+  const thisMonth = today.slice(0, 7)
+  const pay = (labId: string, amount: bigint, method: "cash" | "wallet", clock: Clock) =>
+    recordLabPayment(
+      actor,
+      labPaymentSchema.parse({
+        labId,
+        amount: dinars(amount),
+        method,
+        reference: method === "wallet" ? `FIB-${int(100000, 999999)}` : "",
+        notes: "",
+        idempotencyKey: crypto.randomUUID(),
+      }),
+      clock,
+    )
+  const adjust = (
+    labId: string,
+    kind: "discount" | "charge",
+    amount: bigint,
+    reason: string,
+    clock: Clock,
+  ) =>
+    addLabAdjustment(
+      actor,
+      labAdjustmentSchema.parse({ labId, kind, amount: dinars(amount), reason }),
+      clock,
+    )
+
+  // Planned per lab, then run in time order so document numbers follow the dates.
+  const events: { clock: Clock; run: () => Promise<unknown> }[] = []
+  const counts = { payments: 0, adjustments: 0, voided: 0 }
+  let duplicateDone = false
+  let owedMost: { labId: string; amount: bigint } | null = null
+  for (const [labId, months] of billed) {
+    let carry = 0n
+    for (const month of [...months.keys()].sort()) {
+      if (month >= thisMonth) continue
+      let owed = carry + months.get(month)!
+      const payDay = nextOpen(`${monthRange(month).next}-0${int(2, 6)}`)
+      if (payDay >= today) {
+        carry = owed
+        continue
+      }
+      if (chance(0.15)) {
+        const charge = toMinor("10000")
+        events.push({
+          clock: clockAt(payDay, 10 * 60),
+          run: () => adjust(labId, "charge", charge, "أجور توصيل وشحن", clockAt(payDay, 10 * 60)),
+        })
+        owed += charge
+        counts.adjustments++
+      }
+      const discount = chance(0.3) ? roundThousands(owed / 20n) : 0n // about 5 %
+      if (discount > 0n) {
+        const clock = clockAt(payDay, 10 * 60 + 5)
+        events.push({
+          clock,
+          run: () => adjust(labId, "discount", discount, "خصم نهاية الشهر", clock),
+        })
+        owed -= discount
+        counts.adjustments++
+      }
+      const amount = chance(0.75) ? owed : roundThousands((owed * 6n) / 10n)
+      if (amount <= 0n) {
+        carry = owed
+        continue
+      }
+      const minutes = 11 * 60 + int(0, 90)
+      const clock = clockAt(payDay, minutes)
+      events.push({ clock, run: () => pay(labId, amount, "wallet", clock) })
+      counts.payments++
+      if (!duplicateDone) {
+        // Entered twice by mistake, then voided.
+        const twiceAt = clockAt(payDay, minutes + 2)
+        events.push({
+          clock: twiceAt,
+          run: async () => {
+            const twice = await pay(labId, amount, "wallet", twiceAt)
+            await voidLabPayment(
+              actor,
+              voidLabPaymentSchema.parse({ id: twice.id, reason: "سُجّلت مرتين" }),
+              clockAt(payDay, minutes + 6),
+            )
+          },
+        })
+        duplicateDone = true
+        counts.voided++
+      }
+      carry = owed - amount
+    }
+    const open = carry + (months.get(thisMonth) ?? 0n)
+    if (open > (owedMost?.amount ?? 0n)) owedMost = { labId, amount: open }
+  }
+  // The lab owed the most gets part of it in cash from today's drawer.
+  if (owedMost && roundThousands(owedMost.amount / 2n) > 0n) {
+    const { labId, amount } = owedMost
+    const clock = { day: today, at: new Date() }
+    events.push({ clock, run: () => pay(labId, roundThousands(amount / 2n), "cash", clock) })
+    counts.payments++
+  }
+  events.sort((a, b) => a.clock.at.getTime() - b.clock.at.getTime())
+  for (const event of events) await event.run()
+  console.log(
+    `Lab money: ${unbilled.length} older cases billed, ${counts.payments} lab payments (${counts.voided} voided), ${counts.adjustments} adjustments.`,
   )
 }
 

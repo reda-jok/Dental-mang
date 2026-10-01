@@ -55,6 +55,9 @@ model User {
   prescriptions         Prescription[]
   labCasesAsDentist     LabCase[]           @relation("LabCaseDentist")
   labCasesCreated       LabCase[]           @relation("LabCaseCreatedBy")
+  labPaymentsMade       LabPayment[]        @relation("LabPaymentPaidBy")
+  labPaymentsVoided     LabPayment[]        @relation("LabPaymentVoidedBy")
+  labAdjustments        LabAdjustment[]
 
   @@map("user")
 }
@@ -113,27 +116,27 @@ model Verification {
 
 // Exactly one row (id = 1). Creating it is also the "setup done" marker.
 model ClinicSettings {
-  id              Int      @id @default(1)
+  id              Int        @id @default(1)
   name            String
   phone           String?
   address         String?
-  currency        String   @default("IQD")
-  timezone        String   @default("Asia/Baghdad")
-  receiptFooter   String?  @map("receipt_footer")
+  currency        String     @default("IQD")
+  timezone        String     @default("Asia/Baghdad")
+  receiptFooter   String?    @map("receipt_footer")
   /// Working hours as minutes after midnight (clinic time). Default 15:30–22:00
   /// (evening clinics, as in the clinic's original booking form).
-  dayStartMinutes Int      @default(930) @map("day_start_minutes")
-  dayEndMinutes   Int      @default(1320) @map("day_end_minutes")
+  dayStartMinutes Int        @default(930) @map("day_start_minutes")
+  dayEndMinutes   Int        @default(1320) @map("day_end_minutes")
   /// Length of one booking slot in minutes.
-  slotMinutes     Int      @default(30) @map("slot_minutes")
+  slotMinutes     Int        @default(30) @map("slot_minutes")
   /// Weekly days off (0 = Sunday … 6 = Saturday). Default: Friday.
-  weeklyOffDays   Int[]    @default([5]) @map("weekly_off_days")
+  weeklyOffDays   Int[]      @default([5]) @map("weekly_off_days")
   /// Days a patient has to pay an invoice; sets each new invoice's default due date.
   invoiceDueDays  Int        @default(30) @map("invoice_due_days")
   /// Paper for prescriptions and treatment quotes (receipts are always 80 mm thermal).
   printPaper      PrintPaper @default(A5) @map("print_paper")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("clinic_settings")
 }
@@ -210,7 +213,7 @@ model Patient {
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  createdBy        User?            @relation("PatientCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy        User?             @relation("PatientCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   medicalHistories MedicalHistory[]
   attachments      Attachment[]
   toothFindings    ToothFinding[]
@@ -535,30 +538,33 @@ model LedgerAccount {
 }
 
 model JournalEntry {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
   /// Human-readable number "JE-000123" from the journal_entry_number_seq sequence.
-  number      String    @unique @default(dbgenerated("('JE-'::text || lpad((nextval('journal_entry_number_seq'::regclass))::text, 6, '0'::text))"))
+  number      String   @unique @default(dbgenerated("('JE-'::text || lpad((nextval('journal_entry_number_seq'::regclass))::text, 6, '0'::text))"))
   /// Accounting date (clinic calendar day).
-  date        DateTime  @db.Date
+  date        DateTime @db.Date
   description String
   /// The clinic's currency; every line of the entry is in it.
-  currency    Currency  @default(IQD)
+  currency    Currency @default(IQD)
   /// What posted it, e.g. "invoice" / "payment" / "refund", and that record's id.
-  sourceType  String    @map("source_type")
-  sourceId    String?   @map("source_id") @db.Uuid
+  sourceType  String   @map("source_type")
+  sourceId    String?  @map("source_id") @db.Uuid
   /// On a reversing entry: the entry it cancels (each entry can be reversed once).
-  reversesId  String?   @unique @map("reverses_id") @db.Uuid
-  createdById String?   @map("created_by_id") @db.Uuid
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  reversesId  String?  @unique @map("reverses_id") @db.Uuid
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  reverses   JournalEntry? @relation("JournalReversal", fields: [reversesId], references: [id], onDelete: Restrict)
-  reversedBy JournalEntry? @relation("JournalReversal")
-  createdBy  User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  lines      JournalLine[]
-  invoice    Invoice?
-  payment    Payment?
-  refund     Refund?
-  cashClose  CashClose?
+  reverses      JournalEntry?  @relation("JournalReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy    JournalEntry?  @relation("JournalReversal")
+  createdBy     User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines         JournalLine[]
+  invoice       Invoice?
+  payment       Payment?
+  refund        Refund?
+  cashClose     CashClose?
+  labCase       LabCase?
+  labPayment    LabPayment?
+  labAdjustment LabAdjustment?
 
   @@index([date])
   @@index([sourceType, sourceId])
@@ -783,24 +789,24 @@ model PaymentReminder {
 // difference between the count and the expected cash is posted to "cash over/short".
 
 model CashClose {
-  id             String    @id @default(uuid()) @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
   /// Clinic day closed (one close per day).
-  day            DateTime  @unique @db.Date
-  closedAt       DateTime  @default(now()) @map("closed_at") @db.Timestamptz(3)
+  day            DateTime @unique @db.Date
+  closedAt       DateTime @default(now()) @map("closed_at") @db.Timestamptz(3)
   /// Cash that should be in the drawer: cash in − cash out.
-  expected       Decimal   @db.Decimal(14, 2)
+  expected       Decimal  @db.Decimal(14, 2)
   /// Cash counted by hand.
-  counted        Decimal   @db.Decimal(14, 2)
+  counted        Decimal  @db.Decimal(14, 2)
   /// counted − expected (negative = shortage).
-  difference     Decimal   @db.Decimal(14, 2)
-  cashIn         Decimal   @map("cash_in") @db.Decimal(14, 2)
-  cashOut        Decimal   @map("cash_out") @db.Decimal(14, 2)
+  difference     Decimal  @db.Decimal(14, 2)
+  cashIn         Decimal  @map("cash_in") @db.Decimal(14, 2)
+  cashOut        Decimal  @map("cash_out") @db.Decimal(14, 2)
   /// For checking against the card machine and wallet statements (not counted).
-  card           Decimal   @db.Decimal(14, 2)
-  wallet         Decimal   @db.Decimal(14, 2)
+  card           Decimal  @db.Decimal(14, 2)
+  wallet         Decimal  @db.Decimal(14, 2)
   notes          String?
-  closedById     String?   @map("closed_by_id") @db.Uuid
-  journalEntryId String?   @unique @map("journal_entry_id") @db.Uuid
+  closedById     String?  @map("closed_by_id") @db.Uuid
+  journalEntryId String?  @unique @map("journal_entry_id") @db.Uuid
 
   closedBy     User?           @relation(fields: [closedById], references: [id], onDelete: SetNull)
   journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
@@ -813,6 +819,8 @@ enum CashMovement {
   payment // money received (+)
   payment_void // a payment voided after it was taken (−)
   refund // money given back (−)
+  lab_payment // money paid to a lab (−)
+  lab_payment_void // a lab payment voided after it was made (+)
 }
 
 /// Which money movements a close took in. Each movement belongs to exactly one close.
@@ -820,7 +828,7 @@ model CashCloseItem {
   id       String        @id @default(uuid()) @db.Uuid
   closeId  String        @map("close_id") @db.Uuid
   kind     CashMovement
-  /// The payment or refund.
+  /// The payment, refund or lab payment.
   sourceId String        @map("source_id") @db.Uuid
   method   PaymentMethod
   /// Signed: received is positive, voided and refunded are negative.
@@ -924,7 +932,9 @@ model Lab {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   archivedAt     DateTime? @map("archived_at") @db.Timestamptz(3)
 
-  cases LabCase[]
+  cases       LabCase[]
+  payments    LabPayment[]
+  adjustments LabAdjustment[]
 
   @@map("lab")
 }
@@ -938,43 +948,107 @@ enum LabCaseStatus {
 
 /// Work sent to a lab (crown, bridge, denture…), from the slip to the fitting.
 model LabCase {
-  id          String        @id @default(uuid()) @db.Uuid
+  id             String        @id @default(uuid()) @db.Uuid
   /// "LAB-2026-000123" (lab_case_number_seq).
-  number      String        @unique
-  patientId   String        @map("patient_id") @db.Uuid
-  labId       String        @map("lab_id") @db.Uuid
-  dentistId   String?       @map("dentist_id") @db.Uuid
+  number         String        @unique
+  patientId      String        @map("patient_id") @db.Uuid
+  labId          String        @map("lab_id") @db.Uuid
+  dentistId      String?       @map("dentist_id") @db.Uuid
   /// The treatment it's for, when it comes from a plan.
-  planItemId  String?       @map("plan_item_id") @db.Uuid
+  planItemId     String?       @map("plan_item_id") @db.Uuid
   /// What is made, e.g. "تاج زيركون".
-  work        String
+  work           String
   /// FDI teeth.
-  teeth       Int[]
-  shade       String?
-  material    String?
-  instructions String?
-  /// What the lab charges for it (IQD).
-  cost        Decimal       @default(0) @db.Decimal(14, 2)
-  status      LabCaseStatus @default(sent)
-  sentOn      DateTime      @map("sent_on") @db.Date
-  dueOn       DateTime      @map("due_on") @db.Date
-  receivedOn  DateTime?     @map("received_on") @db.Date
-  fittedOn    DateTime?     @map("fitted_on") @db.Date
+  teeth          Int[]
+  shade          String?
+  material       String?
+  instructions   String?
+  /// What the lab charges for it (IQD). Confirmed when the work comes back, then locked.
+  cost           Decimal       @default(0) @db.Decimal(14, 2)
+  status         LabCaseStatus @default(sent)
+  sentOn         DateTime      @map("sent_on") @db.Date
+  dueOn          DateTime      @map("due_on") @db.Date
+  receivedOn     DateTime?     @map("received_on") @db.Date
+  fittedOn       DateTime?     @map("fitted_on") @db.Date
   /// Times the work went back to the lab to be redone.
-  remakes     Int           @default(0)
-  cancelReason String?      @map("cancel_reason")
-  createdById String?       @map("created_by_id") @db.Uuid
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  remakes        Int           @default(0)
+  cancelReason   String?       @map("cancel_reason")
+  /// Day the cost became the lab's bill (first time the work came back). Once billed,
+  /// the cost and the lab can't change (trigger); corrections are lab adjustments.
+  billedOn       DateTime?     @map("billed_on") @db.Date
+  journalEntryId String?       @unique @map("journal_entry_id") @db.Uuid
+  createdById    String?       @map("created_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  patient   Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  lab       Lab                @relation(fields: [labId], references: [id], onDelete: Restrict)
-  dentist   User?              @relation("LabCaseDentist", fields: [dentistId], references: [id], onDelete: SetNull)
-  planItem  TreatmentPlanItem? @relation(fields: [planItemId], references: [id], onDelete: SetNull)
-  createdBy User?              @relation("LabCaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  patient      Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  lab          Lab                @relation(fields: [labId], references: [id], onDelete: Restrict)
+  dentist      User?              @relation("LabCaseDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+  planItem     TreatmentPlanItem? @relation(fields: [planItemId], references: [id], onDelete: SetNull)
+  createdBy    User?              @relation("LabCaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry?      @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
 
   @@index([status, dueOn])
   @@index([patientId])
   @@index([labId, receivedOn])
+  @@index([labId, billedOn])
   @@map("lab_case")
+}
+
+/// Money the clinic paid a lab. Never edited; a mistake is voided (journal reversed).
+model LabPayment {
+  id             String        @id @default(uuid()) @db.Uuid
+  /// "LP-2026-000123" (lab_payment_number_seq).
+  number         String        @unique
+  labId          String        @map("lab_id") @db.Uuid
+  method         PaymentMethod
+  /// Wallet / transfer reference.
+  reference      String?
+  amount         Decimal       @db.Decimal(14, 2)
+  currency       Currency      @default(IQD)
+  /// Clinic calendar day the money was paid.
+  paidOn         DateTime      @map("paid_on") @db.Date
+  notes          String?
+  /// Generated once per payment form; a repeated submit returns the first payment.
+  idempotencyKey String        @unique @map("idempotency_key") @db.Uuid
+  journalEntryId String?       @unique @map("journal_entry_id") @db.Uuid
+  paidById       String?       @map("paid_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  voidedAt       DateTime?     @map("voided_at") @db.Timestamptz(3)
+  voidedById     String?       @map("voided_by_id") @db.Uuid
+  voidReason     String?       @map("void_reason")
+
+  lab          Lab           @relation(fields: [labId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  paidBy       User?         @relation("LabPaymentPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  voidedBy     User?         @relation("LabPaymentVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+
+  @@index([labId, paidOn])
+  @@map("lab_payment")
+}
+
+enum LabAdjustmentKind {
+  discount // the lab takes something off the bill (the clinic owes less)
+  charge // an extra charge not tied to a case (the clinic owes more)
+}
+
+/// A correction to what the clinic owes a lab, with a reason. Append-only: a mistake is
+/// fixed with an opposite adjustment.
+model LabAdjustment {
+  id             String            @id @default(uuid()) @db.Uuid
+  labId          String            @map("lab_id") @db.Uuid
+  kind           LabAdjustmentKind
+  amount         Decimal           @db.Decimal(14, 2)
+  madeOn         DateTime          @map("made_on") @db.Date
+  reason         String
+  journalEntryId String?           @unique @map("journal_entry_id") @db.Uuid
+  createdById    String?           @map("created_by_id") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lab          Lab           @relation(fields: [labId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdBy    User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([labId, madeOn])
+  @@map("lab_adjustment")
 }

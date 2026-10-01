@@ -60,6 +60,17 @@ describe("resolvePermission (adjustable permissions)", () => {
     expect(resolvePermission("reception", "billing:void", overrides)).toBe(false)
   })
 
+  it("defaults: owner, admin and accountant pay labs; reception can be allowed", () => {
+    const pay = ROLE_NAMES.filter((r) => resolvePermission(r, "lab:pay", []))
+    expect(pay.sort()).toEqual(["accountant", "admin", "owner"])
+    expect(eligibleRoles("lab:pay")).toEqual(["admin", "reception", "accountant"])
+    const overrides = [{ role: "reception", permission: "lab:pay", granted: true }]
+    expect(resolvePermission("reception", "lab:pay", overrides)).toBe(true)
+    // Dentists and assistants work with labs but don't handle money.
+    expect(resolvePermission("dentist", "lab:pay", [])).toBe(false)
+    expect(resolvePermission("assistant", "lab:pay", [])).toBe(false)
+  })
+
   it("can't lock the owner out", () => {
     const overrides = [{ role: "owner", permission: "billing:void", granted: false }]
     expect(resolvePermission("owner", "billing:void", overrides)).toBe(true)

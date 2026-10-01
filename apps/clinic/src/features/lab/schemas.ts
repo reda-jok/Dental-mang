@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { optionalAmountField } from "@/lib/money"
+import { optionalAmountField, positiveAmountField } from "@/lib/money"
 import {
   isoDate,
   optionalMultiline,
@@ -11,6 +11,7 @@ import {
   uuid,
 } from "@/lib/validation"
 
+import { LAB_ADJUSTMENT_KINDS, LAB_PAYMENT_METHODS } from "./money"
 import { MATERIALS, parseTeeth } from "./rules"
 
 const labFields = {
@@ -69,9 +70,18 @@ export const updateLabCaseSchema = z
   .strictObject({ ...caseFields, id: uuid })
   .refine(datesInOrder, { path: ["dueOn"], message: "dueBeforeSent" })
 
-/** A step in the case's life: back from the lab, fitted, sent back, or cancelled. */
+/**
+ * A step in the case's life: back from the lab, fitted, sent back, or cancelled. The
+ * first time the work comes back, `cost` (what the lab charges, prefilled from the case)
+ * becomes the lab's bill.
+ */
 export const labCaseStepSchema = z.discriminatedUnion("action", [
-  z.strictObject({ action: z.literal("receive"), id: uuid, date: isoDate }),
+  z.strictObject({
+    action: z.literal("receive"),
+    id: uuid,
+    date: isoDate,
+    cost: optionalAmountField(),
+  }),
   z.strictObject({ action: z.literal("fit"), id: uuid, date: isoDate }),
   z.strictObject({ action: z.literal("remake"), id: uuid, dueOn: isoDate, reason: text(3, 200) }),
   z.strictObject({ action: z.literal("cancel"), id: uuid, reason: text(3, 200) }),
@@ -84,6 +94,37 @@ export const labCaseSearchSchema = z.object({
   status: z.enum(LAB_FILTERS).catch("open"),
 })
 
+/** Money paid to a lab (cash from the drawer, or a transfer). */
+export const labPaymentSchema = z.strictObject({
+  labId: uuid,
+  amount: positiveAmountField(),
+  method: z.enum(LAB_PAYMENT_METHODS, { error: "required" }),
+  reference: optionalText(60),
+  notes: optionalMultiline(300),
+  /** One per opened form: a double submit records the payment once. */
+  idempotencyKey: uuid,
+})
+
+export const voidLabPaymentSchema = z.strictObject({ id: uuid, reason: text(3, 300) })
+
+/** A discount from the lab, or an extra charge not tied to a case. */
+export const labAdjustmentSchema = z.strictObject({
+  labId: uuid,
+  kind: z.enum(LAB_ADJUSTMENT_KINDS, { error: "required" }),
+  amount: positiveAmountField(),
+  reason: text(3, 200),
+})
+
+/** Statement month as "YYYY-MM"; anything else falls back to the current month. */
+export const labStatementSearchSchema = z.object({
+  month: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .catch(""),
+})
+
 export type LabInput = z.input<typeof createLabSchema>
 export type LabCaseInput = z.input<typeof createLabCaseSchema>
 export type LabCaseStep = z.input<typeof labCaseStepSchema>
+export type LabPaymentInput = z.input<typeof labPaymentSchema>
+export type LabAdjustmentInput = z.input<typeof labAdjustmentSchema>
