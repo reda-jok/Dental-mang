@@ -84,6 +84,16 @@ test("visual tour", async ({ page }, testInfo) => {
     await page.keyboard.press("Escape")
   }
 
+  const paying = await patientUrl("مريض دفعات")
+  await visit(page, paying && `${paying}/billing`, "patient-payments")
+  if (paying) {
+    await page.getByRole("button", { name: "تسجيل دفعة" }).click()
+    await shot("payment-dialog")
+    await page.keyboard.press("Escape")
+  }
+
+  await visit(page, "/billing/debts", "debts")
+
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")
   await visit(page, "/settings/procedures", "settings-procedures")

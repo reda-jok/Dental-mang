@@ -18,7 +18,7 @@ import type { PatientDetails } from "../data"
 import { ArchivePatientButton } from "./archive-patient-button"
 import { BookPatientButton } from "./book-patient-button"
 import { PatientAge } from "./patient-age"
-import { formatLocalPhone } from "./patients-table"
+import { formatLocalPhone } from "@/lib/validation"
 
 /** A link styled as an icon button, with a hover tip (for tel: / WhatsApp links). */
 function IconLink({

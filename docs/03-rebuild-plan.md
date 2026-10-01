@@ -163,9 +163,9 @@ Conventions: `id` = UUID (`crypto.randomUUID`), `createdAt/updatedAt`, `createdB
 ### Billing
 - **Invoice**: number (sequence, `INV-2026-000123`), patient, kind (`visit | plan`), status (`issued | void`; no drafts), currency, totals, due date. Issued invoices can't be edited (database trigger); they can only be voided, which reverses the journal entry. Paid / partly paid / overdue are calculated from payments, never stored.
 - **InvoiceLine**: from plan item or manual, qty, unit price, discount, dentist (for commission).
-- **Payment**: patient, amount, method (cash / card / transfer / FIB / ZainCash), received by, date, **idempotency key** (stops double-click duplicates).
-- **PaymentAllocation**: payment → invoice(s). Advance payments and credits are supported.
-- **Refund**, **CreditNote**.
+- **Payment** (receipt `RC-2026-000123`): patient, amount, method (`cash | card | wallet`, wallet = ZainCash / FIB / Qi / transfer, with a reference), received by, date, **idempotency key** (stops double-click duplicates). A mistaken payment is voided (journal reversed), never edited.
+- **PaymentAllocation**: payment → invoice, append-only. Money goes to the chosen invoice, then the oldest due; the rest is patient credit and pays the next invoice automatically. Allocations to void invoices or from void payments stop counting.
+- **Refund** (`RF-2026-000123`): money given back out of the patient's credit only (adjustable permission `billing:refund`). No credit notes: voiding an invoice returns what was paid on it to credit.
 - **Patient balance is calculated** (a SQL view: invoiced − allocated − credits), **never stored** as a field that can drift.
 
 ### Ledger (accounting core, built in Phase 4 even though reports come later)
@@ -393,7 +393,7 @@ Phases 0–3 were built between 2026-09-29 and 2026-10-01 (foundations, patients
 | Phase | Scope | Estimate* | Status |
 |---|---|---|---|
 | 0–3 | Foundations, patients, chart & plans, appointments | — | ✅ Built (settings page, user management, calendar, scheduler, WhatsApp templates included) |
-| **4. Billing** | Invoices per visit / per plan (IQD), discounts & voids behind editable permissions, payments (cash/card/wallet, partial, deposits, refunds), calculated balances, due dates + overdue list + WhatsApp payment reminder, daily cash close with drawer count, automatic journal entries (ledger core, debits = credits) | ≈ 1–2 weeks | in progress: parts 1–2 of 5 built 2026-10-01 (ledger core with database guards, editable discount/void permissions, IQD only; invoices per visit / per plan with discounts, due dates and void) |
+| **4. Billing** | Invoices per visit / per plan (IQD), discounts & voids behind editable permissions, payments (cash/card/wallet, partial, deposits, refunds), calculated balances, due dates + overdue list + WhatsApp payment reminder, daily cash close with drawer count, automatic journal entries (ledger core, debits = credits) | ≈ 1–2 weeks | in progress: parts 1–4 of 5 built 2026-10-01 (ledger core with database guards, editable discount/void/refund permissions, IQD only; invoices per visit / per plan with discounts, due dates and void; payments cash/card/wallet, partial, deposits as credit, refunds, voided payments, calculated balances; overdue debts aged 1–30 / 31–60 / 61–90 / 90+ with logged WhatsApp payment reminders). Demo clinic data: `pnpm --filter clinic db:demo` |
 | **5. Appliance → pilot** | Docker Compose on a mini PC + UPS, Caddy, install script, restic → R2 backups, restore test, updater with rollback, cloud control plane v1 (licenses, check-in, backup monitor) | ≈ 2–3 weeks (hardware permitting) | needs a pilot clinic (D7) |
 | — | **Pilot clinic live 4+ weeks**; fix what hurts | ongoing | |
 | **5b. Printing** | 80 mm thermal receipt, treatment-plan quote (A4), later A4 invoice | ≈ 3–4 days | first post-pilot item |
@@ -405,3 +405,16 @@ Phases 0–3 were built between 2026-09-29 and 2026-10-01 (foundations, patients
 | Left over from 2–3 | Clinical notes, plan packages/templates, drag-to-reschedule, daily reminder list | small items | slot in when the pilot asks |
 
 \* Estimates assume the same working pattern as Phases 0–3 (building with Claude Code in focused sessions). Appliance work depends on buying and testing real hardware.
+
+---
+
+## 17. Company context (2026-10-01)
+
+The clinic system is **product #1 of a multi-product company** (the user's goal: several products under one brand, starting with the clinic). Company-level records live in the Notion page "🏢 Company" under "💼 Projects & Work" (https://app.notion.com/p/3ecde7e66f4b814f806ac6b23d31a333); this plan stays the product's own record.
+
+| Topic | Decision | What it means for the build |
+|---|---|---|
+| Product order | Clinic billing → appliance → pilot clinic; Propira beta (Dec 2026); product #2 decided in 2027 | No work on a second product before the pilot is live |
+| Architecture across products | Each product keeps its own stack; share conventions, design language, the cloud control plane and the sales process, not code | Do not extract a shared package now; keep core features (users, audit, ledger, billing, inventory, HR, licensing) free of dental-only assumptions where it costs nothing |
+| Brand | One company name with products under it ("<Name> Dental" now); name not chosen yet (open decision C1 on the Company page) | `app.name` in `messages/ar.json` stays generic until the name is decided; logo must work monochrome on 80 mm thermal paper |
+| House style | The April design (blue-600, slate, rounded-2xl, IBM Plex Sans Arabic) is the design system for all own products | Document tokens and taste rules so the next product inherits them |

@@ -17,12 +17,22 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { INVOICE_FILTERS } from "../schemas"
+type Props = {
+  q: string
+  placeholder: string
+  hint: string
+  /** The select: its URL parameter, current value, default (left out of the URL) and options. */
+  filter: {
+    param: string
+    label: string
+    value: string
+    defaultValue: string
+    options: { value: string; label: string }[]
+  }
+}
 
-type Filter = (typeof INVOICE_FILTERS)[number]
-
-/** Search box + state filter, kept in the URL (?q=&status=) so back and sharing work. */
-export function InvoiceFilters({ q, status }: { q: string; status: Filter }) {
+/** Search box + one filter, kept in the URL (?q=&<param>=) so back and sharing work. */
+export function FilterBar({ q, placeholder, hint, filter }: Props) {
   const t = useTranslations("billing")
   const router = useRouter()
   const pathname = usePathname()
@@ -32,12 +42,12 @@ export function InvoiceFilters({ q, status }: { q: string; status: Filter }) {
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
-  const navigate = (next: { q?: string; status?: Filter }) => {
+  const navigate = (next: { q?: string; filter?: string }) => {
     const params = new URLSearchParams()
     const query = (next.q ?? value).trim()
-    const state = next.status ?? status
+    const selected = next.filter ?? filter.value
     if (query) params.set("q", query)
-    if (state !== "all") params.set("status", state)
+    if (selected !== filter.defaultValue) params.set(filter.param, selected)
     const url = params.size ? `${pathname}?${params}` : pathname
     startTransition(() => router.replace(url as Route))
   }
@@ -57,8 +67,8 @@ export function InvoiceFilters({ q, status }: { q: string; status: Filter }) {
             type="search"
             value={value}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            aria-label={t("searchPlaceholder")}
+            placeholder={placeholder}
+            aria-label={placeholder}
             aria-busy={pending}
             className="ps-9 pe-9"
           />
@@ -72,16 +82,16 @@ export function InvoiceFilters({ q, status }: { q: string; status: Filter }) {
             </IconButton>
           )}
         </div>
-        <InfoHint>{t("searchHint")}</InfoHint>
+        <InfoHint>{hint}</InfoHint>
       </div>
-      <Select value={status} onValueChange={(v) => navigate({ status: v as Filter })}>
-        <SelectTrigger className="w-full sm:w-44" aria-label={t("filter")}>
+      <Select value={filter.value} onValueChange={(v) => navigate({ filter: v })}>
+        <SelectTrigger className="w-full sm:w-48" aria-label={filter.label}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {INVOICE_FILTERS.map((f) => (
-            <SelectItem key={f} value={f}>
-              {t(`filters.${f}`)}
+          {filter.options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
             </SelectItem>
           ))}
         </SelectContent>

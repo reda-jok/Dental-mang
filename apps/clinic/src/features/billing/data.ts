@@ -1,16 +1,18 @@
 import "server-only"
 
-import type { Prisma } from "@/generated/prisma/client"
+import { Prisma } from "@/generated/prisma/client"
 import { searchTokens } from "@/lib/arabic"
 import { todayIso, toIsoDate } from "@/lib/dates"
-import { fromMinor, toMinor } from "@/lib/money"
+import { fromMinor, subtractAmounts, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
 import { can } from "@/server/permissions"
 import { authorize, type CurrentUser } from "@/server/session"
 
 import { getClinicSettings } from "../settings/data"
+import { AGE_BUCKETS, agePatientDebts, bucketTotals, type AgeBucket } from "./debts"
+import { PAYMENT_METHODS, patientAccount, sumAmounts } from "./payments"
 import { paymentState } from "./rules"
-import type { INVOICE_FILTERS } from "./schemas"
+import type { DEBT_FILTERS, INVOICE_FILTERS } from "./schemas"
 
 export const INVOICE_PAGE_SIZE = 20
 
@@ -25,6 +27,40 @@ function visibleTo(user: CurrentUser): Prisma.InvoiceWhereInput {
   return user.role === "dentist" ? { lines: { some: { dentistId: user.id } } } : {}
 }
 
+/** Allocations that count: from payments that weren't voided. */
+const countedAllocations = {
+  where: { payment: { voidedAt: null } },
+  select: { amount: true },
+} as const
+
+/**
+ * Ids of live invoices by what's left to pay: "open" (anything left), "overdue" (and
+ * past due), "paid" (nothing left). Paid amounts are always calculated, never stored.
+ */
+async function invoiceIdsByBalance(
+  filter: "open" | "overdue" | "paid",
+  today: string,
+  dentistId: string | null,
+) {
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    select i.id from invoice i
+    where i.status = 'issued'
+      and i.total ${filter === "paid" ? Prisma.sql`<=` : Prisma.sql`>`} (
+        select coalesce(sum(a.amount), 0) from payment_allocation a
+        join payment p on p.id = a.payment_id
+        where a.invoice_id = i.id and p.voided_at is null)
+      ${filter === "overdue" ? Prisma.sql`and i.due_date < ${today}::date` : Prisma.empty}
+      ${dentistOnly(dentistId)}`
+  return rows.map((r) => r.id)
+}
+
+function dentistOnly(dentistId: string | null) {
+  return dentistId
+    ? Prisma.sql`and exists (select 1 from invoice_line l
+        where l.invoice_id = i.id and l.dentist_id = ${dentistId}::uuid)`
+    : Prisma.empty
+}
+
 const listSelect = {
   id: true,
   number: true,
@@ -35,6 +71,7 @@ const listSelect = {
   total: true,
   patient: { select: { id: true, fullName: true, code: true } },
   lines: { orderBy: { sortOrder: "asc" }, take: 1, select: { description: true } },
+  allocations: countedAllocations,
   _count: { select: { lines: true } },
 } satisfies Prisma.InvoiceSelect
 
@@ -43,8 +80,7 @@ type ListRow = Prisma.InvoiceGetPayload<{ select: typeof listSelect }>
 function toListRow(row: ListRow, today: string) {
   const dueDate = toIsoDate(row.dueDate)
   const total = row.total.toString()
-  // Payments are recorded from the next billing part; until then nothing is paid.
-  const paid = "0"
+  const paid = row.status === "void" ? "0" : sumAmounts(row.allocations.map((a) => a.amount))
   return {
     id: row.id,
     number: row.number,
@@ -53,7 +89,7 @@ function toListRow(row: ListRow, today: string) {
     dueDate,
     total,
     paid,
-    balance: row.status === "void" ? "0" : total,
+    balance: row.status === "void" ? "0" : subtractAmounts(total, paid),
     state: paymentState({ status: row.status, total, paid, dueDate, today }),
     patient: row.patient,
     summary: row.lines[0]?.description ?? "",
@@ -75,10 +111,13 @@ export async function listInvoices({
   const user = await authorize("billing:read")
   const today = await clinicToday()
   const tokens = searchTokens(q)
+  const byBalance =
+    status === "open" || status === "overdue" || status === "paid"
+      ? await invoiceIdsByBalance(status, today, user.role === "dentist" ? user.id : null)
+      : null
   const where: Prisma.InvoiceWhereInput = {
     ...visibleTo(user),
-    ...(status === "open" && { status: "issued" }),
-    ...(status === "overdue" && { status: "issued", dueDate: { lt: asDate(today) } }),
+    ...(byBalance && { id: { in: byBalance } }),
     ...(status === "void" && { status: "void" }),
     AND: tokens.map((token) => ({
       OR: [
@@ -104,7 +143,11 @@ export async function listInvoices({
   }
 }
 
-export async function listPatientInvoices(patientId: string) {
+/**
+ * A patient's billing: invoices, and (except for dentists, who see only invoices with
+ * their own work) payments, refunds and the account balance.
+ */
+export async function getPatientBilling(patientId: string) {
   const user = await authorize("billing:read")
   const today = await clinicToday()
   const rows = await db.invoice.findMany({
@@ -113,16 +156,70 @@ export async function listPatientInvoices(patientId: string) {
     select: listSelect,
   })
   const invoices = rows.map((row) => toListRow(row, today))
+  if (user.role === "dentist") return { invoices, account: null, payments: [], refunds: [] }
+
+  const [payments, refunds] = await Promise.all([
+    db.payment.findMany({
+      where: { patientId },
+      orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        number: true,
+        method: true,
+        reference: true,
+        amount: true,
+        receivedOn: true,
+        notes: true,
+        voidedAt: true,
+        voidReason: true,
+        receivedBy: { select: { name: true } },
+        allocations: {
+          where: { invoice: { status: "issued" } },
+          select: { amount: true, invoice: { select: { id: true, number: true } } },
+        },
+      },
+    }),
+    db.refund.findMany({
+      where: { patientId },
+      orderBy: [{ refundedOn: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        number: true,
+        method: true,
+        amount: true,
+        refundedOn: true,
+        reason: true,
+        refundedBy: { select: { name: true } },
+      },
+    }),
+  ])
   const live = invoices.filter((i) => i.state !== "void")
+  const account = patientAccount({
+    invoiced: sumAmounts(live.map((i) => i.total)),
+    received: sumAmounts(payments.filter((p) => !p.voidedAt).map((p) => p.amount)),
+    refunded: sumAmounts(refunds.map((r) => r.amount)),
+  })
   return {
     invoices,
-    totals: {
-      invoiced: sum(live.map((i) => i.total)),
-      paid: sum(live.map((i) => i.paid)),
-      balance: sum(live.map((i) => i.balance)),
-    },
+    account,
+    payments: payments.map(({ receivedBy, amount, receivedOn, allocations, ...p }) => ({
+      ...p,
+      amount: amount.toString(),
+      receivedOn: toIsoDate(receivedOn),
+      receivedByName: receivedBy?.name ?? null,
+      appliedTo: allocations.map((a) => ({ ...a.invoice, amount: a.amount.toString() })),
+    })),
+    refunds: refunds.map(({ refundedBy, amount, refundedOn, ...r }) => ({
+      ...r,
+      amount: amount.toString(),
+      refundedOn: toIsoDate(refundedOn),
+      refundedByName: refundedBy?.name ?? null,
+    })),
   }
 }
+
+export type PatientBilling = Awaited<ReturnType<typeof getPatientBilling>>
+export type PaymentRow = PatientBilling["payments"][number]
 
 export async function getInvoice(id: string) {
   const user = await authorize("billing:read")
@@ -150,6 +247,14 @@ export async function getInvoice(id: string) {
       journalEntry: {
         select: { number: true, reversedBy: { select: { number: true } } },
       },
+      allocations: {
+        where: { payment: { voidedAt: null } },
+        orderBy: { createdAt: "asc" },
+        select: {
+          amount: true,
+          payment: { select: { id: true, number: true, method: true, receivedOn: true } },
+        },
+      },
       lines: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -170,9 +275,11 @@ export async function getInvoice(id: string) {
   const today = await clinicToday()
   const dueDate = toIsoDate(invoice.dueDate)
   const total = invoice.total.toString()
-  const paid = "0"
+  const live = invoice.status === "issued"
+  const paid = live ? sumAmounts(invoice.allocations.map((a) => a.amount)) : "0"
+  const { allocations, ...rest } = invoice
   return {
-    ...invoice,
+    ...rest,
     issueDate: toIsoDate(invoice.issueDate),
     dueDate,
     subtotal: invoice.subtotal.toString(),
@@ -180,8 +287,15 @@ export async function getInvoice(id: string) {
     discountTotal: invoice.discountTotal.toString(),
     total,
     paid,
-    balance: invoice.status === "void" ? "0" : total,
+    balance: live ? subtractAmounts(total, paid) : "0",
     state: paymentState({ status: invoice.status, total, paid, dueDate, today }),
+    payments: live
+      ? allocations.map(({ amount, payment }) => ({
+          ...payment,
+          receivedOn: toIsoDate(payment.receivedOn),
+          amount: amount.toString(),
+        }))
+      : [],
     createdByName: invoice.createdBy?.name ?? null,
     voidedByName: invoice.voidedBy?.name ?? null,
     journalNumber: invoice.journalEntry?.number ?? null,
@@ -279,26 +393,32 @@ export async function getBillingSummary() {
   const user = await authorize("billing:read")
   const settings = await getClinicSettings()
   const today = todayIso(settings?.timezone)
-  const issued: Prisma.InvoiceWhereInput = { status: "issued", ...visibleTo(user) }
+  const monthStart = asDate(`${today.slice(0, 7)}-01`)
+  const dentistId = user.role === "dentist" ? user.id : null
 
-  const [month, outstanding, overdue, unbilled] = await Promise.all([
+  const [month, [balances], unbilled, received, refunded] = await Promise.all([
     db.invoice.aggregate({
-      where: { ...issued, issueDate: { gte: asDate(`${today.slice(0, 7)}-01`) } },
+      where: { status: "issued", ...visibleTo(user), issueDate: { gte: monthStart } },
       _sum: { total: true },
       _count: true,
     }),
-    db.invoice.aggregate({ where: issued, _sum: { total: true }, _count: true }),
-    db.invoice.aggregate({
-      where: { ...issued, dueDate: { lt: asDate(today) } },
-      _sum: { total: true },
-      _count: true,
-    }),
+    db.$queryRaw<{ outstanding: string; open: bigint; overdue: string; late: bigint }[]>`
+      select coalesce(sum(i.total - x.paid), 0)::text as outstanding, count(*) as open,
+             coalesce(sum(i.total - x.paid) filter (where i.due_date < ${today}::date), 0)::text
+               as overdue,
+             count(*) filter (where i.due_date < ${today}::date) as late
+      from invoice i
+      cross join lateral (
+        select coalesce(sum(a.amount), 0) as paid from payment_allocation a
+        join payment p on p.id = a.payment_id
+        where a.invoice_id = i.id and p.voided_at is null) x
+      where i.status = 'issued' and i.total > x.paid ${dentistOnly(dentistId)}`,
     db.treatmentPlanItem.findMany({
       where: {
         status: "done",
         invoiceId: null,
         plan: { status: { not: "cancelled" }, patient: { deletedAt: null } },
-        ...(user.role === "dentist" && { dentistId: user.id }),
+        ...(dentistId && { dentistId }),
       },
       orderBy: { completedAt: "desc" },
       take: 300,
@@ -308,6 +428,18 @@ export async function getBillingSummary() {
         plan: { select: { patient: { select: { id: true, fullName: true, code: true } } } },
       },
     }),
+    // Money in and out is for the front desk and the owner, not per dentist.
+    dentistId
+      ? null
+      : db.payment.groupBy({
+          by: ["method"],
+          where: { voidedAt: null, receivedOn: { gte: monthStart } },
+          _sum: { amount: true },
+          _count: true,
+        }),
+    dentistId
+      ? null
+      : db.refund.aggregate({ where: { refundedOn: { gte: monthStart } }, _sum: { amount: true } }),
   ])
 
   const byPatient = new Map<
@@ -324,18 +456,186 @@ export async function getBillingSummary() {
     byPatient.set(patient.id, entry)
   }
 
+  const methods = received
+    ? PAYMENT_METHODS.map((method) => {
+        const row = received.find((r) => r.method === method)
+        return {
+          method,
+          amount: row?._sum.amount?.toString() ?? "0",
+          count: row?._count ?? 0,
+        }
+      })
+    : null
+
   return {
     monthTotal: month._sum.total?.toString() ?? "0",
     monthCount: month._count,
-    outstanding: outstanding._sum.total?.toString() ?? "0",
-    outstandingCount: outstanding._count,
-    overdue: overdue._sum.total?.toString() ?? "0",
-    overdueCount: overdue._count,
+    outstanding: sumAmounts([balances?.outstanding ?? "0"]),
+    outstandingCount: Number(balances?.open ?? 0),
+    overdue: sumAmounts([balances?.overdue ?? "0"]),
+    overdueCount: Number(balances?.late ?? 0),
     unbilledItems: unbilled.length,
     unbilledPatients: [...byPatient.values()].slice(0, 8),
+    /** This month, net of refunds; null for dentists. */
+    collected: methods
+      ? subtractAmounts(
+          sumAmounts(methods.map((m) => m.amount)),
+          refunded?._sum.amount?.toString() ?? "0",
+        )
+      : null,
+    methods,
   }
 }
 
-function sum(amounts: string[]) {
-  return fromMinor(amounts.reduce((total, amount) => total + toMinor(amount), 0n))
+/** What the payment and refund forms need for one patient. */
+export async function getPaymentFormData(patientId: string) {
+  const user = await authorize("billing:write")
+  const [settings, invoices, received, refunded, canRefund] = await Promise.all([
+    getClinicSettings(),
+    db.invoice.findMany({
+      where: { patientId, status: "issued" },
+      orderBy: [{ dueDate: "asc" }, { issueDate: "asc" }, { number: "asc" }],
+      select: {
+        id: true,
+        number: true,
+        total: true,
+        dueDate: true,
+        allocations: countedAllocations,
+      },
+    }),
+    db.payment.aggregate({ where: { patientId, voidedAt: null }, _sum: { amount: true } }),
+    db.refund.aggregate({ where: { patientId }, _sum: { amount: true } }),
+    can(user, "billing:refund"),
+  ])
+  const open = invoices
+    .map((i) => ({
+      id: i.id,
+      number: i.number,
+      dueDate: toIsoDate(i.dueDate),
+      balance: subtractAmounts(i.total.toString(), sumAmounts(i.allocations.map((a) => a.amount))),
+    }))
+    .filter((i) => toMinor(i.balance) > 0n)
+  return {
+    today: todayIso(settings?.timezone),
+    openInvoices: open,
+    account: patientAccount({
+      invoiced: sumAmounts(invoices.map((i) => i.total)),
+      received: received._sum.amount?.toString() ?? "0",
+      refunded: refunded._sum.amount?.toString() ?? "0",
+    }),
+    canRefund,
+  }
+}
+
+export type PaymentFormData = Awaited<ReturnType<typeof getPaymentFormData>>
+
+/** Each live invoice that still has something to pay, with what's left. */
+async function openBalances(patientId?: string) {
+  const rows = await db.$queryRaw<{ patient_id: string; due_date: string; balance: string }[]>`
+    select i.patient_id, to_char(i.due_date, 'YYYY-MM-DD') as due_date,
+           (i.total - x.paid)::text as balance
+    from invoice i
+    cross join lateral (
+      select coalesce(sum(a.amount), 0) as paid from payment_allocation a
+      join payment p on p.id = a.payment_id
+      where a.invoice_id = i.id and p.voided_at is null) x
+    where i.status = 'issued' and i.total > x.paid
+      ${patientId ? Prisma.sql`and i.patient_id = ${patientId}::uuid` : Prisma.empty}`
+  return rows.map((r) => ({ patientId: r.patient_id, dueDate: r.due_date, balance: r.balance }))
+}
+
+/**
+ * Overdue debts per patient, oldest first: how much, how late (aging), when they last
+ * paid and when they were last reminded. For the front desk and the owner.
+ */
+export async function getDebts({ q, age }: { q: string; age: (typeof DEBT_FILTERS)[number] }) {
+  await authorize("billing:write")
+  const settings = await getClinicSettings()
+  const today = todayIso(settings?.timezone)
+  const debts = agePatientDebts(await openBalances(), today)
+  const overdue = debts.filter((d) => toMinor(d.overdue) > 0n)
+  const minimum = AGE_BUCKETS.indexOf(age === "overdue" ? "d1_30" : age)
+  const late = overdue.filter((d) => AGE_BUCKETS.indexOf(d.worst) >= minimum)
+
+  const tokens = searchTokens(q)
+  const ids = late.map((d) => d.patientId)
+  const [patients, lastPayments, lastReminders] = await Promise.all([
+    db.patient.findMany({
+      where: {
+        id: { in: ids },
+        AND: tokens.map((token) => ({ searchText: { contains: token } })),
+      },
+      select: { id: true, fullName: true, code: true, phone: true },
+    }),
+    db.payment.groupBy({
+      by: ["patientId"],
+      where: { patientId: { in: ids }, voidedAt: null },
+      _max: { receivedOn: true },
+    }),
+    db.paymentReminder.groupBy({
+      by: ["patientId"],
+      where: { patientId: { in: ids } },
+      _max: { sentAt: true },
+      _count: true,
+    }),
+  ])
+  const patientById = new Map(patients.map((p) => [p.id, p]))
+  const paidOn = new Map(lastPayments.map((p) => [p.patientId, p._max.receivedOn]))
+  const reminded = new Map(lastReminders.map((r) => [r.patientId, r]))
+
+  return {
+    today,
+    clinic: { name: settings?.name ?? "", phone: settings?.phone ?? null },
+    totals: {
+      ...bucketTotals(overdue),
+      overdue: {
+        amount: sumAmounts(overdue.map((d) => d.overdue)),
+        patients: overdue.length,
+      },
+    } as Record<AgeBucket | "overdue", { amount: string; patients: number }>,
+    rows: late
+      .filter((d) => patientById.has(d.patientId))
+      .sort(
+        (a, b) =>
+          b.daysLate - a.daysLate ||
+          (toMinor(b.overdue) > toMinor(a.overdue)
+            ? 1
+            : toMinor(b.overdue) < toMinor(a.overdue)
+              ? -1
+              : 0),
+      )
+      .slice(0, 200)
+      .map((d) => {
+        const lastPaid = paidOn.get(d.patientId)
+        const reminder = reminded.get(d.patientId)
+        return {
+          ...d,
+          patient: patientById.get(d.patientId)!,
+          lastPaidOn: lastPaid ? toIsoDate(lastPaid) : null,
+          lastRemindedAt: reminder?._max.sentAt ?? null,
+          reminders: reminder?._count ?? 0,
+        }
+      }),
+  }
+}
+
+export type DebtRow = Awaited<ReturnType<typeof getDebts>>["rows"][number]
+
+/** One patient's overdue debt (for the banner on their billing tab), or null if not late. */
+export async function getPatientDebt(patientId: string) {
+  const user = await authorize("billing:read")
+  if (user.role === "dentist") return null
+  const settings = await getClinicSettings()
+  const [debt] = agePatientDebts(await openBalances(patientId), todayIso(settings?.timezone))
+  if (!debt || toMinor(debt.overdue) === 0n) return null
+  const last = await db.paymentReminder.findFirst({
+    where: { patientId },
+    orderBy: { sentAt: "desc" },
+    select: { sentAt: true },
+  })
+  return {
+    ...debt,
+    lastRemindedAt: last?.sentAt ?? null,
+    clinic: { name: settings?.name ?? "", phone: settings?.phone ?? null },
+  }
 }

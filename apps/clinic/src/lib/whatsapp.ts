@@ -1,7 +1,7 @@
 // WhatsApp messages (the clinic's original Arabic templates), sent with wa.me links:
 // free, no API account, and no risk of the clinic's number being banned (decision D3).
 
-export type WhatsAppKind = "scheduled" | "reminder" | "completed" | "custom"
+export type WhatsAppKind = "scheduled" | "reminder" | "completed" | "payment" | "custom"
 
 export type AppointmentMessage = {
   clinicName: string
@@ -95,6 +95,42 @@ export function completedMessage(m: AppointmentMessage & { nextVisit?: Date | nu
     "",
     "إذا كان لديك أي استفسار، لا تتردد في التواصل معنا.",
     "اعتنِ بنفسك! 🌟",
+  )
+}
+
+export type PaymentReminderMessage = {
+  clinicName: string
+  patientName: string
+  /** Formatted amount, e.g. "75,000 د.ع." */
+  amount: string
+  /** Oldest unpaid due date (ISO), when something is past due. */
+  dueDate?: string | null
+  clinicPhone?: string | null
+}
+
+/** A polite reminder of money owed (debts page and the patient's billing tab). */
+export function paymentReminderMessage(m: PaymentReminderMessage): string {
+  const due =
+    m.dueDate &&
+    new Intl.DateTimeFormat(LOCALE, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${m.dueDate}T00:00:00Z`))
+  return lines(
+    `🦷 *${m.clinicName}* - تذكير بالدفع`,
+    "",
+    `مرحباً ${m.patientName}! 👋`,
+    "نود تذكيرك بلطف بوجود مبلغ مستحق على حسابك لدى العيادة:",
+    "",
+    `💰 *المبلغ المستحق:* ${m.amount}`,
+    due && `📅 *مستحق منذ:* ${due}`,
+    "",
+    "يمكنك الدفع في العيادة نقداً أو بالبطاقة أو عبر المحفظة الإلكترونية.",
+    m.clinicPhone && `📞 للاستفسار: ${m.clinicPhone}`,
+    "",
+    "إذا كنت قد سددت المبلغ مؤخراً، يرجى تجاهل هذه الرسالة. شكراً لك! 😊",
   )
 }
 

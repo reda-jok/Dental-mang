@@ -19,6 +19,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 
 - **Money:** `Decimal(14,2)` + currency, never float or `parseFloat`. Balances are calculated, never stored.
 - **Ledger:** every money event (invoice issued, payment, refund…) posts a balanced journal entry with `postJournal(tx, …)` (`features/ledger/service.ts`) in the same transaction. Fix mistakes with `reverseJournal`; the database refuses edits, deletes and unbalanced entries. The clinic works in IQD only.
+- **Patient money:** billing writes that change what a patient owes (invoice, payment, refund, void) lock the patient row (`lockPatient`) and re-apply credit (`settle`) in the same transaction (`features/billing/service.ts`). Paid amounts and balances come from allocations at read time.
 - **Dates:** `@db.Timestamptz(3)`, stored in UTC and shown in the clinic time zone (`Asia/Baghdad`).
 - **IDs:** UUID. Human-readable numbers (patient code, invoice number) come from Postgres sequences, never `count() + 1`.
 - **Clinical and financial rows** get `deletedAt` (soft delete). Issued invoices and journal entries are never edited, only reversed.
@@ -26,6 +27,8 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - **Errors:** throw `AppError(code)` from services. Never send raw error messages to the client. Use toasts (Sonner), never `alert()`.
 - **Offline:** no runtime CDN or external calls. Anything that needs internet goes through a queue.
 - **Schema changes:** edit `schema.prisma`, then `pnpm --filter clinic db:migrate`. Commit the migration. Exclusion constraints, sequences and triggers go in custom SQL in the migration.
+- **Transactions:** inside `db.$transaction(async (tx) => …)` await queries one at a time, never `Promise.all` on `tx` (one connection; pg warns and will fail in v9).
+- **Demo data:** every feature adds realistic demo data to `prisma/demo/seed.ts`. `pnpm --filter clinic db:demo` rebuilds the separate `dental_demo` database (history up to today); `pnpm --filter clinic dev:demo` runs the app on it at http://localhost:3300. Money goes through the real services (with a past `Clock`), never raw inserts.
 
 ## Validation
 
@@ -54,6 +57,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - Icon-only buttons are always `<IconButton label="…">` (tooltip plus accessible name). Pass `disabledReason` so a disabled action explains why.
 - Explain non-obvious fields with `<InfoHint>` (it opens on tap too). Anything essential goes in an always-visible `description`, because hover doesn't exist on tablets.
 - Every `form.handleSubmit(onValid, onInvalid)` passes `useInvalidHandler()`, so validation never fails silently. Values the schema checks but the user doesn't type (such as `id` on edit forms) must be in `defaultValues`.
+- LTR text inside Arabic (codes, receipt numbers, references): wrap it in `<bdi>` and put spacing (`ms-*`) on an outer RTL `<span>`. On a `dir="ltr"` or `<bdi>` element, `ms-*` lands on the wrong side.
 - Wide content (the tooth chart, tables) scrolls inside its own box. Grid and flex children that contain it need `min-w-0`.
 - Money: amounts are strings, handled with `src/lib/money.ts` (exact minor units, totals per currency, `formatMoney`). Never use `Number` for arithmetic.
 - Destructive actions need an `AlertDialog` that says what happens and whether it can be undone.
@@ -61,6 +65,8 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 ## Keeping records in sync
 
 After every finished part of work (not only whole phases), or after product decisions, run the `project-sync` skill (`.claude/skills/project-sync/`): it updates CLAUDE.md, Claude's memory, `docs/03-rebuild-plan.md` and the Notion project page together.
+
+Company-level decisions (brand, product order, go-to-market) live in the Notion page "🏢 Company" under "💼 Projects & Work", not on the clinic page or in this plan (see `docs/03-rebuild-plan.md` §17).
 
 ## Done means
 

@@ -36,14 +36,15 @@ export async function bookAppointment(
 
   try {
     return await db.$transaction(async (tx) => {
-      const [patient, settings, holiday] = await Promise.all([
-        tx.patient.findFirst({
-          where: { id: input.patientId, deletedAt: null },
-          select: { id: true },
-        }),
-        tx.clinicSettings.findUniqueOrThrow({ where: { id: 1 } }),
-        tx.clinicHoliday.findUnique({ where: { date: parseIsoDate(input.date)! } }),
-      ])
+      // One query at a time: a transaction runs on a single connection.
+      const patient = await tx.patient.findFirst({
+        where: { id: input.patientId, deletedAt: null },
+        select: { id: true },
+      })
+      const settings = await tx.clinicSettings.findUniqueOrThrow({ where: { id: 1 } })
+      const holiday = await tx.clinicHoliday.findUnique({
+        where: { date: parseIsoDate(input.date)! },
+      })
       if (!patient) throw new AppError("not_found")
 
       if (isRestDay(input.date, new Set(holiday ? [input.date] : []), settings.weeklyOffDays)) {

@@ -15,7 +15,7 @@ export const statements = {
   patient: ["read", "write", "delete"],
   clinical: ["read", "write"],
   appointment: ["read", "write"],
-  billing: ["read", "write", "discount", "void"],
+  billing: ["read", "write", "discount", "void", "refund"],
   lab: ["read", "write"],
   accounting: ["read", "write"],
   hr: ["read", "write"],
@@ -30,7 +30,7 @@ const everything = {
   patient: ["read", "write", "delete"],
   clinical: ["read", "write"],
   appointment: ["read", "write"],
-  billing: ["read", "write", "discount", "void"],
+  billing: ["read", "write", "discount", "void", "refund"],
   lab: ["read", "write"],
   accounting: ["read", "write"],
   hr: ["read", "write"],
@@ -96,6 +96,7 @@ export type Permission = {
 export const ADJUSTABLE_PERMISSIONS = [
   { permission: "billing:discount", requires: "billing:write" },
   { permission: "billing:void", requires: "billing:write" },
+  { permission: "billing:refund", requires: "billing:write" },
 ] as const satisfies readonly { permission: Permission; requires: Permission }[]
 
 export type AdjustablePermission = (typeof ADJUSTABLE_PERMISSIONS)[number]["permission"]

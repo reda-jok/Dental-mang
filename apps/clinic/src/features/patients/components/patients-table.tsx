@@ -12,7 +12,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+import { formatLocalPhone } from "@/lib/validation"
+
 import type { PatientListRow } from "../data"
+
 import { PatientAge } from "./patient-age"
 
 export async function PatientsTable({ rows, today }: { rows: PatientListRow[]; today: string }) {
@@ -69,10 +72,4 @@ export async function PatientsTable({ rows, today }: { rows: PatientListRow[]; t
       </Table>
     </div>
   )
-}
-
-/** +9647701234567 → 0770 123 4567 (how Iraqis read numbers). */
-export function formatLocalPhone(e164: string) {
-  const m = /^\+964(\d{3})(\d{3})(\d{4})$/.exec(e164)
-  return m ? `0${m[1]} ${m[2]} ${m[3]}` : e164
 }

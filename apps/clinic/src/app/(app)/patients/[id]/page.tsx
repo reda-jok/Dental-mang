@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { getFormatter, getTranslations } from "next-intl/server"
 
 import { Panel } from "@/components/panel"
-import { formatLocalPhone } from "@/features/patients/components/patients-table"
+import { formatLocalPhone } from "@/lib/validation"
 
 import { loadPatient } from "./load"
 

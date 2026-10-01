@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 
 import type { BookingOptions, ScheduleConfig } from "../data"
 import { BookingDialog, type BookingPrefill } from "./booking-dialog"
-import { WhatsAppDialog, type WhatsAppDraft } from "./whatsapp-dialog"
+import { WhatsAppDialog, type WhatsAppDraft } from "@/components/whatsapp-dialog"
 
 type BookingContext = {
   /** Null when the user may not book appointments. */

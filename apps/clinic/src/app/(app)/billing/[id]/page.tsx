@@ -17,11 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { InvoiceStateBadge } from "@/features/billing/components/invoice-state-badge"
-import { VoidInvoiceButton } from "@/features/billing/components/void-invoice-button"
-import { getInvoice } from "@/features/billing/data"
+import { PaymentButton } from "@/features/billing/components/payment-dialog"
+import { VoidButton } from "@/features/billing/components/void-button"
+import { getInvoice, getPaymentFormData } from "@/features/billing/data"
 import { toothText } from "@/features/billing/display"
 import { parseIsoDate } from "@/lib/dates"
-import { formatMoney } from "@/lib/money"
+import { formatMoney, toMinor } from "@/lib/money"
+import { hasPermission } from "@/lib/permissions"
 import { requirePagePermission } from "@/server/session"
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -30,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function InvoicePage({ params }: PageProps<"/billing/[id]">) {
-  await requirePagePermission("billing:read")
+  const user = await requirePagePermission("billing:read")
   const { id } = await params
   if (!z.uuid().safeParse(id).success) notFound()
   const [invoice, t, format] = await Promise.all([
@@ -39,6 +41,11 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
     getFormatter(),
   ])
   if (!invoice) notFound()
+  const payable =
+    invoice.status === "issued" &&
+    toMinor(invoice.balance) > 0n &&
+    hasPermission(user.role, "billing:write")
+  const paymentForm = payable ? await getPaymentFormData(invoice.patient.id) : null
 
   const day = (iso: string) =>
     format.dateTime(parseIsoDate(iso)!, { dateStyle: "long", timeZone: "UTC" })
@@ -65,7 +72,21 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
         description={t(`kinds.${invoice.kind}`)}
         actions={
           !isVoid && (
-            <VoidInvoiceButton id={invoice.id} number={invoice.number} allowed={invoice.canVoid} />
+            <>
+              {paymentForm && (
+                <PaymentButton
+                  patientId={invoice.patient.id}
+                  data={paymentForm}
+                  invoiceId={invoice.id}
+                />
+              )}
+              <VoidButton
+                kind="invoice"
+                id={invoice.id}
+                number={invoice.number}
+                allowed={invoice.canVoid}
+              />
+            </>
           )
         }
         className="min-w-0"
@@ -166,6 +187,34 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
               </TableBody>
             </Table>
           </div>
+
+          {!isVoid && (
+            <section aria-labelledby="invoice-payments" className="space-y-2">
+              <h3 id="invoice-payments" className="font-semibold text-slate-800">
+                {t("invoicePayments")}
+              </h3>
+              {invoice.payments.length === 0 ? (
+                <p className="text-sm text-slate-500">{t("invoicePaymentsEmpty")}</p>
+              ) : (
+                <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                  {invoice.payments.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"
+                    >
+                      <span>
+                        <bdi className="font-mono font-medium">{p.number}</bdi>
+                        <span className="ms-2 text-slate-500">
+                          {day(p.receivedOn)} · {t(`methods.${p.method}`)}
+                        </span>
+                      </span>
+                      <span className="font-medium text-green-700">{money(p.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2 text-sm text-slate-600">

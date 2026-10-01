@@ -29,34 +29,49 @@ const KIND_STYLE: Record<WhatsAppKind, string> = {
   scheduled: "bg-blue-100 text-blue-700",
   reminder: "bg-yellow-100 text-yellow-800",
   completed: "bg-green-100 text-green-700",
+  payment: "bg-red-100 text-red-700",
   custom: "bg-slate-100 text-slate-700",
 }
 
-/** Review/edit a WhatsApp message, then open WhatsApp with it (wa.me). */
+/**
+ * Review/edit a WhatsApp message, then open WhatsApp with it (wa.me). `onSent` runs
+ * when the user opens WhatsApp (e.g. to log a payment reminder).
+ */
 export function WhatsAppDialog({
   draft,
   onClose,
+  onSent,
 }: {
   draft: WhatsAppDraft | null
   onClose: () => void
+  onSent?: (draft: WhatsAppDraft) => void
 }) {
   const t = useTranslations("appointments.whatsapp")
   return (
     <Dialog open={!!draft} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
-        {draft && <WhatsAppForm draft={draft} onClose={onClose} />}
+        {draft && <WhatsAppForm draft={draft} onClose={onClose} onSent={onSent} />}
         {!draft && <DialogTitle className="sr-only">{t("title")}</DialogTitle>}
       </DialogContent>
     </Dialog>
   )
 }
 
-function WhatsAppForm({ draft, onClose }: { draft: WhatsAppDraft; onClose: () => void }) {
+function WhatsAppForm({
+  draft,
+  onClose,
+  onSent,
+}: {
+  draft: WhatsAppDraft
+  onClose: () => void
+  onSent?: (draft: WhatsAppDraft) => void
+}) {
   const t = useTranslations("appointments.whatsapp")
   const [message, setMessage] = useState(draft.message)
 
   const open = () => {
     window.open(whatsappLink(draft.phone, message), "_blank", "noopener,noreferrer")
+    onSent?.({ ...draft, message })
     onClose()
   }
 

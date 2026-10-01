@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { completedMessage, reminderMessage, scheduledMessage, whatsappLink } from "./whatsapp"
+import {
+  completedMessage,
+  paymentReminderMessage,
+  reminderMessage,
+  scheduledMessage,
+  whatsappLink,
+} from "./whatsapp"
 
 const base = {
   clinicName: "عيادة الابتسامة",
@@ -38,5 +44,32 @@ describe("WhatsApp messages", () => {
     const link = whatsappLink("+9647701234567", "مرحباً")
     expect(link.startsWith("https://wa.me/9647701234567?text=")).toBe(true)
     expect(decodeURIComponent(link.split("text=")[1]!)).toBe("مرحباً")
+  })
+})
+
+describe("payment reminder", () => {
+  it("states the amount and since when, with Western digits", () => {
+    const text = paymentReminderMessage({
+      clinicName: "عيادة الابتسامة",
+      patientName: "فاطمة",
+      amount: "75,000 د.ع.",
+      dueDate: "2026-08-15",
+      clinicPhone: "0770 123 4567",
+    })
+    expect(text).toContain("تذكير بالدفع")
+    expect(text).toContain("75,000 د.ع.")
+    expect(text).toContain("15 أغسطس 2026")
+    expect(text).toContain("0770 123 4567")
+    expect(text).not.toMatch(/[٠-٩]/)
+  })
+
+  it("drops the date and phone lines when unknown", () => {
+    const text = paymentReminderMessage({
+      clinicName: "عيادة الابتسامة",
+      patientName: "فاطمة",
+      amount: "10,000 د.ع.",
+    })
+    expect(text).not.toContain("مستحق منذ")
+    expect(text).not.toContain("للاستفسار")
   })
 })

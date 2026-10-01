@@ -47,6 +47,10 @@ model User {
   invoicesCreated       Invoice[]           @relation("InvoiceCreatedBy")
   invoicesVoided        Invoice[]           @relation("InvoiceVoidedBy")
   invoiceLinesAsDentist InvoiceLine[]
+  paymentsReceived      Payment[]           @relation("PaymentReceivedBy")
+  paymentsVoided        Payment[]           @relation("PaymentVoidedBy")
+  refundsGiven          Refund[]
+  paymentReminders      PaymentReminder[]
 
   @@map("user")
 }
@@ -202,6 +206,9 @@ model Patient {
   treatmentPlans   TreatmentPlan[]
   appointments     Appointment[]
   invoices         Invoice[]
+  payments         Payment[]
+  refunds          Refund[]
+  paymentReminders PaymentReminder[]
 
   @@index([phone])
   @@index([createdAt])
@@ -535,6 +542,8 @@ model JournalEntry {
   createdBy  User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
   lines      JournalLine[]
   invoice    Invoice?
+  payment    Payment?
+  refund     Refund?
 
   @@index([date])
   @@index([sourceType, sourceId])
@@ -609,6 +618,7 @@ model Invoice {
   voidedBy     User?               @relation("InvoiceVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   lines        InvoiceLine[]
   planItems    TreatmentPlanItem[]
+  allocations  PaymentAllocation[]
 
   @@index([patientId, issueDate])
   @@index([status, dueDate])
@@ -644,4 +654,109 @@ model InvoiceLine {
   @@index([planItemId])
   @@index([dentistId])
   @@map("invoice_line")
+}
+
+// ─── Payments ────────────────────────────────────────────────────────────────
+// Money received is allocated to invoices (the chosen one, then the oldest due);
+// what is left is the patient's credit and is used by their next invoice.
+// Allocations to a void invoice or from a void payment simply stop counting, so the
+// money goes back to credit without editing any row. Balances are always calculated.
+
+enum PaymentMethod {
+  cash
+  card // card / POS terminal
+  wallet // ZainCash, FIB, Qi, bank transfer
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  /// Receipt number "RC-2026-000123" (receipt_number_seq).
+  number         String        @unique
+  patientId      String        @map("patient_id") @db.Uuid
+  method         PaymentMethod
+  /// Card slip / wallet transaction reference.
+  reference      String?
+  amount         Decimal       @db.Decimal(14, 2)
+  currency       Currency      @default(IQD)
+  /// Clinic calendar day the money was received.
+  receivedOn     DateTime      @map("received_on") @db.Date
+  notes          String?
+  /// Generated once per payment form; a repeated submit returns the first payment.
+  idempotencyKey String        @unique @map("idempotency_key") @db.Uuid
+  journalEntryId String?       @unique @map("journal_entry_id") @db.Uuid
+  receivedById   String?       @map("received_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// A payment entered by mistake is voided (its journal entry reversed), never deleted.
+  voidedAt       DateTime?     @map("voided_at") @db.Timestamptz(3)
+  voidedById     String?       @map("voided_by_id") @db.Uuid
+  voidReason     String?       @map("void_reason")
+
+  patient      Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry?       @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  receivedBy   User?               @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  voidedBy     User?               @relation("PaymentVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+  allocations  PaymentAllocation[]
+
+  @@index([patientId, receivedOn])
+  @@index([receivedOn])
+  @@map("payment")
+}
+
+/// How much of a payment went to an invoice. Append-only.
+model PaymentAllocation {
+  id        String   @id @default(uuid()) @db.Uuid
+  paymentId String   @map("payment_id") @db.Uuid
+  invoiceId String   @map("invoice_id") @db.Uuid
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("payment_allocation")
+}
+
+/// Money given back to a patient from their credit. Append-only.
+model Refund {
+  id             String        @id @default(uuid()) @db.Uuid
+  /// "RF-2026-000123" (refund_number_seq).
+  number         String        @unique
+  patientId      String        @map("patient_id") @db.Uuid
+  method         PaymentMethod
+  reference      String?
+  amount         Decimal       @db.Decimal(14, 2)
+  currency       Currency      @default(IQD)
+  refundedOn     DateTime      @map("refunded_on") @db.Date
+  reason         String
+  journalEntryId String?       @unique @map("journal_entry_id") @db.Uuid
+  refundedById   String?       @map("refunded_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  refundedBy   User?         @relation(fields: [refundedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId, refundedOn])
+  @@index([refundedOn])
+  @@map("refund")
+}
+
+/// A payment reminder sent to a patient (WhatsApp), so staff can see when a patient was
+/// last reminded and don't send too many. Append-only.
+model PaymentReminder {
+  id        String   @id @default(uuid()) @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  /// What the patient owed when reminded (calculated by the server at that moment).
+  amount    Decimal  @db.Decimal(14, 2)
+  channel   String   @default("whatsapp")
+  sentById  String?  @map("sent_by_id") @db.Uuid
+  sentAt    DateTime @default(now()) @map("sent_at") @db.Timestamptz(3)
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  sentBy  User?   @relation(fields: [sentById], references: [id], onDelete: SetNull)
+
+  @@index([patientId, sentAt])
+  @@map("payment_reminder")
 }

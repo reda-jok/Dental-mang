@@ -7,14 +7,14 @@ import { db } from "@/server/db"
 import { authorize } from "@/server/session"
 
 /**
- * Public clinic info (name, currency, timezone). Not permission-guarded because
+ * Public clinic info (name, phone, currency, timezone). Not permission-guarded because
  * the app shell needs it for every signed-in user; it holds nothing sensitive.
  */
 export const getClinicSettings = cache(async () => {
   await connection() // request-time only; never query during build
   return db.clinicSettings.findUnique({
     where: { id: 1 },
-    select: { name: true, currency: true, timezone: true },
+    select: { name: true, phone: true, currency: true, timezone: true },
   })
 })
 

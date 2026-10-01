@@ -16,7 +16,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "test:e2e": "playwright test",
-    "db:seed-demo": "tsx prisma/seed-demo.ts"
+    "db:demo": "tsx --conditions=react-server prisma/demo/index.ts",
+    "dev:demo": "node scripts/dev-demo.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

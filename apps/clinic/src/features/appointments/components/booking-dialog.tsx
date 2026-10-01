@@ -35,13 +35,13 @@ import { useActionErrorHandler, useInvalidHandler, useValidationMessage } from "
 import { cn } from "@/lib/utils"
 import { scheduledMessage } from "@/lib/whatsapp"
 
-import { formatLocalPhone } from "../../patients/components/patients-table"
+import { formatLocalPhone } from "@/lib/validation"
 import { availabilityAction, bookAppointmentAction, searchBookingPatientsAction } from "../actions"
 import type { BookingOptions, ScheduleConfig } from "../data"
 import { formatTime } from "../display"
 import { hhmmToMinutes } from "../rules"
 import { bookAppointmentSchema, type BookAppointmentInput } from "../schemas"
-import type { WhatsAppDraft } from "./whatsapp-dialog"
+import type { WhatsAppDraft } from "@/components/whatsapp-dialog"
 
 export type BookingPatient = { id: string; fullName: string; phone: string | null }
 export type BookingPrefill = { date?: string; time?: string; patient?: BookingPatient }

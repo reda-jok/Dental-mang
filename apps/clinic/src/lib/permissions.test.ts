@@ -33,11 +33,13 @@ describe("hasPermission", () => {
 })
 
 describe("resolvePermission (adjustable permissions)", () => {
-  it("defaults: owner and admin discount, only the owner voids", () => {
+  it("defaults: owner and admin discount, only the owner voids and refunds", () => {
     const discount = ROLE_NAMES.filter((r) => resolvePermission(r, "billing:discount", []))
     const voids = ROLE_NAMES.filter((r) => resolvePermission(r, "billing:void", []))
+    const refunds = ROLE_NAMES.filter((r) => resolvePermission(r, "billing:refund", []))
     expect(discount.sort()).toEqual(["admin", "owner"])
     expect(voids).toEqual(["owner"])
+    expect(refunds).toEqual(["owner"])
   })
 
   it("applies the owner's overrides", () => {

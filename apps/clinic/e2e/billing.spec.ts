@@ -1,45 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import {
-  createPatient,
-  expectCreated,
-  login,
-  loginAsOwner,
-  query,
-  RECEPTION,
-  uniquePhone,
-} from "./fixtures"
-
-/**
- * A treatment plan for the patient, written straight to the database (charting has its
- * own tests): two fillings already done, an implant still planned.
- */
-async function seedPlan(patientId: string) {
-  const [plan] = await query<{ id: string }>(
-    `insert into treatment_plan (id, patient_id, title, status, updated_at)
-     values (gen_random_uuid(), $1, 'خطة الفوترة', 'accepted', now()) returning id`,
-    [patientId],
-  )
-  await query(
-    `insert into treatment_plan_item
-       (id, plan_id, procedure_id, tooth, surfaces, price, currency, status, completed_at, updated_at)
-     select gen_random_uuid(), $1, p.id, t.tooth, '{}', p.price, 'IQD', t.status::"PlanItemStatus",
-            case when t.status = 'done' then now() end, now()
-     from (values ('حشوة تجميلية', 16, 'done'), ('حشوة تجميلية', 26, 'done'),
-                  ('زرعة سنية', 36, 'planned')) as t(name, tooth, status)
-     join procedure p on p.name like t.name || '%'`,
-    [plan!.id],
-  )
-  return plan!.id
-}
-
-async function newPatientWithPlan(page: Page, name: string, phoneSeed: number) {
-  await createPatient(page, name, uniquePhone(phoneSeed))
-  await expectCreated(page)
-  const patientUrl = new URL(page.url()).pathname
-  await seedPlan(patientUrl.split("/").pop()!)
-  return patientUrl
-}
+import { login, loginAsOwner, newPatientWithPlan, query, RECEPTION } from "./fixtures"
 
 const total = (page: Page) => page.getByRole("dialog").getByTestId("invoice-total")
 

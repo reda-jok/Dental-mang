@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { IconButton } from "@/components/icon-button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,18 +22,42 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useActionErrorHandler, useValidationMessage } from "@/lib/form"
 
-import { voidInvoiceAction } from "../actions"
+import { voidInvoiceAction, voidPaymentAction } from "../actions"
 import { voidInvoiceSchema } from "../schemas"
 
-/** Void with a required reason. Without the permission the button explains who can. */
-export function VoidInvoiceButton({
+const TEXT = {
+  invoice: {
+    label: "void",
+    title: "voidTitle",
+    description: "voidDescription",
+    noPermission: "voidNoPermission",
+    done: "voided",
+  },
+  payment: {
+    label: "voidPayment",
+    title: "voidPaymentTitle",
+    description: "voidPaymentDescription",
+    noPermission: "voidPaymentNoPermission",
+    done: "paymentVoidedToast",
+  },
+} as const
+
+/**
+ * Void an invoice or a payment, with a required reason. Without the permission the
+ * button explains who can grant it. `compact` shows an icon button (for table rows).
+ */
+export function VoidButton({
+  kind,
   id,
   number,
   allowed,
+  compact = false,
 }: {
+  kind: "invoice" | "payment"
   id: string
   number: string
   allowed: boolean
+  compact?: boolean
 }) {
   const t = useTranslations("billing")
   const tc = useTranslations("common")
@@ -42,52 +67,69 @@ export function VoidInvoiceButton({
   const [reason, setReason] = useState("")
   const [error, setError] = useState<string | undefined>()
   const [pending, startTransition] = useTransition()
+  const text = TEXT[kind]
+  const label = t(text.label, { number })
 
   if (!allowed) {
+    if (compact) {
+      return (
+        <IconButton label={label} disabledReason={t(text.noPermission)}>
+          <BanIcon />
+        </IconButton>
+      )
+    }
     return (
       <Tooltip>
         <TooltipTrigger asChild>
           <span
             tabIndex={0}
             className="inline-flex"
-            aria-label={`${t("void")}: ${t("voidNoPermission")}`}
+            aria-label={`${label}: ${t(text.noPermission)}`}
           >
             <Button variant="outline" disabled>
               <BanIcon />
-              {t("void")}
+              {label}
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent>{t("voidNoPermission")}</TooltipContent>
+        <TooltipContent>{t(text.noPermission)}</TooltipContent>
       </Tooltip>
     )
   }
 
   const submit = () => {
+    // Same rules for both kinds: an id and a reason.
     const parsed = voidInvoiceSchema.safeParse({ id, reason })
     if (!parsed.success) {
       setError(parsed.error.issues.find((i) => i.path[0] === "reason")?.message)
       return
     }
     startTransition(async () => {
-      const result = await voidInvoiceAction({ id, reason })
+      const action = kind === "invoice" ? voidInvoiceAction : voidPaymentAction
+      const result = await action({ id, reason })
       if (!result.ok) return handleError(result)
-      toast.success(t("voided", { number }))
+      toast.success(t(text.done, { number }))
       setOpen(false)
     })
   }
 
   return (
     <>
-      <Button variant="outline" className="text-destructive" onClick={() => setOpen(true)}>
-        <BanIcon />
-        {t("void")}
-      </Button>
+      {compact ? (
+        <IconButton label={label} className="text-destructive" onClick={() => setOpen(true)}>
+          <BanIcon />
+        </IconButton>
+      ) : (
+        <Button variant="outline" className="text-destructive" onClick={() => setOpen(true)}>
+          <BanIcon />
+          {label}
+        </Button>
+      )}
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("voidTitle", { number })}</AlertDialogTitle>
-            <AlertDialogDescription>{t("voidDescription")}</AlertDialogDescription>
+            <AlertDialogTitle>{t(text.title, { number })}</AlertDialogTitle>
+            <AlertDialogDescription>{t(text.description)}</AlertDialogDescription>
           </AlertDialogHeader>
           <Field data-invalid={!!error}>
             <FieldLabel htmlFor="voidReason">{t("voidReason")}</FieldLabel>
@@ -114,7 +156,7 @@ export function VoidInvoiceButton({
                 submit()
               }}
             >
-              {t("void")}
+              {label}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
