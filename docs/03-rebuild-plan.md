@@ -415,7 +415,8 @@ The clinic system is **product #1 of a multi-product company** (the user's goal:
 
 | Topic | Decision | What it means for the build |
 |---|---|---|
-| Product order | Clinic billing → appliance → pilot clinic; Propira beta (Dec 2026); product #2 decided in 2027 | No work on a second product before the pilot is live |
+| Product order | Clinic billing → appliance → pilot clinic; product #2 decided in 2027 | No work on a second product before the pilot is live |
+| Propira | **Not part of Al-Tamkeen** (owner, 2026-10-03). It is separate client work; it only limits the time available for the clinic | Never plan Al-Tamkeen products on Propira's code, client or dates |
 | Architecture across products | Each product keeps its own stack; share conventions, design language, the cloud control plane and the sales process, not code | Do not extract a shared package now; keep core features (users, audit, ledger, billing, inventory, HR, licensing) free of dental-only assumptions where it costs nothing |
 | Brand | Company = **Al-Tamkeen (التمكين)**, decided 2026-10-01; products branded "Tamkeen Dental" etc. The distinctive public form/suffix and handles are still open (C1 on the Company page) | `app.name` in `messages/ar.json` stays generic until the public form is fixed; logo must work monochrome on 80 mm thermal paper |
 | House style | The April design (blue-600, slate, rounded-2xl, IBM Plex Sans Arabic) is the design system for all own products | Document tokens and taste rules so the next product inherits them |
