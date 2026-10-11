@@ -57,6 +57,7 @@ test("visual tour", async ({ page }, testInfo) => {
   if (appt) {
     await visit(page, `/dashboard?cal=${appt.day}&view=month`, "dashboard-calendar")
     await visit(page, `/appointments?date=${appt.day}`, "appointments-day")
+    await visit(page, `/appointments/reminders?date=${appt.day}`, "appointments-reminders")
     await page
       .locator(`[data-day]`)
       .first()

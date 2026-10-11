@@ -59,6 +59,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
   - The page title lives in the header (`AppHeader`, an `h1` from the nav). Pages start at `h2`.
   - Tooth chart: tile odontogram (`features/chart/components/tooth-chart.tsx`) with condition colours from `TILE_STYLES`.
   - Review visual changes with screenshots: `VISUAL_TOUR_DIR=/tmp/tour pnpm --filter clinic test:e2e`.
+- WhatsApp messages open in the shared `WhatsAppDialog` (`openWhatsApp` from `useBooking()`), never a raw `wa.me` link; a send that must be logged (reminders) passes `onSent` on the draft.
 - Icon-only buttons are always `<IconButton label="…">` (tooltip plus accessible name). Pass `disabledReason` so a disabled action explains why.
 - Explain non-obvious fields with `<InfoHint>` (it opens on tap too). Anything essential goes in an always-visible `description`, because hover doesn't exist on tablets.
 - Every `form.handleSubmit(onValid, onInvalid)` passes `useInvalidHandler()`, so validation never fails silently. Values the schema checks but the user doesn't type (such as `id` on edit forms) must be in `defaultValues`.

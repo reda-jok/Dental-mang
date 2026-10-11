@@ -37,6 +37,7 @@ import { useActionErrorHandler } from "@/lib/form"
 import { cn } from "@/lib/utils"
 import { completedMessage, reminderMessage } from "@/lib/whatsapp"
 
+import { useLogReminder } from "../../reminders/components/use-log-reminder"
 import { setAppointmentStatusAction } from "../actions"
 import type { AppointmentView } from "../data"
 import { formatTime, STATUS_BADGE } from "../display"
@@ -55,6 +56,7 @@ export function AppointmentCard({
   const tc = useTranslations("common")
   const handleError = useActionErrorHandler()
   const { openBooking, openWhatsApp, config } = useBooking()
+  const { log: logReminder } = useLogReminder()
   const [pending, startTransition] = useTransition()
   const [confirmCancel, setConfirmCancel] = useState(false)
 
@@ -96,6 +98,8 @@ export function AppointmentCard({
         procedureName: a.procedure?.name,
         timeZone: config.timeZone,
       }),
+      // Logged so the daily reminder list shows the patient as reminded.
+      onSent: canWrite && a.status === "pending" ? () => logReminder(a.id) : undefined,
     })
 
   const bookAgain = () =>

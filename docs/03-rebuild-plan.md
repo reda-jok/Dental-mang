@@ -469,7 +469,7 @@ A second review of the whole plan (repo, Notion clinic page, Technical Design, C
 | New clinic statistics | No-show and cancellation rate · top procedures this month · busiest days and hours | Definitions in the Notion Technical Design §16; the owner may add more |
 | Booking dialog: day bar | A thin bar of busy and free blocks above the free-time list; a free block can be tapped to choose the time | ✅ Built 2026-10-06 (`day-bar.tsx`) |
 | Booking dialog: several dentists | With no dentist chosen, a time is booked only when **every active dentist is busy** (every room if there are no dentists, the single chair if neither); bookings with no dentist or room only block each other, as the booking service checks | ✅ Built 2026-10-06 (`availabilityFor` in `appointments/rules.ts`, unit-tested); the database still refuses a double booking |
-| Order | Booking fix → customizable dashboard → daily reminder list (also a dashboard widget) → commission | Booking fix done; dashboard part 1 done, parts 2 (money widgets) and 3 (clinic widgets) next. The reminder list moves after the dashboard |
+| Order | Booking fix → customizable dashboard → daily reminder list (also a dashboard widget) → commission | Booking fix done; dashboard part 1 done; **daily reminder list built 2026-10-11** (taken ahead of dashboard parts 2–3, which come next, then commission) |
 
 ---
 
@@ -483,3 +483,17 @@ A second review of the whole plan (repo, Notion clinic page, Technical Design, C
 | Explanations | One plain-words line per procedure | New optional `procedure.patient_note` (catalog form, "شرح للمريض"); the 24 starter procedures come with one. Each distinct procedure is explained once |
 | One page | **Always one page** per copy, even on A5 | Measured in the browser after the fonts load (`FitPage`): too tall → the explanations are left out, still too tall → scaled down. A 15-item plan fits one A5 page (e2e) |
 | Copies | **Both**: patient copy + clinic copy | The clinic copy is a short signed agreement: treatments, total, agreed payment terms, consent sentence, both signatures and date. The quote no longer opens the print dialog by itself, so the options can be chosen first |
+
+---
+
+## 22. Daily WhatsApp reminder list (built 2026-10-11)
+
+| Topic | Decision | What it means for the build |
+|---|---|---|
+| Where | A **"التذكيرات" tab** next to the scheduler, plus a dashboard widget | `/appointments/reminders`; the appointments section gets tabs (الجدول / التذكيرات) for roles that book appointments (owner, admin, dentists, reception; assistants only view and see no tab) |
+| Which day | The **next open clinic day** by default (after Thursday: Saturday; rest days skipped), any day selectable | `nextOpenDay` in `features/reminders/rules.ts` (unit-tested) |
+| Which appointments | Only those still waiting (`pending`); cancelled, no-shows and visits under way are left out | One row per appointment (one visit per patient per day already) |
+| Sending | The clinic's Arabic reminder template in the WhatsApp dialog, editable, opened with `wa.me` (decision D3); nothing is sent automatically | Opening WhatsApp logs the send; sending again is allowed and logged again |
+| The log | `appointment_reminder` (appointment, who, when, channel `whatsapp`), **append-only** (trigger), audited | A rescheduled visit is a new appointment, so it needs its own reminder. The reminder button on an appointment card logs too, so the list never shows a reminded patient as waiting |
+| States | Sent (with time and sender, and how many times) · to do · no phone number (button disabled with the reason) | Counts at the top (desktop), filter "not reminded yet" |
+

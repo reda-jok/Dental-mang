@@ -62,6 +62,7 @@ model User {
   clinicalNotesDeleted  ClinicalNote[]        @relation("ClinicalNoteDeletedBy")
   clinicalNoteVersions  ClinicalNoteVersion[]
   dashboardLayout       DashboardLayout?
+  appointmentReminders  AppointmentReminder[]
 
   @@map("user")
 }
@@ -497,10 +498,27 @@ model Appointment {
   createdBy User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   clinicalNotes ClinicalNote[]
+  reminders     AppointmentReminder[]
 
   @@index([startsAt])
   @@index([patientId, startsAt])
   @@map("appointment")
+}
+
+/// A WhatsApp reminder sent for an appointment (the message itself goes from the user's
+/// phone; this records who sent it and when). Append-only.
+model AppointmentReminder {
+  id            String   @id @default(uuid()) @db.Uuid
+  appointmentId String   @map("appointment_id") @db.Uuid
+  channel       String   @default("whatsapp")
+  sentById      String?  @map("sent_by_id") @db.Uuid
+  sentAt        DateTime @default(now()) @map("sent_at") @db.Timestamptz(3)
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  sentBy      User?       @relation(fields: [sentById], references: [id], onDelete: SetNull)
+
+  @@index([appointmentId, sentAt])
+  @@map("appointment_reminder")
 }
 
 /// One-off days the clinic is closed ("rest days"), in addition to weekly days off.

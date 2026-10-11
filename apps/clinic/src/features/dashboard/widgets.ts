@@ -7,6 +7,7 @@ import type { Permission } from "@/lib/permissions"
 export const WIDGETS = [
   { key: "totalPatients", permission: "patient:read", size: "stat" },
   { key: "todayCount", permission: "appointment:read", size: "stat" },
+  { key: "reminders", permission: "appointment:write", size: "stat" },
   { key: "newPatients", permission: "patient:read", size: "stat" },
   { key: "treatmentValue", permission: "clinical:read", size: "stat" },
   { key: "openPlans", permission: "clinical:read", size: "stat" },

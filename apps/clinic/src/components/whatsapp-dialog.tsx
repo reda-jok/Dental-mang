@@ -23,6 +23,8 @@ export type WhatsAppDraft = {
   phone: string
   patientName: string
   message: string
+  /** Runs when WhatsApp is opened with the message (e.g. to log a reminder). */
+  onSent?: () => void
 }
 
 const KIND_STYLE: Record<WhatsAppKind, string> = {
@@ -71,6 +73,7 @@ function WhatsAppForm({
 
   const open = () => {
     window.open(whatsappLink(draft.phone, message), "_blank", "noopener,noreferrer")
+    draft.onSent?.()
     onSent?.({ ...draft, message })
     onClose()
   }

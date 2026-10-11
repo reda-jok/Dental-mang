@@ -1,5 +1,6 @@
 import {
   CalendarDaysIcon,
+  MessageCircleIcon,
   CheckCircle2Icon,
   ClipboardListIcon,
   UserPlusIcon,
@@ -23,7 +24,8 @@ import { getDashboard, getDashboardLayout } from "@/features/dashboard/data"
 import { WIDGETS, type WidgetKey } from "@/features/dashboard/widgets"
 import { LabAlerts } from "@/features/lab/components/lab-alerts"
 import { getLabSummary } from "@/features/lab/data"
-import { todayIso } from "@/lib/dates"
+import { getReminderDay, getReminderDefaultDay } from "@/features/reminders/data"
+import { parseIsoDate, todayIso } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
 import { hasPermission, ROLE_NAMES } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
@@ -48,16 +50,22 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const range = view === "month" ? monthGrid(cal) : weekOf(cal)
 
   // Only what the visible widgets need (the layout holds only widgets the role may see).
-  const [data, todays, calendarAppointments, holidays, lab, t, ta, format] = await Promise.all([
-    getDashboard(user),
-    show.has("todayCount") || show.has("todayAppointments") ? listAppointments(today, today) : null,
-    show.has("calendar") ? listAppointments(range[0]!, range.at(-1)!) : null,
-    show.has("calendar") ? listHolidays(range[0]!, range.at(-1)!) : null,
-    show.has("labAlerts") ? getLabSummary() : null,
-    getTranslations("dashboard"),
-    getTranslations("appointments"),
-    getFormatter(),
-  ])
+  const [data, todays, calendarAppointments, holidays, lab, reminders, t, ta, format] =
+    await Promise.all([
+      getDashboard(user),
+      show.has("todayCount") || show.has("todayAppointments")
+        ? listAppointments(today, today)
+        : null,
+      show.has("calendar") ? listAppointments(range[0]!, range.at(-1)!) : null,
+      show.has("calendar") ? listHolidays(range[0]!, range.at(-1)!) : null,
+      show.has("labAlerts") ? getLabSummary() : null,
+      show.has("reminders")
+        ? getReminderDefaultDay().then(async (day) => ({ day, ...(await getReminderDay(day)) }))
+        : null,
+      getTranslations("dashboard"),
+      getTranslations("appointments"),
+      getFormatter(),
+    ])
 
   const count = (status: string) => todays?.filter((a) => a.status === status).length ?? 0
 
@@ -82,6 +90,24 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           done: String(count("completed")),
         })}
       />
+    ),
+    reminders: reminders && (
+      <Link href="/appointments/reminders" className="block rounded-2xl hover:opacity-90">
+        <StatCard
+          title={t("remindersTitle")}
+          value={format.number(reminders.summary.todo)}
+          icon={MessageCircleIcon}
+          iconClassName="bg-green-50 text-green-600"
+          note={t("remindersNote", {
+            sent: String(reminders.summary.sent),
+            total: String(reminders.summary.total),
+            day: format.dateTime(parseIsoDate(reminders.day)!, {
+              weekday: "long",
+              timeZone: "UTC",
+            }),
+          })}
+        />
+      </Link>
     ),
     newPatients: data.newPatients !== null && (
       <StatCard

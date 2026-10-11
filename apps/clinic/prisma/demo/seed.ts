@@ -49,12 +49,22 @@ import {
 import { buildSearchText } from "@/features/patients/search"
 import { createClinicalNoteSchema, reviseClinicalNoteSchema } from "@/features/notes/schemas"
 import { createClinicalNote, reviseClinicalNote } from "@/features/notes/service"
+import { nextOpenDay } from "@/features/reminders/rules"
+import { logAppointmentReminder } from "@/features/reminders/service"
 import { shouldCompletePlan } from "@/features/plans/rules"
 import { createPrescriptionSchema } from "@/features/prescriptions/schemas"
 import { createPrescription } from "@/features/prescriptions/service"
 import { STARTER_MEDICATIONS } from "@/features/prescriptions/starter"
 import { STARTER_CATALOG, STARTER_NOTES } from "@/features/procedures/starter"
-import { addDays, isoDateInZone, todayIso, toIsoDate, weekdayOf, zonedInstant } from "@/lib/dates"
+import {
+  addDays,
+  isoDateInZone,
+  startOfDayUtc,
+  todayIso,
+  toIsoDate,
+  weekdayOf,
+  zonedInstant,
+} from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
 import { detectFileType, saveUpload } from "@/server/storage"
@@ -163,6 +173,63 @@ async function topUps() {
   await seedClinicalNotes()
   await seedDashboardLayouts()
   await seedProcedureNotes()
+  await seedAppointmentReminders()
+}
+
+/**
+ * Appointment reminders (2026-10-11): reception reminded most of today's patients
+ * yesterday evening and about half of the next open day's patients so far today, so the
+ * reminder list has both sent and waiting rows. Through the real service.
+ */
+async function seedAppointmentReminders() {
+  if ((await db.appointmentReminder.count()) > 0) return
+  const reem = await db.user.findUnique({
+    where: { username: "reem" },
+    select: { id: true, name: true, username: true },
+  })
+  if (!reem) return
+  const actor: CurrentUser = { ...reem, role: "reception" }
+  const settings = await db.clinicSettings.findUnique({
+    where: { id: 1 },
+    select: { weeklyOffDays: true },
+  })
+  const holidays = new Set(
+    (await db.clinicHoliday.findMany({ select: { date: true } })).map((h) => toIsoDate(h.date)),
+  )
+  const next = nextOpenDay(today, holidays, settings?.weeklyOffDays ?? [5])
+  const earlierToday = new Date(
+    Math.min(Date.now() - 30 * 60_000, zonedInstant(today, 11 * 60, TZ).getTime()),
+  )
+  const rounds = [
+    { day: today, share: 0.9, at: zonedInstant(addDays(today, -1), 19 * 60, TZ) },
+    { day: next, share: 0.5, at: earlierToday },
+  ]
+  let sent = 0
+  for (const { day, share, at } of rounds) {
+    const appointments = await db.appointment.findMany({
+      where: {
+        status: "pending",
+        startsAt: { gte: startOfDayUtc(day, TZ), lt: startOfDayUtc(addDays(day, 1), TZ) },
+        createdAt: { lt: at },
+        patient: { deletedAt: null, phone: { not: null } },
+      },
+      orderBy: { startsAt: "asc" },
+      select: { id: true },
+    })
+    for (const appointment of appointments) {
+      if (!chance(share)) continue
+      await logAppointmentReminder(
+        actor,
+        { appointmentId: appointment.id },
+        {
+          day: isoDateInZone(at, TZ),
+          at,
+        },
+      )
+      sent++
+    }
+  }
+  console.log(`Appointment reminders: ${sent}`)
 }
 
 /** Patient explanations (2026-10-08) for catalogs loaded before the field existed. */
