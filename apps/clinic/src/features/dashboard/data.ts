@@ -7,7 +7,34 @@ import { subtractAmounts, sumByCurrency, type Currency } from "@/lib/money"
 import { hasPermission } from "@/lib/permissions"
 import { db } from "@/server/db"
 import { env } from "@/server/env"
+import { can } from "@/server/permissions"
 import type { CurrentUser } from "@/server/session"
+
+import { storedLayoutSchema } from "./schemas"
+import { resolveLayout, WIDGETS, type WidgetKey } from "./widgets"
+
+/**
+ * The user's dashboard: their own layout, else the owner's default for their role, else
+ * the default order; only widgets their role may see. `custom` = they saved their own.
+ */
+export async function getDashboardLayout(user: CurrentUser) {
+  await connection()
+  const allowed = new Set<WidgetKey>()
+  for (const w of WIDGETS) if (await can(user, w.permission)) allowed.add(w.key)
+  const rows = await db.dashboardLayout.findMany({
+    where: { OR: [{ userId: user.id }, { role: user.role }] },
+    select: { userId: true, widgets: true },
+  })
+  const parse = (row?: { widgets: unknown }) => {
+    const parsed = storedLayoutSchema.safeParse(row?.widgets)
+    return parsed.success ? parsed.data : null
+  }
+  const own = rows.find((r) => r.userId)
+  return {
+    items: resolveLayout(parse(own) ?? parse(rows.find((r) => !r.userId)), allowed),
+    custom: !!own,
+  }
+}
 
 /**
  * Dashboard numbers, limited to what the user may see: patient counts for anyone

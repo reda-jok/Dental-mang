@@ -61,6 +61,7 @@ model User {
   clinicalNotes         ClinicalNote[]        @relation("ClinicalNoteAuthor")
   clinicalNotesDeleted  ClinicalNote[]        @relation("ClinicalNoteDeletedBy")
   clinicalNoteVersions  ClinicalNoteVersion[]
+  dashboardLayout       DashboardLayout?
 
   @@map("user")
 }
@@ -967,6 +968,22 @@ model ClinicalNoteVersion {
 
   @@unique([noteId, version])
   @@map("clinical_note_version")
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+
+/// A saved dashboard layout: one user's own (userId), or the owner's default for a role.
+model DashboardLayout {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @unique @map("user_id") @db.Uuid
+  role      String?  @unique
+  /// Ordered widgets: [{ "key": "calendar", "hidden": false }, …]
+  widgets   Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("dashboard_layout")
 }
 
 // ─── Lab work ────────────────────────────────────────────────────────────────

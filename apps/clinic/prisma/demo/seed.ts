@@ -161,6 +161,45 @@ async function topUps() {
   await seedLabCases()
   await seedLabMoney()
   await seedClinicalNotes()
+  await seedDashboardLayouts()
+}
+
+/**
+ * Dashboard layouts (2026-10-06): the owner's default for reception (today's list first,
+ * no clinical or money widgets anyway), and one dentist who hid the calendar.
+ */
+async function seedDashboardLayouts() {
+  if ((await db.dashboardLayout.count()) > 0) return
+  const sara = await db.user.findUnique({ where: { username: "sara" }, select: { id: true } })
+  await db.dashboardLayout.createMany({
+    data: [
+      {
+        role: "reception",
+        widgets: [
+          { key: "todayAppointments", hidden: false },
+          { key: "todayCount", hidden: false },
+          { key: "calendar", hidden: false },
+          { key: "newPatients", hidden: false },
+          { key: "totalPatients", hidden: true },
+        ],
+      },
+      ...(sara
+        ? [
+            {
+              userId: sara.id,
+              widgets: [
+                { key: "todayAppointments", hidden: false },
+                { key: "treatmentValue", hidden: false },
+                { key: "openPlans", hidden: false },
+                { key: "labAlerts", hidden: false },
+                { key: "calendar", hidden: true },
+              ],
+            },
+          ]
+        : []),
+    ],
+  })
+  console.log("Dashboard layouts: reception default, sara's own")
 }
 
 /** What a dentist writes after each kind of visit; {teeth} = teeth treated that day. */
