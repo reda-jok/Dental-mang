@@ -104,6 +104,14 @@ test("visual tour", async ({ page }, testInfo) => {
     await visit(page, `/print/prescription/${prescription.id}`, "print-prescription")
   await visit(page, "/settings/medications", "settings-medications")
 
+  const noted = await patientUrl("مريض ملاحظات")
+  await visit(page, noted && `${noted}/notes`, "patient-notes")
+  if (noted) {
+    await page.getByRole("button", { name: "ملاحظة جديدة" }).click()
+    await shot("note-dialog")
+    await page.keyboard.press("Escape")
+  }
+
   await visit(page, "/lab?status=all", "lab")
   await visit(page, "/lab/labs", "labs")
   const labPatient = await patientUrl("مريض مختبر")

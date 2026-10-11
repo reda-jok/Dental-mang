@@ -403,7 +403,7 @@ Phases 0–3 were built between 2026-09-29 and 2026-10-01 (foundations, patients
 | **8. Accounting** | Expenses, payables (labs/suppliers), P&L, cash book, AR aging, revenue by dentist/procedure, owner dashboard | ≈ 1–2 weeks | |
 | **9. HR (payroll only)** | Employees, salary type, commission, allowances/deductions, payslips → ledger | ≈ 1 week | |
 | **10. Product / SaaS** | Onboarding wizard, cloud admin, staged rollouts, WhatsApp Cloud API, remote owner view, English/Kurdish | ongoing | |
-| Left over from 2–3 | Clinical notes, plan packages/templates, drag-to-reschedule, daily reminder list | small items | **Basic clinical notes come first, then the daily reminder list, both before commission** (2026-10-05, §19); the rest slot in when the pilot asks |
+| Left over from 2–3 | Clinical notes, plan packages/templates, drag-to-reschedule, daily reminder list | small items | **Basic clinical notes come first, then the daily reminder list, both before commission** (2026-10-05, §19); the rest slot in when the pilot asks. ✅ **Clinical notes built 2026-10-05:** patient tab "الملاحظات"; a note per visit (an appointment of the last two weeks, or today without one), signed when saved; the text is kept in append-only versions; the author can correct or delete within 24 hours, then the note locks and a change is a visible amendment with the earlier text kept; others only read; the treatments done that day are shown with the note; reception can't see notes; database guards (versions append-only, note keeps patient/author/time, delete only within 24 hours) |
 
 \* Estimates assume the same working pattern as Phases 0–3 (building with Claude Code in focused sessions). Appliance work depends on buying and testing real hardware.
 

@@ -34,30 +34,33 @@ model User {
 
   proceduresCreated     Procedure[]
   toothFindings         ToothFinding[]
-  plansCreated          TreatmentPlan[]     @relation("PlanCreatedBy")
-  planItemsAsDentist    TreatmentPlanItem[] @relation("PlanItemDentist")
-  appointmentsAsDentist Appointment[]       @relation("AppointmentDentist")
-  appointmentsCreated   Appointment[]       @relation("AppointmentCreatedBy")
+  plansCreated          TreatmentPlan[]       @relation("PlanCreatedBy")
+  planItemsAsDentist    TreatmentPlanItem[]   @relation("PlanItemDentist")
+  appointmentsAsDentist Appointment[]         @relation("AppointmentDentist")
+  appointmentsCreated   Appointment[]         @relation("AppointmentCreatedBy")
   holidaysCreated       ClinicHoliday[]
-  patientsCreated       Patient[]           @relation("PatientCreatedBy")
+  patientsCreated       Patient[]             @relation("PatientCreatedBy")
   medicalHistories      MedicalHistory[]
   attachmentsUploaded   Attachment[]
   permissionsUpdated    RolePermission[]
   journalEntriesCreated JournalEntry[]
-  invoicesCreated       Invoice[]           @relation("InvoiceCreatedBy")
-  invoicesVoided        Invoice[]           @relation("InvoiceVoidedBy")
+  invoicesCreated       Invoice[]             @relation("InvoiceCreatedBy")
+  invoicesVoided        Invoice[]             @relation("InvoiceVoidedBy")
   invoiceLinesAsDentist InvoiceLine[]
-  paymentsReceived      Payment[]           @relation("PaymentReceivedBy")
-  paymentsVoided        Payment[]           @relation("PaymentVoidedBy")
+  paymentsReceived      Payment[]             @relation("PaymentReceivedBy")
+  paymentsVoided        Payment[]             @relation("PaymentVoidedBy")
   refundsGiven          Refund[]
   paymentReminders      PaymentReminder[]
   cashCloses            CashClose[]
   prescriptions         Prescription[]
-  labCasesAsDentist     LabCase[]           @relation("LabCaseDentist")
-  labCasesCreated       LabCase[]           @relation("LabCaseCreatedBy")
-  labPaymentsMade       LabPayment[]        @relation("LabPaymentPaidBy")
-  labPaymentsVoided     LabPayment[]        @relation("LabPaymentVoidedBy")
+  labCasesAsDentist     LabCase[]             @relation("LabCaseDentist")
+  labCasesCreated       LabCase[]             @relation("LabCaseCreatedBy")
+  labPaymentsMade       LabPayment[]          @relation("LabPaymentPaidBy")
+  labPaymentsVoided     LabPayment[]          @relation("LabPaymentVoidedBy")
   labAdjustments        LabAdjustment[]
+  clinicalNotes         ClinicalNote[]        @relation("ClinicalNoteAuthor")
+  clinicalNotesDeleted  ClinicalNote[]        @relation("ClinicalNoteDeletedBy")
+  clinicalNoteVersions  ClinicalNoteVersion[]
 
   @@map("user")
 }
@@ -225,6 +228,7 @@ model Patient {
   paymentReminders PaymentReminder[]
   prescriptions    Prescription[]
   labCases         LabCase[]
+  clinicalNotes    ClinicalNote[]
 
   @@index([phone])
   @@index([createdAt])
@@ -488,6 +492,8 @@ model Appointment {
   room      Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
   procedure Procedure? @relation(fields: [procedureId], references: [id], onDelete: SetNull)
   createdBy User?      @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  clinicalNotes ClinicalNote[]
 
   @@index([startsAt])
   @@index([patientId, startsAt])
@@ -916,6 +922,51 @@ model PrescriptionItem {
 
   @@index([prescriptionId])
   @@map("prescription_item")
+}
+
+// ─── Clinical notes ──────────────────────────────────────────────────────────
+
+/// A dentist's note about one visit. Signed when saved. The text lives in versions
+/// (append-only): for 24 hours the author can correct it or delete the note; after that
+/// the note is locked and a change is an amendment, with the earlier text kept visible.
+model ClinicalNote {
+  id            String    @id @default(uuid()) @db.Uuid
+  patientId     String    @map("patient_id") @db.Uuid
+  /// The visit the note is about, when it was written for an appointment.
+  appointmentId String?   @map("appointment_id") @db.Uuid
+  authorId      String?   @map("author_id") @db.Uuid
+  /// Clinic calendar day of the visit.
+  visitOn       DateTime  @map("visit_on") @db.Date
+  /// When the note was signed (saved the first time); the 24-hour window starts here.
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById   String?   @map("deleted_by_id") @db.Uuid
+
+  patient     Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  appointment Appointment?          @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  author      User?                 @relation("ClinicalNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  deletedBy   User?                 @relation("ClinicalNoteDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  versions    ClinicalNoteVersion[]
+
+  @@index([patientId, visitOn])
+  @@index([appointmentId])
+  @@map("clinical_note")
+}
+
+/// Every text a note has had, numbered from 1. The highest version is the current text.
+model ClinicalNoteVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  noteId      String   @map("note_id") @db.Uuid
+  version     Int
+  body        String
+  writtenById String?  @map("written_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  note      ClinicalNote @relation(fields: [noteId], references: [id], onDelete: Restrict)
+  writtenBy User?        @relation(fields: [writtenById], references: [id], onDelete: SetNull)
+
+  @@unique([noteId, version])
+  @@map("clinical_note_version")
 }
 
 // ─── Lab work ────────────────────────────────────────────────────────────────

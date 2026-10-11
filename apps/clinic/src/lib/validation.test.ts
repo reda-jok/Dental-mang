@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   cleanText,
+  multiline,
   normalizeIraqiPhone,
   optionalPhone,
   optionalText,
@@ -67,6 +68,20 @@ describe("optionalText", () => {
     expect(schema.parse("   ")).toBeNull()
     expect(schema.parse(undefined)).toBeNull()
     expect(schema.parse(" بغداد ")).toBe("بغداد")
+  })
+})
+
+describe("multiline", () => {
+  const note = multiline(2, 50)
+
+  it("keeps line breaks, trims lines and collapses blank lines", () => {
+    expect(note.parse("  ألم في 36  \r\n\n\n\nحشوة   مؤقتة ")).toBe("ألم في 36\n\nحشوة مؤقتة")
+  })
+
+  it("is required and checks the length", () => {
+    expect(note.safeParse("  \n ").error?.issues[0]?.message).toBe("required")
+    expect(note.safeParse("أ").error?.issues[0]?.message).toBe("tooShort")
+    expect(note.safeParse("ا".repeat(51)).error?.issues[0]?.message).toBe("tooLong")
   })
 })
 

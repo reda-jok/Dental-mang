@@ -47,12 +47,14 @@ import {
   voidLabPayment,
 } from "@/features/lab/service"
 import { buildSearchText } from "@/features/patients/search"
+import { createClinicalNoteSchema, reviseClinicalNoteSchema } from "@/features/notes/schemas"
+import { createClinicalNote, reviseClinicalNote } from "@/features/notes/service"
 import { shouldCompletePlan } from "@/features/plans/rules"
 import { createPrescriptionSchema } from "@/features/prescriptions/schemas"
 import { createPrescription } from "@/features/prescriptions/service"
 import { STARTER_MEDICATIONS } from "@/features/prescriptions/starter"
 import { STARTER_CATALOG } from "@/features/procedures/starter"
-import { addDays, todayIso, toIsoDate, weekdayOf, zonedInstant } from "@/lib/dates"
+import { addDays, isoDateInZone, todayIso, toIsoDate, weekdayOf, zonedInstant } from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
 import { detectFileType, saveUpload } from "@/server/storage"
@@ -158,6 +160,160 @@ async function topUps() {
   await seedPrescriptions()
   await seedLabCases()
   await seedLabMoney()
+  await seedClinicalNotes()
+}
+
+/** What a dentist writes after each kind of visit; {teeth} = teeth treated that day. */
+const NOTE_TEMPLATES: { match: RegExp; notes: string[] }[] = [
+  {
+    match: /^كشف|^أشعة/,
+    notes: [
+      "شكوى: ألم عند الأكل في الجهة اليمنى منذ أسبوعين.\nالفحص: تسوس بين الأسنان، اللثة سليمة. أشعة صغيرة: التسوس لم يصل العصب.\nالخطة: حشوات وتنظيف. شُرحت الخطة والتكلفة للمريض.",
+      "مراجعة عامة. لا شكوى. جير خفيف في الفك السفلي.\nالخطة: تنظيف وتلميع، والمراجعة بعد ستة أشهر.",
+      "شكوى: حساسية من البارد.\nالفحص: انحسار لثة خفيف وتآكل عنقي. نُصح بمعجون للحساسية وفرشاة ناعمة، ومراجعة بعد شهر.",
+    ],
+  },
+  {
+    match: /^حشوة/,
+    notes: [
+      "تسوس في {teeth}. تخدير موضعي، إزالة التسوس، عزل، حشوة كومبوزيت وتلميع. الإطباق مضبوط.\nتعليمات: لا أكل لمدة ساعتين، وقد تظهر حساسية خفيفة لأيام.",
+      "حشوة {teeth} بعد إزالة تسوس متوسط. لا ألم بعد الجلسة. نُصح المريض باستخدام الخيط يومياً.",
+    ],
+  },
+  {
+    match: /علاج عصب/,
+    notes: [
+      "ألم ليلي في {teeth}. تخدير، فتح السن، تنظيف وتوسيع القنوات وقياس الطول بالجهاز، غسيل وحشوة مؤقتة.\nالجلسة القادمة: حشو القنوات بعد أسبوع.",
+      "إكمال علاج العصب في {teeth}: حشو القنوات وأشعة تأكيد جيدة. يحتاج السن إلى تاج لاحقاً.",
+    ],
+  },
+  {
+    match: /^قلع/,
+    notes: [
+      "قلع {teeth} تحت تخدير موضعي دون مضاعفات. نزيف طبيعي توقف بالشاش.\nأُعطي المريض تعليمات ما بعد القلع شفهياً ومكتوبة. يراجع عند أي تورم.",
+      "قلع جراحي لـ {teeth} مع خياطة. المريض تحمّل الإجراء جيداً.\nإزالة الغرز بعد أسبوع.",
+    ],
+  },
+  {
+    match: /تاج|جسر|فينير/,
+    notes: [
+      "تحضير {teeth} وأخذ الطبعة واختيار اللون مع المريض. تركيب تاج مؤقت. أُرسلت الحالة إلى المختبر.",
+      "تجربة وتثبيت التركيبة على {teeth}. الإطباق واللون مقبولان والمريض راضٍ.",
+    ],
+  },
+  {
+    match: /^زرعة/,
+    notes: [
+      "زرع في موقع {teeth} بعد تخدير موضعي. ثبات أولي جيد، خياطة. أشعة بعد الزرع جيدة.\nمضاد حيوي ومسكن، ومراجعة بعد أسبوع لإزالة الغرز.",
+    ],
+  },
+  {
+    match: /^تنظيف/,
+    notes: ["تنظيف جير وتلميع للفكين. نزف لثوي خفيف. شُرحت طريقة التفريش واستخدام الخيط."],
+  },
+  {
+    match: /^تقويم/,
+    notes: ["متابعة التقويم: تغيير الأسلاك والمطاط. المريض ملتزم بالتنظيف. الموعد القادم بعد شهر."],
+  },
+  {
+    match: /^تبييض/,
+    notes: ["جلسة تبييض في العيادة، تغيّر اللون درجتين. نُصح المريض بتجنب الشاي والقهوة 48 ساعة."],
+  },
+]
+
+/**
+ * Clinical notes (2026-10-05): most finished visits get the dentist's note, through the
+ * real service with a past clock. A few were corrected within the hour, a few amended
+ * days later (locked by then); today's notes are still open to correct or delete.
+ */
+async function seedClinicalNotes() {
+  if ((await db.clinicalNote.count()) > 0) return
+  const visits = await db.$queryRaw<
+    {
+      id: string
+      patient_id: string
+      dentist_id: string
+      dentist_name: string
+      procedure: string | null
+      ends_at: Date
+      day: string
+    }[]
+  >`
+    select a.id, a.patient_id, a.dentist_id, u.name as dentist_name, pr.name as procedure, a.ends_at,
+      to_char((a.starts_at at time zone 'Asia/Baghdad')::date, 'YYYY-MM-DD') as day
+    from appointment a
+    join "user" u on u.id = a.dentist_id
+    left join procedure pr on pr.id = a.procedure_id
+    where a.status = 'completed' and a.ends_at < now()
+    order by a.starts_at`
+  const done = await db.$queryRaw<{ patient_id: string; day: string; tooth: number | null }[]>`
+    select p.patient_id, to_char((i.completed_at at time zone 'Asia/Baghdad')::date, 'YYYY-MM-DD') as day, i.tooth
+    from treatment_plan_item i join treatment_plan p on p.id = i.plan_id
+    where i.status = 'done' and i.completed_at is not null`
+  const teethOn = new Map<string, number[]>()
+  for (const d of done) {
+    if (d.tooth === null) continue
+    const key = `${d.patient_id}|${d.day}`
+    teethOn.set(key, [...(teethOn.get(key) ?? []), d.tooth])
+  }
+
+  let written = 0
+  for (const visit of visits) {
+    if (!chance(0.7)) continue
+    const template = NOTE_TEMPLATES.find((t) => visit.procedure && t.match.test(visit.procedure))
+    const teeth = teethOn.get(`${visit.patient_id}|${visit.day}`) ?? []
+    const body = pick(
+      template?.notes ?? ["مراجعة ومتابعة. المريض بحالة جيدة، لا شكوى جديدة."],
+    ).replaceAll("{teeth}", teeth.length ? `السن ${[...new Set(teeth)].join(" و")}` : "السن المعني")
+    const actor: CurrentUser = {
+      id: visit.dentist_id,
+      name: visit.dentist_name,
+      username: null,
+      role: "dentist",
+    }
+    const signedAt = new Date(visit.ends_at.getTime() + int(3, 25) * 60_000)
+    if (signedAt > new Date()) continue
+    const note = await createClinicalNote(
+      actor,
+      createClinicalNoteSchema.parse({
+        patientId: visit.patient_id,
+        appointmentId: visit.id,
+        body,
+      }),
+      { day: visit.day, at: signedAt },
+    )
+    written++
+
+    const daysAgo = (Date.now() - signedAt.getTime()) / 86_400_000
+    if (daysAgo > 3 && chance(0.05)) {
+      // Amended two days later (the note was locked by then).
+      const at = new Date(signedAt.getTime() + 2 * 86_400_000)
+      await reviseClinicalNote(
+        actor,
+        reviseClinicalNoteSchema.parse({
+          id: note.id,
+          version: 1,
+          body: `${body}\n\nتعديل: اتصل المريض بعد يومين، الألم خفّ ولا تورم. يستمر على المسكن عند الحاجة فقط.`,
+        }),
+        { day: isoDateInZone(at, TZ), at },
+      )
+    } else if (chance(0.06)) {
+      // Corrected within the hour.
+      const at = new Date(signedAt.getTime() + int(5, 50) * 60_000)
+      if (at < new Date()) {
+        await reviseClinicalNote(
+          actor,
+          reviseClinicalNoteSchema.parse({
+            id: note.id,
+            version: 1,
+            body: `${body}\nالتخدير: ليدوكائين 2% مع أدرينالين، كارتريدج واحد.`,
+          }),
+          { day: visit.day, at },
+        )
+      }
+    }
+  }
+  console.log(`Clinical notes: ${written}`)
 }
 
 const LAB_WORK: Record<string, { cost: number; material: string }> = {

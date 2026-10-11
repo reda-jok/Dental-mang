@@ -50,6 +50,13 @@ export const optionalText = (max: number) =>
     .pipe(z.string().max(max, "tooLong"))
     .transform((v) => v || null)
 
+/** Required multi-line text (clinical notes): line breaks kept, blank lines collapsed. */
+export const multiline = (min: number, max: number) =>
+  z
+    .string({ error: "required" })
+    .transform((v) => cleanText(v, { multiline: true }))
+    .pipe(z.string().min(1, "required").min(min, "tooShort").max(max, "tooLong"))
+
 /** Optional multi-line text (notes, footers): empty → null. */
 export const optionalMultiline = (max: number) =>
   z

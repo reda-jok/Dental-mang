@@ -7,6 +7,7 @@ import {
   FileImageIcon,
   FlaskConicalIcon,
   HeartPulseIcon,
+  NotebookPenIcon,
   PillIcon,
   UserIcon,
   WalletIcon,
@@ -37,6 +38,7 @@ export function PatientTabs({
     ...(clinical
       ? [
           { key: "chart", label: t("chart"), icon: ActivityIcon, href: `${base}/chart` },
+          { key: "notes", label: t("notes"), icon: NotebookPenIcon, href: `${base}/notes` },
           { key: "plans", label: t("plans"), icon: CheckCircle2Icon, href: `${base}/plans` },
           { key: "files", label: t("files"), icon: FileImageIcon, href: `${base}/files` },
           {

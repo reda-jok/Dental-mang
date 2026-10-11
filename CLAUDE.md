@@ -34,7 +34,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 
 ## Validation
 
-- Build schemas from `src/lib/validation.ts` (`text`, `optionalText`, `optionalMultiline`, `optionalPhone`, `username`, `password`, `uuid`), never bare `z.string()` for user text. They trim, strip invisible and bidi characters, convert Arabic-Indic digits, and normalize Iraqi phones to `+9647…`.
+- Build schemas from `src/lib/validation.ts` (`text`, `optionalText`, `multiline`, `optionalMultiline`, `optionalPhone`, `username`, `password`, `uuid`), never bare `z.string()` for user text. They trim, strip invisible and bidi characters, convert Arabic-Indic digits, and normalize Iraqi phones to `+9647…`.
 - Use `z.strictObject` for action inputs (unknown fields are rejected). Forms use `mode: "onTouched"`.
 - Forms with transforming schemas: `useForm<Input, unknown, Output>` and submit `form.getValues()`. The server validates again.
 - Never put invisible or bidi characters in source; write `\u200B`-style escapes. `pnpm lint` enforces this (`scripts/check-unicode.mjs`).
