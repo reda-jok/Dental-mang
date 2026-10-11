@@ -16,11 +16,11 @@ import { env } from "@/server/env"
 import { authorize } from "@/server/session"
 
 import {
+  availabilityFor,
   BLOCKING_STATUSES,
   generateSlots,
   isRestDay,
   minutesToHhmm,
-  slotAvailability,
 } from "./rules"
 
 const tz = () => env.CLINIC_TIMEZONE
@@ -160,25 +160,27 @@ export async function getAvailability(input: {
     select: { patientId: true, dentistId: true, roomId: true, startsAt: true, endsAt: true },
   })
 
-  const busy = sameDay
-    .filter(
-      (a) =>
-        (input.dentistId && a.dentistId === input.dentistId) ||
-        (input.roomId && a.roomId === input.roomId) ||
-        // No dentist/room chosen: one chair, so any appointment blocks the time.
-        (!input.dentistId && !input.roomId),
-    )
-    .map((a) => ({
-      start: minutesInZone(a.startsAt, tz()),
-      end:
-        minutesInZone(a.startsAt, tz()) +
-        Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000),
-    }))
-
-  const slots = slotAvailability(
+  const [dentists, rooms] = await Promise.all([
+    db.user.findMany({
+      where: { role: { in: ["dentist", "owner"] }, OR: [{ banned: false }, { banned: null }] },
+      select: { id: true },
+    }),
+    db.room.findMany({ where: { archivedAt: null }, select: { id: true } }),
+  ])
+  const slots = availabilityFor(
     generateSlots(config.dayStart, config.dayEnd, config.slotMinutes),
     input.durationMinutes,
-    busy,
+    sameDay.map((a) => {
+      const start = minutesInZone(a.startsAt, tz())
+      return {
+        dentistId: a.dentistId,
+        roomId: a.roomId,
+        start,
+        end: start + Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000),
+      }
+    }),
+    { dentistId: input.dentistId, roomId: input.roomId },
+    { dentistIds: dentists.map((d) => d.id), roomIds: rooms.map((r) => r.id) },
     config.dayEnd,
   ).map((s) => ({ time: minutesToHhmm(s.start), taken: s.taken }))
 

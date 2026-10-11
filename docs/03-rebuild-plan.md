@@ -457,3 +457,16 @@ A second review of the whole plan (repo, Notion clinic page, Technical Design, C
 | Money safety (added) | A **nightly check** that the ledger equals the calculated balances (patient receivables, lab payables, cash since the last close), alerting on drift. An **outside review** (accountant or second developer) of billing and the ledger before real opening balances are imported | The check is a job in Phase 5; the review is a pilot go rule |
 | Dates | Pilot live **December or January**. The 2027 targets (3 / 10 / 25 clinics) are **unvalidated until pricing and the pilot are known** | Dates follow the go rules, not the other way round |
 | Pricing | A **pricing worksheet** on the Notion Company page (setup fee, monthly fee per tier, yearly, cost per clinic, what clinics pay today, break-even) | Filled in from dentist conversations, not guessed |
+
+---
+
+## 20. Dashboard and booking decisions (2026-10-05, owner)
+
+| Topic | Decision | What it means for the build |
+|---|---|---|
+| Dashboard | **Customizable: pick and reorder widgets.** Each user shows, hides and reorders their own; the owner sets the default layout per role. No free drag-and-drop grid | A widget catalog in code (key, title, permission, own data function); layout stored per user and per role; widgets missing from a stored list are appended visible; a widget the user may not see is never fetched |
+| New money statistics | Collected today and this month · owed by patients (with overdue) · today's cash drawer · owed to labs | Calculated at load from payments, allocations, cash-close movements and lab accounts; shown only with billing access (labs: the lab payment permission). The old "treatment value" card is renamed (it is not money collected) |
+| New clinic statistics | No-show and cancellation rate · top procedures this month · busiest days and hours | Definitions in the Notion Technical Design §16; the owner may add more |
+| Booking dialog: day bar | A thin bar of busy and free blocks above the free-time list; a free block can be tapped to choose the time | ✅ Built 2026-10-06 (`day-bar.tsx`) |
+| Booking dialog: several dentists | With no dentist chosen, a time is booked only when **every active dentist is busy** (every room if there are no dentists, the single chair if neither); bookings with no dentist or room only block each other, as the booking service checks | ✅ Built 2026-10-06 (`availabilityFor` in `appointments/rules.ts`, unit-tested); the database still refuses a double booking |
+| Order | Booking fix → customizable dashboard → daily reminder list (also a dashboard widget) → commission | Booking fix done; the dashboard is next. The reminder list moves after the dashboard |

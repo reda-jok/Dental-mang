@@ -45,6 +45,49 @@ export function slotAvailability(slots: number[], duration: number, busy: Busy[]
   })
 }
 
+export type DayAppointment = { dentistId: string | null; roomId: string | null } & Busy
+
+/**
+ * Which times are taken for a new booking of `duration` minutes. With a dentist or room
+ * chosen, only that one's appointments count. With none chosen a time is taken only when
+ * every active dentist is busy (every room if the clinic has no dentists, the single
+ * chair if it has neither); appointments with no dentist or room only block each other,
+ * as the booking service checks.
+ */
+export function availabilityFor(
+  slots: number[],
+  duration: number,
+  appointments: DayAppointment[],
+  chosen: { dentistId: string | null; roomId: string | null },
+  active: { dentistIds: string[]; roomIds: string[] },
+  dayEnd: number,
+) {
+  const takenWith = (list: DayAppointment[]) =>
+    slotAvailability(slots, duration, list, dayEnd).map((s) => s.taken)
+
+  if (chosen.dentistId || chosen.roomId) {
+    const taken = takenWith(
+      appointments.filter(
+        (a) =>
+          (chosen.dentistId && a.dentistId === chosen.dentistId) ||
+          (chosen.roomId && a.roomId === chosen.roomId),
+      ),
+    )
+    return slots.map((start, i) => ({ start, taken: taken[i]! }))
+  }
+
+  const unassigned = takenWith(appointments.filter((a) => !a.dentistId && !a.roomId))
+  const resources = active.dentistIds.length
+    ? active.dentistIds.map((id) => (a: DayAppointment) => a.dentistId === id)
+    : active.roomIds.length
+      ? active.roomIds.map((id) => (a: DayAppointment) => a.roomId === id)
+      : [() => true]
+  const everyoneBusy = resources
+    .map((belongs) => takenWith(appointments.filter(belongs)))
+    .reduce((all, one) => all.map((t, i) => t && one[i]!))
+  return slots.map((start, i) => ({ start, taken: unassigned[i]! || everyoneBusy[i]! }))
+}
+
 /** Closed on this date: a weekly day off, or a one-off rest day. */
 export function isRestDay(
   isoDate: string,

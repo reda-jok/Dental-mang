@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { minutesInZone, zonedInstant } from "@/lib/dates"
 
 import {
+  availabilityFor,
   canChangeStatus,
   generateSlots,
   hhmmToMinutes,
@@ -84,5 +85,53 @@ describe("clinic-local times", () => {
     const at = zonedInstant("2026-10-05", 16 * 60 + 30, "Asia/Baghdad")
     expect(at.toISOString()).toBe("2026-10-05T13:30:00.000Z")
     expect(minutesInZone(at, "Asia/Baghdad")).toBe(990)
+  })
+})
+
+describe("availabilityFor", () => {
+  const slots = generateSlots(960, 1080, 30) // 16:00-18:00
+  const at = (start: number, dentistId: string | null, roomId: string | null = null) => ({
+    start,
+    end: start + 30,
+    dentistId,
+    roomId,
+  })
+  const takenTimes = (r: { start: number; taken: boolean }[]) =>
+    r.filter((s) => s.taken).map((s) => minutesToHhmm(s.start))
+  const two = { dentistIds: ["a", "b"], roomIds: [] }
+  const none = { dentistId: null, roomId: null }
+
+  it("with no dentist chosen a time is free while any dentist is free", () => {
+    const day = [at(960, "a"), at(990, "a"), at(990, "b")]
+    expect(takenTimes(availabilityFor(slots, 30, day, none, two, 1080))).toEqual(["16:30"])
+  })
+
+  it("a chosen dentist only sees their own bookings", () => {
+    const day = [at(960, "a"), at(990, "b")]
+    const chosen = { dentistId: "a", roomId: null }
+    expect(takenTimes(availabilityFor(slots, 30, day, chosen, two, 1080))).toEqual(["16:00"])
+  })
+
+  it("bookings with no dentist or room block only unassigned bookings", () => {
+    const day = [at(960, null)]
+    expect(takenTimes(availabilityFor(slots, 30, day, none, two, 1080))).toEqual(["16:00"])
+    const chosen = { dentistId: "a", roomId: null }
+    expect(takenTimes(availabilityFor(slots, 30, day, chosen, two, 1080))).toEqual([])
+  })
+
+  it("a clinic with no dentists or rooms is one chair: any booking blocks", () => {
+    const day = [at(960, null), at(990, "x")]
+    const result = availabilityFor(slots, 30, day, none, { dentistIds: [], roomIds: [] }, 1080)
+    expect(takenTimes(result)).toEqual(["16:00", "16:30"])
+  })
+
+  it("a longer booking is taken when every dentist is busy during it, or it runs past closing", () => {
+    const day = [at(990, "a"), at(990, "b")]
+    // 17:30 is taken only because 17:30-18:30 runs past closing
+    expect(takenTimes(availabilityFor(slots, 60, day, none, two, 1080))).toEqual([
+      "16:00",
+      "16:30",
+      "17:30",
+    ])
   })
 })

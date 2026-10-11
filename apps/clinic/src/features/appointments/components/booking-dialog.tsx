@@ -39,6 +39,7 @@ import { formatLocalPhone } from "@/lib/validation"
 import { availabilityAction, bookAppointmentAction, searchBookingPatientsAction } from "../actions"
 import type { BookingOptions, ScheduleConfig } from "../data"
 import { formatTime } from "../display"
+import { DayBar } from "./day-bar"
 import { hhmmToMinutes } from "../rules"
 import { bookAppointmentSchema, type BookAppointmentInput } from "../schemas"
 import type { WhatsAppDraft } from "@/components/whatsapp-dialog"
@@ -127,9 +128,9 @@ function BookingForm({ prefill, options, config, onBooked }: Omit<Props, "open" 
     },
   })
   const { errors } = form.formState
-  const [date, durationMinutes, dentistId, roomId] = useWatch({
+  const [date, durationMinutes, dentistId, roomId, time] = useWatch({
     control: form.control,
-    name: ["date", "durationMinutes", "dentistId", "roomId"],
+    name: ["date", "durationMinutes", "dentistId", "roomId", "time"],
   })
 
   // Free/taken slots for the chosen day, dentist, room and duration.
@@ -307,6 +308,16 @@ function BookingForm({ prefill, options, config, onBooked }: Omit<Props, "open" 
             )}
           />
         </div>
+
+        {availability && !closed && (
+          <DayBar
+            slots={availability.slots}
+            selected={time}
+            onPick={(time) =>
+              form.setValue("time", time, { shouldValidate: true, shouldTouch: true })
+            }
+          />
+        )}
 
         <PatientPicker
           date={date ? String(date) : ""}

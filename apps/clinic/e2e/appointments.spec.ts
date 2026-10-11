@@ -190,3 +190,37 @@ test("rooms added in settings appear in the booking form", async ({ page }, test
   await dialog.getByLabel("الغرفة").click()
   await expect(page.getByRole("option", { name: "الكرسي 1" })).toBeVisible()
 })
+
+test("the day bar shows free and booked times and picks a free one", async ({ page }, testInfo) => {
+  const desktop = testInfo.project.name === "desktop"
+  const date = clinicDate(desktop ? 8 : 9)
+  const name = `مريض مخطط اليوم ${testInfo.project.name}`
+
+  await loginAsOwner(page)
+  await createPatient(page, name, uniquePhone(desktop ? 173 : 174))
+  await expectCreated(page)
+
+  await page.getByRole("button", { name: "حجز موعد" }).click()
+  const dialog = page.getByRole("dialog")
+  await dialog.getByLabel("التاريخ").fill(date)
+  const bar = dialog.getByTestId("day-bar")
+  await expect(bar.locator("[data-state=taken]")).toHaveCount(0)
+
+  // Tap a free block: it becomes the chosen time.
+  await bar.getByRole("button", { name: "4:00 م: متاح" }).click()
+  await expect(dialog.getByLabel("الوقت")).toContainText("4:00 م")
+  await dialog.getByRole("button", { name: "حجز الموعد" }).click()
+  await expect(page.getByText("تم حجز الموعد")).toBeVisible()
+  await page
+    .getByRole("dialog", { name: /رسالة واتساب/ })
+    .getByRole("button", { name: "تخطي" })
+    .click()
+
+  // Next booking for the same day: that block is now booked and can't be picked.
+  await createPatient(page, `${name} ثانٍ`, uniquePhone(desktop ? 175 : 176))
+  await expectCreated(page)
+  await page.getByRole("button", { name: "حجز موعد" }).click()
+  await dialog.getByLabel("التاريخ").fill(date)
+  await expect(bar.locator("[data-state=taken]")).toHaveCount(1)
+  await expect(bar.getByRole("button", { name: "4:00 م: محجوز" })).toBeDisabled()
+})
