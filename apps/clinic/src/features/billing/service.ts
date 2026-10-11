@@ -61,7 +61,7 @@ async function lockPatient(tx: Db, patientId: string) {
  * first, then the oldest due. Allocations to void invoices or from void payments
  * don't count, so that money is available again.
  */
-async function settle(tx: Db, patientId: string, preferredInvoiceId?: string | null) {
+async function settle(tx: Db, patientId: string, at: Date, preferredInvoiceId?: string | null) {
   // One query at a time: a transaction runs on a single connection.
   const payments = await tx.payment.findMany({
     where: { patientId, voidedAt: null },
@@ -97,7 +97,13 @@ async function settle(tx: Db, patientId: string, preferredInvoiceId?: string | n
     }))
     .filter((i) => toMinor(i.balance) > 0n)
   const allocations = allocate(money, open, preferredInvoiceId)
-  if (allocations.length) await tx.paymentAllocation.createMany({ data: allocations })
+  // Stamped with the operation's time (not the insert time), so commission counts the
+  // money in the month it was applied, also for back-dated entries.
+  if (allocations.length) {
+    await tx.paymentAllocation.createMany({
+      data: allocations.map((a) => ({ ...a, createdAt: at })),
+    })
+  }
   return allocations
 }
 
@@ -120,7 +126,7 @@ export async function createInvoice(
   clock?: Clock,
 ) {
   return db.$transaction(async (tx) => {
-    const { day: today } = await clockOf(tx, clock)
+    const { day: today, at } = await clockOf(tx, clock)
     if (input.dueDate < today) {
       throw new AppError("validation", "dueBeforeIssue", { dueDate: ["dueBeforeIssue"] })
     }
@@ -302,7 +308,7 @@ export async function createInvoice(
     }
 
     // Credit the patient already has (a deposit, an overpayment) pays this invoice.
-    await settle(tx, patient.id, id)
+    await settle(tx, patient.id, at, id)
 
     await recordAudit(tx, {
       userId: actor.id,
@@ -364,7 +370,7 @@ export async function voidInvoice(
       data: { invoiceId: null },
     })
     // What was paid on it is credit again, applied to the patient's other open invoices.
-    await settle(tx, invoice.patientId)
+    await settle(tx, invoice.patientId, at)
     await recordAudit(tx, {
       userId: actor.id,
       action: "void",
@@ -407,7 +413,7 @@ export async function recordPayment(
       if (!invoice) throw new AppError("not_found")
     }
 
-    const { day: today } = await clockOf(tx, clock)
+    const { day: today, at } = await clockOf(tx, clock)
     const id = crypto.randomUUID()
     const number = documentNumber("RC", today, await nextNumber(tx, "receipt_number_seq"))
     const entry = await postJournal(tx, {
@@ -432,7 +438,7 @@ export async function recordPayment(
         receivedById: actor.id,
       },
     })
-    const allocations = await settle(tx, input.patientId, invoiceId)
+    const allocations = await settle(tx, input.patientId, at, invoiceId)
 
     await recordAudit(tx, {
       userId: actor.id,
@@ -481,7 +487,7 @@ export async function voidPayment(
       })
     }
     // Other credit the patient has may now cover what this payment no longer does.
-    await settle(tx, payment.patientId)
+    await settle(tx, payment.patientId, at)
     await recordAudit(tx, {
       userId: actor.id,
       action: "void",

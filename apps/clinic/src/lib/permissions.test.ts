@@ -91,3 +91,20 @@ describe("resolvePermission (adjustable permissions)", () => {
     expect(resolvePermission("hacker", "billing:discount", [])).toBe(false)
   })
 })
+
+describe("commission permissions", () => {
+  it("the owner and accountant see every dentist's commission; a dentist only their own", () => {
+    expect(hasPermission("owner", "hr:commission")).toBe(true)
+    expect(hasPermission("accountant", "hr:commission")).toBe(true)
+    expect(hasPermission("admin", "hr:commission")).toBe(false)
+    expect(hasPermission("dentist", "hr:commission")).toBe(false)
+    expect(hasPermission("dentist", "hr:self")).toBe(true)
+    expect(hasPermission("reception", "hr:self")).toBe(false)
+  })
+
+  it("only the owner sets a dentist's pay", () => {
+    expect(
+      ["owner", "admin", "accountant", "dentist"].filter((r) => hasPermission(r, "hr:pay")),
+    ).toEqual(["owner"])
+  })
+})

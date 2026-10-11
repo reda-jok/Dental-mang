@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   ageInYears,
   birthDateFromAge,
+  nextMonth,
   parseIsoDate,
+  previousMonth,
   startOfDayUtc,
   startOfMonthUtc,
   todayIso,
@@ -62,5 +64,14 @@ describe("clinic day/month boundaries", () => {
     expect(startOfDayUtc("2026-01-15", "America/New_York").toISOString()).toBe(
       "2026-01-15T05:00:00.000Z",
     )
+  })
+})
+
+describe("previousMonth / nextMonth", () => {
+  it("step a month, across the new year", () => {
+    expect(previousMonth("2026-10")).toBe("2026-09")
+    expect(previousMonth("2026-01")).toBe("2025-12")
+    expect(nextMonth("2026-12")).toBe("2027-01")
+    expect(nextMonth("2026-09")).toBe("2026-10")
   })
 })

@@ -131,6 +131,7 @@ test("visual tour", async ({ page }, testInfo) => {
   )
   await visit(page, labAccount ? `/lab/accounts/${labAccount.id}` : null, "lab-statement")
 
+  await visit(page, "/hr", "hr-commission")
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")
   await visit(page, "/settings/procedures", "settings-procedures")

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { attendanceRates, busyGrid, heatStep, previousMonth, topProcedures } from "./stats"
+import { attendanceRates, busyGrid, heatStep, topProcedures } from "./stats"
 
 describe("attendanceRates", () => {
   it("no-shows among finished + missed visits; cancellations among all booked", () => {
@@ -13,13 +13,6 @@ describe("attendanceRates", () => {
   it("has no rate when there is nothing to divide by", () => {
     expect(attendanceRates({})).toMatchObject({ noShowRate: null, cancelRate: null })
     expect(attendanceRates({ cancelled: 2 })).toMatchObject({ noShowRate: null, cancelRate: 1 })
-  })
-})
-
-describe("previousMonth", () => {
-  it("steps back a month, across the new year", () => {
-    expect(previousMonth("2026-10")).toBe("2026-09")
-    expect(previousMonth("2026-01")).toBe("2025-12")
   })
 })
 

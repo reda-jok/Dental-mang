@@ -174,6 +174,54 @@ async function topUps() {
   await seedDashboardLayouts()
   await seedProcedureNotes()
   await seedAppointmentReminders()
+  await seedDentistPay()
+}
+
+/**
+ * Dentists' pay (2026-10-11): Sara on commission (30%, raised to 35% this month, so the
+ * history shows a change), Haider on a salary plus 20%. Commission itself is calculated
+ * from the payments, never stored. Pay settings aren't money movements, so written here
+ * directly (the app only allows changes from the current month on).
+ */
+async function seedDentistPay() {
+  if ((await db.dentistPay.count()) > 0) return
+  const users = await db.user.findMany({
+    where: { username: { in: ["sara", "haider", "owner"] } },
+    select: { id: true, username: true },
+  })
+  const id = (username: string) => users.find((u) => u.username === username)?.id
+  const sara = id("sara")
+  const haider = id("haider")
+  if (!sara || !haider) return
+  const firstOf = (iso: string) => new Date(`${iso.slice(0, 7)}-01T00:00:00Z`)
+  const historyStart = firstOf(addDays(today, -200))
+  await db.dentistPay.createMany({
+    data: [
+      {
+        dentistId: sara,
+        payType: "commission",
+        commissionRate: "30",
+        effectiveFrom: historyStart,
+        createdById: id("owner"),
+      },
+      {
+        dentistId: sara,
+        payType: "commission",
+        commissionRate: "35",
+        effectiveFrom: firstOf(today),
+        createdById: id("owner"),
+      },
+      {
+        dentistId: haider,
+        payType: "both",
+        commissionRate: "20",
+        monthlySalary: "750000",
+        effectiveFrom: historyStart,
+        createdById: id("owner"),
+      },
+    ],
+  })
+  console.log("Dentist pay: sara (commission), haider (salary + commission)")
 }
 
 /**

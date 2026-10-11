@@ -6,6 +6,7 @@ import {
   addDays,
   isoDateInZone,
   minutesInZone,
+  previousMonth,
   startOfDayUtc,
   startOfMonthUtc,
   todayIso,
@@ -20,7 +21,7 @@ import { can } from "@/server/permissions"
 import { authorize, type CurrentUser } from "@/server/session"
 
 import { storedLayoutSchema } from "./schemas"
-import { attendanceRates, busyGrid, previousMonth, topProcedures } from "./stats"
+import { attendanceRates, busyGrid, topProcedures } from "./stats"
 import { resolveLayout, WIDGETS, type WidgetKey } from "./widgets"
 
 /**

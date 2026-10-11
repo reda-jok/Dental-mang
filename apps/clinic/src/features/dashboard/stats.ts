@@ -23,12 +23,6 @@ export function attendanceRates(counts: Partial<Record<Status, number>>) {
   }
 }
 
-/** "2026-01" → "2025-12". */
-export function previousMonth(isoMonth: string): string {
-  const [year, month] = isoMonth.split("-").map(Number) as [number, number]
-  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`
-}
-
 /** The procedures done most often, then by value; `share` is relative to the top one. */
 export function topProcedures(
   items: readonly { procedureId: string; name: string; net: string }[],

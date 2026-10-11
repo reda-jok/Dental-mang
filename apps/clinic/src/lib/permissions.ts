@@ -20,7 +20,11 @@ export const statements = {
   /** "pay": see what the clinic owes each lab, pay labs and record lab discounts. */
   lab: ["read", "write", "pay"],
   accounting: ["read", "write"],
-  hr: ["read", "write"],
+  /**
+   * "commission": see every dentist's commission; "self": see your own pay and commission;
+   * "pay": set a dentist's pay type and rate (owner only).
+   */
+  hr: ["read", "write", "commission", "self", "pay"],
   inventory: ["read", "write"],
   /** "permissions": edit the adjustable permissions below (owner only). */
   settings: ["read", "write", "permissions"],
@@ -35,7 +39,7 @@ const everything = {
   billing: ["read", "write", "discount", "void", "refund"],
   lab: ["read", "write", "pay"],
   accounting: ["read", "write"],
-  hr: ["read", "write"],
+  hr: ["read", "write", "commission", "self", "pay"],
   inventory: ["read", "write"],
   settings: ["read", "write", "permissions"],
 } as const
@@ -49,6 +53,7 @@ export const roles = {
     clinical: ["read"],
     billing: ["read", "write", "discount"],
     accounting: ["read"],
+    hr: ["read", "write"],
     settings: ["read", "write"],
   }),
   dentist: ac.newRole({
@@ -57,6 +62,7 @@ export const roles = {
     appointment: ["read", "write"],
     billing: ["read"],
     lab: ["read", "write"],
+    hr: ["self"],
     inventory: ["read"],
   }),
   assistant: ac.newRole({
@@ -78,7 +84,7 @@ export const roles = {
     billing: ["read", "write"],
     lab: ["read", "pay"],
     accounting: ["read", "write"],
-    hr: ["read", "write"],
+    hr: ["read", "write", "commission", "self"],
     inventory: ["read"],
   }),
 }

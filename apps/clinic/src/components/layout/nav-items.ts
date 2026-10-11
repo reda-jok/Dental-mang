@@ -71,7 +71,8 @@ export const navGroups: { key: NavItem["key"]; items: NavItem[] }[] = [
         permission: "accounting:read",
         ready: false,
       },
-      { key: "hr", href: "/hr", icon: UserCogIcon, permission: "hr:read", ready: false },
+      // Dentists see their own pay here; the owner and accountant see everyone's.
+      { key: "hr", href: "/hr", icon: UserCogIcon, permission: "hr:self", ready: true },
       {
         key: "inventory",
         href: "/inventory",

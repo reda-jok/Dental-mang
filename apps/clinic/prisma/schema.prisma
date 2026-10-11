@@ -63,6 +63,8 @@ model User {
   clinicalNoteVersions  ClinicalNoteVersion[]
   dashboardLayout       DashboardLayout?
   appointmentReminders  AppointmentReminder[]
+  pay                   DentistPay[]          @relation("DentistPay")
+  paySet                DentistPay[]          @relation("DentistPaySetBy")
 
   @@map("user")
 }
@@ -988,6 +990,37 @@ model ClinicalNoteVersion {
 
   @@unique([noteId, version])
   @@map("clinical_note_version")
+}
+
+// ─── Staff pay ───────────────────────────────────────────────────────────────
+
+enum PayType {
+  salary
+  commission
+  both
+}
+
+/// How a dentist is paid, from a month on. Append-only: a change is a new row from a
+/// later month, so months already paid keep their rate. Commission itself is never
+/// stored: it is calculated from payment allocations (features/hr/commission.ts).
+model DentistPay {
+  id             String   @id @default(uuid()) @db.Uuid
+  dentistId      String   @map("dentist_id") @db.Uuid
+  payType        PayType  @map("pay_type")
+  /// Percent of the commission base (collected money, less lab cost when deducted).
+  commissionRate Decimal  @default(0) @map("commission_rate") @db.Decimal(5, 2)
+  monthlySalary  Decimal? @map("monthly_salary") @db.Decimal(14, 2)
+  deductLab      Boolean  @default(true) @map("deduct_lab")
+  /// The 1st of the first month this applies to.
+  effectiveFrom  DateTime @map("effective_from") @db.Date
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  dentist   User  @relation("DentistPay", fields: [dentistId], references: [id], onDelete: Restrict)
+  createdBy User? @relation("DentistPaySetBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([dentistId, effectiveFrom])
+  @@map("dentist_pay")
 }
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
