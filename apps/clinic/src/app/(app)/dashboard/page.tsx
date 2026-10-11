@@ -1,5 +1,9 @@
 import {
+  BanknoteIcon,
   CalendarDaysIcon,
+  FlaskConicalIcon,
+  HourglassIcon,
+  VaultIcon,
   MessageCircleIcon,
   CheckCircle2Icon,
   ClipboardListIcon,
@@ -23,7 +27,9 @@ import { StatCard } from "@/features/dashboard/components/stat-card"
 import { getDashboard, getDashboardLayout } from "@/features/dashboard/data"
 import { WIDGETS, type WidgetKey } from "@/features/dashboard/widgets"
 import { LabAlerts } from "@/features/lab/components/lab-alerts"
-import { getLabSummary } from "@/features/lab/data"
+import { getCashDrawer, getMoneySummary } from "@/features/billing/data"
+import { getLabAccounts, getLabSummary } from "@/features/lab/data"
+import { Amount } from "@/features/printing/components/sheets"
 import { getReminderDay, getReminderDefaultDay } from "@/features/reminders/data"
 import { parseIsoDate, todayIso } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
@@ -50,22 +56,35 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const range = view === "month" ? monthGrid(cal) : weekOf(cal)
 
   // Only what the visible widgets need (the layout holds only widgets the role may see).
-  const [data, todays, calendarAppointments, holidays, lab, reminders, t, ta, format] =
-    await Promise.all([
-      getDashboard(user),
-      show.has("todayCount") || show.has("todayAppointments")
-        ? listAppointments(today, today)
-        : null,
-      show.has("calendar") ? listAppointments(range[0]!, range.at(-1)!) : null,
-      show.has("calendar") ? listHolidays(range[0]!, range.at(-1)!) : null,
-      show.has("labAlerts") ? getLabSummary() : null,
-      show.has("reminders")
-        ? getReminderDefaultDay().then(async (day) => ({ day, ...(await getReminderDay(day)) }))
-        : null,
-      getTranslations("dashboard"),
-      getTranslations("appointments"),
-      getFormatter(),
-    ])
+  const [
+    data,
+    todays,
+    calendarAppointments,
+    holidays,
+    lab,
+    reminders,
+    money,
+    cash,
+    labs,
+    t,
+    ta,
+    format,
+  ] = await Promise.all([
+    getDashboard(user),
+    show.has("todayCount") || show.has("todayAppointments") ? listAppointments(today, today) : null,
+    show.has("calendar") ? listAppointments(range[0]!, range.at(-1)!) : null,
+    show.has("calendar") ? listHolidays(range[0]!, range.at(-1)!) : null,
+    show.has("labAlerts") ? getLabSummary() : null,
+    show.has("reminders")
+      ? getReminderDefaultDay().then(async (day) => ({ day, ...(await getReminderDay(day)) }))
+      : null,
+    show.has("collected") || show.has("owedByPatients") ? getMoneySummary() : null,
+    show.has("cashDrawer") ? getCashDrawer() : null,
+    show.has("owedToLabs") ? getLabAccounts() : null,
+    getTranslations("dashboard"),
+    getTranslations("appointments"),
+    getFormatter(),
+  ])
 
   const count = (status: string) => todays?.filter((a) => a.status === status).length ?? 0
 
@@ -92,22 +111,21 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       />
     ),
     reminders: reminders && (
-      <Link href="/appointments/reminders" className="block rounded-2xl hover:opacity-90">
-        <StatCard
-          title={t("remindersTitle")}
-          value={format.number(reminders.summary.todo)}
-          icon={MessageCircleIcon}
-          iconClassName="bg-green-50 text-green-600"
-          note={t("remindersNote", {
-            sent: String(reminders.summary.sent),
-            total: String(reminders.summary.total),
-            day: format.dateTime(parseIsoDate(reminders.day)!, {
-              weekday: "long",
-              timeZone: "UTC",
-            }),
-          })}
-        />
-      </Link>
+      <StatCard
+        href="/appointments/reminders"
+        title={t("remindersTitle")}
+        value={format.number(reminders.summary.todo)}
+        icon={MessageCircleIcon}
+        iconClassName="bg-green-50 text-green-600"
+        note={t("remindersNote", {
+          sent: String(reminders.summary.sent),
+          total: String(reminders.summary.total),
+          day: format.dateTime(parseIsoDate(reminders.day)!, {
+            weekday: "long",
+            timeZone: "UTC",
+          }),
+        })}
+      />
     ),
     newPatients: data.newPatients !== null && (
       <StatCard
@@ -151,6 +169,56 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         icon={ClipboardListIcon}
         iconClassName="bg-sky-50 text-sky-600"
         note={t("openPlansNote")}
+      />
+    ),
+    collected: money && (
+      <StatCard
+        title={t("collectedToday")}
+        value={<Amount value={formatMoney(money.collectedToday, "IQD")} />}
+        icon={BanknoteIcon}
+        iconClassName="bg-emerald-50 text-emerald-600"
+        note={t("collectedNote", {
+          count: money.paymentsToday,
+          month: formatMoney(money.collectedMonth, "IQD"),
+        })}
+        href="/billing"
+      />
+    ),
+    owedByPatients: money && (
+      <StatCard
+        title={t("overdueDebts")}
+        value={<Amount value={formatMoney(money.overdue, "IQD")} />}
+        icon={HourglassIcon}
+        iconClassName="bg-red-50 text-red-600"
+        note={t("overdueNote", {
+          count: money.latePatients,
+          owed: formatMoney(money.owed, "IQD"),
+        })}
+        href="/billing/debts"
+      />
+    ),
+    cashDrawer: cash && (
+      <StatCard
+        title={t("cashDrawer")}
+        value={<Amount value={formatMoney(cash.open.summary.expected, "IQD")} />}
+        icon={VaultIcon}
+        iconClassName="bg-amber-50 text-amber-600"
+        note={
+          cash.todayClose
+            ? t("cashClosedNote", { difference: formatMoney(cash.todayClose.difference, "IQD") })
+            : t("cashOpenNote")
+        }
+        href="/billing/cash"
+      />
+    ),
+    owedToLabs: labs && (
+      <StatCard
+        title={t("owedToLabs")}
+        value={<Amount value={formatMoney(labs.totals.owed, "IQD")} />}
+        icon={FlaskConicalIcon}
+        iconClassName="bg-violet-50 text-violet-600"
+        note={t("owedToLabsNote", { paid: formatMoney(labs.totals.paidThisMonth, "IQD") })}
+        href="/lab/accounts"
       />
     ),
     labAlerts: lab && lab.urgent.length > 0 && <LabAlerts cases={lab.urgent} late={lab.late} />,

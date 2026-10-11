@@ -54,7 +54,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 
 - **Design = the clinic's April design** (blue-600 primary, slate neutrals, soft shadows, rounded-2xl). Colours come from the tokens in `globals.css`, not ad-hoc palettes.
   - The company design system (https://claude.ai/artifact/6T3XZWg16ihhaGixFom9zN) records these tokens, components and the Al-Tamkeen logo. The logo's colours (cyan `#22aae1` → charcoal `#231f20`) are for the logo, the loading logo and marketing, never for product buttons, links or text.
-  - Page sections: `<Panel icon title description actions>` (`src/components/panel.tsx`). Tabs: `<PillNav>`. Dashboard numbers: `<StatCard>`. List search + status filter (URL params): `<FilterBar>` (`src/components/filter-bar.tsx`).
+  - Page sections: `<Panel icon title description actions>` (`src/components/panel.tsx`). Tabs: `<PillNav>`. Dashboard numbers: `<StatCard>` (`href` makes the card a link to its details). List search + status filter (URL params): `<FilterBar>` (`src/components/filter-bar.tsx`).
   - Dashboard widgets: add an entry to `WIDGETS` (`features/dashboard/widgets.ts`: key, the permission it needs, `stat` card or `wide` panel), its title under `dashboard.widgets`, and its render in the dashboard page; fetch its data only when it's visible. Users' saved layouts pick up new widgets by themselves.
   - The page title lives in the header (`AppHeader`, an `h1` from the nav). Pages start at `h2`.
   - Tooth chart: tile odontogram (`features/chart/components/tooth-chart.tsx`) with condition colours from `TILE_STYLES`.

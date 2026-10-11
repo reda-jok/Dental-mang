@@ -221,14 +221,27 @@
       "labAlerts": "أعمال مختبر متأخرة",
       "todayAppointments": "مواعيد اليوم",
       "calendar": "تقويم المواعيد",
-      "reminders": "تذكيرات واتساب"
+      "reminders": "تذكيرات واتساب",
+      "collected": "المقبوض اليوم وهذا الشهر",
+      "owedByPatients": "ديون المرضى",
+      "cashDrawer": "صندوق اليوم",
+      "owedToLabs": "مستحق للمختبرات"
     },
     "groups": {
       "stat": "الأرقام (بطاقات في الأعلى)",
       "wide": "اللوحات"
     },
     "remindersTitle": "بانتظار تذكير واتساب",
-    "remindersNote": "{sent} من {total} تم تذكيرهم · {day}"
+    "remindersNote": "{sent} من {total} تم تذكيرهم · {day}",
+    "collectedToday": "المقبوض اليوم",
+    "collectedNote": "{count, plural, =0 {لا دفعات اليوم} one {دفعة واحدة} two {دفعتان} few {# دفعات} many {# دفعة} other {# دفعة}} · هذا الشهر {month}",
+    "overdueDebts": "ديون متأخرة",
+    "overdueNote": "{count, plural, =0 {لا مرضى متأخرون} one {مريض واحد متأخر} two {مريضان متأخران} few {# مرضى متأخرين} many {# مريضاً متأخراً} other {# مريض متأخر}} · المستحق كله {owed}",
+    "cashDrawer": "نقد الصندوق الآن",
+    "cashOpenNote": "لم يُغلق صندوق اليوم بعد",
+    "cashClosedNote": "أُغلق اليوم · الفرق {difference}",
+    "owedToLabs": "مستحق للمختبرات",
+    "owedToLabsNote": "دُفع هذا الشهر {paid}"
   },
   "settings": {
     "title": "الإعدادات",

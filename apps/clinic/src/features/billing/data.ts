@@ -786,3 +786,42 @@ export async function getPlanPaid(planId: string) {
     }, 0n),
   )
 }
+
+/**
+ * Money figures for the dashboard: collected today and this month (counted payments
+ * received less refunds paid, by clinic day; voided payments don't count), and what
+ * patients owe: everything, the overdue part and how many patients are late.
+ */
+export async function getMoneySummary() {
+  await authorize("billing:write")
+  const settings = await getClinicSettings()
+  const today = todayIso(settings?.timezone)
+  const day = asDate(today)
+  const monthStart = asDate(`${today.slice(0, 7)}-01`)
+  const [paidToday, paidMonth, refundedToday, refundedMonth, balances] = await Promise.all([
+    db.payment.aggregate({
+      where: { voidedAt: null, receivedOn: day },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    db.payment.aggregate({
+      where: { voidedAt: null, receivedOn: { gte: monthStart } },
+      _sum: { amount: true },
+    }),
+    db.refund.aggregate({ where: { refundedOn: day }, _sum: { amount: true } }),
+    db.refund.aggregate({ where: { refundedOn: { gte: monthStart } }, _sum: { amount: true } }),
+    openBalances(),
+  ])
+  const sum = (a: { _sum: { amount: { toString(): string } | null } }) =>
+    a._sum.amount?.toString() ?? "0"
+  const debts = agePatientDebts(balances, today)
+  const late = debts.filter((d) => toMinor(d.overdue) > 0n)
+  return {
+    collectedToday: subtractAmounts(sum(paidToday), sum(refundedToday)),
+    paymentsToday: paidToday._count,
+    collectedMonth: subtractAmounts(sum(paidMonth), sum(refundedMonth)),
+    owed: sumAmounts(debts.map((d) => d.owed)),
+    overdue: sumAmounts(late.map((d) => d.overdue)),
+    latePatients: late.length,
+  }
+}

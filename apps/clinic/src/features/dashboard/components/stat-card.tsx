@@ -1,4 +1,6 @@
 import type { LucideIcon } from "lucide-react"
+import type { Route } from "next"
+import Link from "next/link"
 import type { ReactNode } from "react"
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -11,15 +13,23 @@ export function StatCard({
   icon: Icon,
   iconClassName,
   note,
+  href,
 }: {
   title: string
   value: ReactNode
   icon: LucideIcon
   iconClassName: string
   note?: ReactNode
+  /** Makes the whole card a link to the page with the details. */
+  href?: string
 }) {
-  return (
-    <Card className="gap-2 rounded-2xl border-slate-200 shadow-sm">
+  const card = (
+    <Card
+      className={cn(
+        "h-full gap-2 rounded-2xl border-slate-200 shadow-sm",
+        href && "transition-shadow hover:shadow-md",
+      )}
+    >
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-0">
         <p className="text-sm font-medium text-slate-600">{title}</p>
         <span className={cn("flex size-9 items-center justify-center rounded-xl", iconClassName)}>
@@ -31,5 +41,12 @@ export function StatCard({
         {note && <p className="text-xs text-slate-500">{note}</p>}
       </CardContent>
     </Card>
+  )
+  return href ? (
+    <Link href={href as Route} className="block h-full rounded-2xl">
+      {card}
+    </Link>
+  ) : (
+    card
   )
 }
