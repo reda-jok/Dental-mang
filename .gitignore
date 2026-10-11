@@ -5,6 +5,7 @@ node_modules/
 .next/
 .next-e2e/
 .next-demo/
+.next-demo-prod/
 out/
 build/
 dist/

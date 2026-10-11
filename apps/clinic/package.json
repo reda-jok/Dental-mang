@@ -18,7 +18,8 @@
     "test:e2e": "playwright test",
     "db:demo": "tsx --conditions=react-server prisma/demo/index.ts",
     "db:seed": "tsx --conditions=react-server prisma/demo/index.ts --into-dev",
-    "dev:demo": "node scripts/dev-demo.mjs"
+    "dev:demo": "node scripts/dev-demo.mjs",
+    "start:demo": "node scripts/dev-demo.mjs --prod"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
