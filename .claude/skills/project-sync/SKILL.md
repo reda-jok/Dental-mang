@@ -10,7 +10,7 @@ Keeps four records consistent with what was actually built and decided. Each has
 | Record | Holds | Does NOT hold |
 |---|---|---|
 | `CLAUDE.md` (repo root) | Rules and conventions every future change must follow (architecture, validation, security, UI, "done means") | Progress, dates, decisions about features |
-| Claude memory (`~/.claude/projects/-home-m7md-Projects-dental-Dental-mang/memory/`) | Product decisions, user preferences, things not derivable from code/git | Code structure, anything already in CLAUDE.md or docs |
+| Claude memory (`~/.claude/projects/-home-m7mdreda-Projects-Altamkeen-Dental-mang/memory/`) | Product decisions, user preferences, things not derivable from code/git | Code structure, anything already in CLAUDE.md or docs |
 | `docs/03-rebuild-plan.md` | The plan: decisions table, roadmap, interview decisions (§16+) | Implementation detail |
 | Notion | The user's view: status, roadmap checkboxes, decisions, technical design | Anything the user didn't write that contradicts the repo |
 

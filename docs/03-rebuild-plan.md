@@ -193,7 +193,7 @@ Conventions: `id` = UUID (`crypto.randomUUID`), `createdAt/updatedAt`, `createdB
 
 ### Commission
 - Configured per dentist: rate %, **basis = billed or collected** (decision D2), **deduct lab cost?** (yes/no).
-- **CommissionEntry** created by events (line invoiced / payment allocated), then summed into payroll.
+- **Calculated at read time from payment allocations** (like balances), never stored, so voids, refunds and re-allocations are always reflected (changed 2026-10-05, §19; the earlier stored `CommissionEntry` design is dropped). Summed into payroll when a payslip is finalized.
 
 ### HR
 - **Employee**: name, role, phone, salary type (monthly / daily / commission only / mixed), base salary, hire date.
@@ -238,7 +238,7 @@ Reception books → WhatsApp reminder the day before → patient arrives (status
 
 ## 8. Appliance, backups, updates, licensing
 
-### 8.1 Hardware & install (decision D1)
+### 8.1 Hardware & install (decision D1, on hold since 2026-10-05: §19)
 - **Recommended:** we supply a **pre-configured mini PC** (Ubuntu Server LTS + Docker, full-disk encryption) plus a **small UPS**. Frequent power cuts and generator switching can corrupt a database that isn't shut down cleanly. The UPS triggers a clean shutdown.
 - Every clinic gets the same setup. We control the OS and updates, and support is simple.
 - Install = plug in + run `install.sh` (sets clinic ID, license, backup keys, local hostname).
@@ -318,13 +318,13 @@ Estimates are honest ranges. **Pilot at a real clinic ≈ month 5–6. Full scop
 
 | # | Decision | Options | My recommendation |
 |---|---|---|---|
-| **D1** | Clinic hardware | ✅ **Decided 2026-10-01: we supply a mini PC + UPS** | Docker Desktop on reception PCs is fragile (updates, sleep, antivirus) |
+| **D1** | Clinic hardware | ⏸ **Reopened 2026-10-05: on hold.** Decided 2026-10-01 as a mini PC + UPS we supply; the owner is now considering other options, so hardware tasks, budget and hardware-only tests wait (§19) | Docker Desktop on reception PCs is fragile (updates, sleep, antivirus) |
 | **D2** | Commission basis | ✅ **Decided 2026-10-01: mixed, set per dentist** (salary / commission / both) | Commission on *collected* money, lab cost deductible, both configurable per clinic |
 | **D3** | WhatsApp | `wa.me` links (free) · official Cloud API (paid) | `wa.me` in v1, Cloud API in Phase 10 |
 | **D4** | HTTPS on LAN | Caddy local CA (install a cert on each device) · real domain `clinic-123.ourdomain.app` → LAN IP with a cert issued via DNS (renews when online) · plain HTTP on the LAN | **Real domain + DNS cert**: no warnings on phones. Plain HTTP only for the very first dev builds |
 | **D5** | Currencies | ✅ **Changed 2026-10-01: IQD only.** USD pricing is removed from the catalog UI (the money code keeps multi-currency support dormant) | Simpler cash handling; clinics quote implants in dinars at their own rate |
 | **D6** | Digits | Western (123) · Arabic-Indic (١٢٣) | Setting, default Western in inputs |
-| **D7** | Pilot clinic | **Not found yet (2026-10-01).** Needed before Phase 5 (appliance). **Recruiting starts 2026-10-05 (week 1)** | Start asking now: a clinic that will use it daily and tolerate rough edges. Its printer, LAN and existing records shape the install |
+| **D7** | Pilot clinic | **Not found yet (2026-10-01).** Needed before Phase 5 (appliance). **Recruiting starts 2026-10-05 (week 1).** No clinic by **2026-11-15** → widen the offer; none by **2026-12-31** → stop adding features and find out why (§19) | Start asking now: a clinic that will use it daily and tolerate rough edges. Its printer, LAN and existing records shape the install |
 
 ---
 
@@ -378,15 +378,15 @@ Phases 0–3 were built between 2026-09-29 and 2026-10-01 (foundations, patients
 | **Payment methods** | Cash (IQD), card/POS, mobile wallet (ZainCash, FIB, Qi, transfer) | `PaymentMethod` enum; daily totals per method |
 | **Discounts & voids** | **Editable permissions.** The owner decides which roles may discount and which may void | New **role-permission overrides** in settings (defaults from code, stored in DB); first used for `billing:discount` and `billing:void` |
 | **Currency** | **IQD only** (changes D5) | Hide USD in the procedure form; all prices, invoices and reports in dinars |
-| **Printing** | Wanted: 80 mm thermal receipt + printable treatment-plan quote. **Deferred** to after the pilot starts | Build Phase 4 without printing; add it as the first post-pilot item |
+| **Printing** | Wanted: 80 mm thermal receipt + printable treatment-plan quote. **Deferred** to after the pilot starts. *Superseded: built 2026-10-01 (roadmap row 5b)* | Build Phase 4 without printing; add it as the first post-pilot item |
 | **Overdue debt** | Due date per balance, overdue list aged 30/60/90 days, WhatsApp payment reminder from a template | `Invoice.dueDate` (default from settings), `paymentReminderMessage()` template |
 | **Daily cash** | **Reception closes the day with a drawer count**; the system compares it with recorded cash and flags a difference; the owner sees the report | `CashClose` (date, expected, counted, difference, closed by, notes); one close per day |
-| **Commission** | **Mixed, per dentist:** salary only, commission only, or both. Basis: collected money, lab cost deductible (both configurable) | `Employee.salaryType`, `commissionRate`; `CommissionEntry` created on payment allocation |
+| **Commission** | **Mixed, per dentist:** salary only, commission only, or both. Basis: collected money, lab cost deductible (both configurable) | `Employee.salaryType`, `commissionRate`; commission calculated live from payment allocations, never stored (changed 2026-10-05, §19) |
 | **Lab work** | Track status + due date (with late alerts), lab cost and the clinic's monthly bill per lab, and the slip details (shade, material, teeth) | `Lab`, `LabCase`, lab statement per month → accounts payable |
 | **Inventory** | **Stock list + low-stock alerts** only (items, units, suppliers, in/out/adjust). Per-procedure auto-consumption is a later option | Simple `Item` / `Supplier` / `StockMovement`; stock = sum of movements |
 | **HR** | **Payroll only:** employees, salary type, commission, allowances/deductions, monthly payslips posted to the ledger. Attendance and leave dropped from v1 | Smaller Phase 8 |
 | **Pilot clinic** | None yet. The product serves all clinic sizes (solo to large), as decided at the start | Find a pilot before Phase 5 |
-| **Pilot hardware (D1)** | **Mini PC we supply + UPS** | Appliance work starts right after billing |
+| **Pilot hardware (D1)** | **Mini PC we supply + UPS** (*reopened 2026-10-05, on hold: §19*) | Appliance work starts right after billing |
 | **Order of work** | **Billing → appliance & pilot → everything else**, shaped by pilot feedback | Lab, inventory, accounting and HR come after the clinic is live |
 
 ### Revised roadmap (from 2026-10-01)
@@ -395,15 +395,15 @@ Phases 0–3 were built between 2026-09-29 and 2026-10-01 (foundations, patients
 |---|---|---|---|
 | 0–3 | Foundations, patients, chart & plans, appointments | — | ✅ Built (settings page, user management, calendar, scheduler, WhatsApp templates included) |
 | **4. Billing** | Invoices per visit / per plan (IQD), discounts & voids behind editable permissions, payments (cash/card/wallet, partial, deposits, refunds), calculated balances, due dates + overdue list + WhatsApp payment reminder, daily cash close with drawer count, automatic journal entries (ledger core, debits = credits) | ≈ 1–2 weeks | ✅ Built 2026-10-01 in 5 parts: ledger core with database guards; editable discount/void/refund permissions; IQD only; invoices per visit / per plan with discounts, due dates and void; payments cash/card/wallet, partial, deposits as credit, refunds, voided payments, calculated balances; overdue debts aged 1–30 / 31–60 / 61–90 / 90+ with logged WhatsApp reminders; daily cash close (drawer count vs expected, difference booked to cash over/short). Demo clinic data: `pnpm --filter clinic db:demo` |
-| **5. Appliance → pilot** | Docker Compose on a mini PC + UPS, Caddy, install script, restic → R2 backups, restore test, updater with rollback, cloud control plane v1 (licenses, check-in, backup monitor) | ≈ 2–3 weeks (hardware permitting) | **Resumes right after commission** (owner, 2026-10-03), aiming at a pilot clinic live in December. **Pilot scope cut 2026-10-05 (§18):** Tailscale + manual SSH updates + a healthchecks.io ping instead of the control plane and auto-rollback updater (both wait for clinic 2); add UPS auto-shutdown, a patient/opening-balance import and a spare machine. Needs a pilot clinic (D7) |
+| **5. Appliance → pilot** | Docker Compose on a mini PC + UPS, Caddy, install script, restic → R2 backups, restore test, updater with rollback, cloud control plane v1 (licenses, check-in, backup monitor) | ≈ 2–3 weeks (hardware permitting) | **Resumes right after commission** (owner, 2026-10-03), aiming at a pilot clinic live in December. **Pilot scope cut 2026-10-05 (§18):** Tailscale + manual SSH updates + a healthchecks.io ping instead of the control plane and auto-rollback updater (both wait for clinic 2); add UPS auto-shutdown, a patient/opening-balance import and a spare machine. Needs a pilot clinic (D7). **2026-10-05 (later, §19):** hardware parts (mini PC, UPS, BIOS power-on, cold-start test, spare machine) on hold with D1; the software parts (Compose, Caddy, Tailscale, restic → R2, healthchecks.io, manual updates, import) stay. Pilot live **December or January** |
 | — | **Pilot clinic live 4+ weeks**; fix what hurts | ongoing | |
 | **5b. Printing** | 80 mm thermal receipt, treatment-plan quote (A4), later A4 invoice | ≈ 3–4 days | ✅ Receipt (80 mm), invoice slip (80 mm), treatment-plan quote and **prescriptions** (medicines list, allergy warnings) on A5 or A4 (clinic setting, A5 default) built 2026-10-01, moved ahead of the appliance at the owner's request; A4 invoice still to do |
-| **6. Lab + commission** | Labs, lab cases (status, due-date alerts, shade/material/teeth, cost), monthly lab statement; commission rules per dentist, monthly commission report | ≈ 1 week | Started 2026-10-01 (after the owner chose lab → inventory → accounting → small leftovers, appliance on hold) in 3 parts. ✅ Part 1: labs (turnaround days), lab cases sent from the plan or free (teeth, Vita shade, material, cost, instructions), sent → received → fitted with remakes and cancel reasons, late / due-today alerts on the dashboard, lab tab on the patient. ✅ Part 2: lab money — the cost confirmed on receipt becomes the lab's bill (Dr lab expense / Cr payables; locked afterwards, also by the database), payments to labs by cash or transfer (cash goes through the daily close, voids reversed), lab discounts / extra charges as append-only adjustments, Lab accounts tab (owed per lab) and a printable monthly statement per lab; new adjustable permission "pay labs" (owner, admin, accountant by default). Next: part 3 commission (salary / commission / both per dentist, monthly report) |
+| **6. Lab + commission** | Labs, lab cases (status, due-date alerts, shade/material/teeth, cost), monthly lab statement; commission rules per dentist, monthly commission report | ≈ 1 week | Started 2026-10-01 (after the owner chose lab → inventory → accounting → small leftovers, appliance on hold) in 3 parts. ✅ Part 1: labs (turnaround days), lab cases sent from the plan or free (teeth, Vita shade, material, cost, instructions), sent → received → fitted with remakes and cancel reasons, late / due-today alerts on the dashboard, lab tab on the patient. ✅ Part 2: lab money — the cost confirmed on receipt becomes the lab's bill (Dr lab expense / Cr payables; locked afterwards, also by the database), payments to labs by cash or transfer (cash goes through the daily close, voids reversed), lab discounts / extra charges as append-only adjustments, Lab accounts tab (owed per lab) and a printable monthly statement per lab; new adjustable permission "pay labs" (owner, admin, accountant by default). Next: part 3 commission (salary / commission / both per dentist, monthly report), **after the daily reminder list** and **calculated live from payment allocations, never stored** (2026-10-05, §19) |
 | **7. Inventory** | Items, suppliers, stock in/out/adjust, low-stock alerts | ≈ 3–4 days | moved before accounting: small and often requested. **2026-10-05:** starts after the pilot settles, not during its first weeks |
 | **8. Accounting** | Expenses, payables (labs/suppliers), P&L, cash book, AR aging, revenue by dentist/procedure, owner dashboard | ≈ 1–2 weeks | |
 | **9. HR (payroll only)** | Employees, salary type, commission, allowances/deductions, payslips → ledger | ≈ 1 week | |
 | **10. Product / SaaS** | Onboarding wizard, cloud admin, staged rollouts, WhatsApp Cloud API, remote owner view, English/Kurdish | ongoing | |
-| Left over from 2–3 | Clinical notes, plan packages/templates, drag-to-reschedule, daily reminder list | small items | **Basic clinical notes come first, before commission** (2026-10-05); the rest slot in when the pilot asks |
+| Left over from 2–3 | Clinical notes, plan packages/templates, drag-to-reschedule, daily reminder list | small items | **Basic clinical notes come first, then the daily reminder list, both before commission** (2026-10-05, §19); the rest slot in when the pilot asks |
 
 \* Estimates assume the same working pattern as Phases 0–3 (building with Claude Code in focused sessions). Appliance work depends on buying and testing real hardware.
 
@@ -429,13 +429,31 @@ An outside review of the dated plan (claude-council: Antigravity; Kimi failed) f
 
 | Topic | Decision | What it means for the build |
 |---|---|---|
-| Order of work | **Basic clinical notes → commission → appliance → pilot** (changes 2026-10-03) | Clinical notes are built this week; dentists need them to use the system in the treatment room |
+| Order of work | **Basic clinical notes → commission → appliance → pilot** (changes 2026-10-03; *the daily reminder list was put before commission later the same day, §19*) | Clinical notes are built this week; dentists need them to use the system in the treatment room |
 | Pilot recruitment | Starts in **week 1** (Oct 5-9), not week 3 | The clinic's printer, LAN, devices and existing records are known before the install is built |
 | Remote access and updates | **Tailscale** on the appliance; updates by hand over SSH (`pg_dump` first, then `prisma migrate deploy`) | §8.3's automatic updater with rollback waits for clinic 2 |
 | Backup monitoring | Nightly restic → R2 pings **healthchecks.io**; a missed ping alerts me | The cloud control plane v1 (licences, check-in, backup monitor) waits for clinic 2 |
-| Power | Line-interactive UPS with AVR and a USB cable; `apcupsd`/`nut` shuts the box down cleanly; BIOS powers on when power returns; Compose restarts by itself | Part of the install script |
-| Pilot go/no-go tests (added) | **Offline LAN test** (pull the internet cable: appointments, chart, payments and the 80 mm receipt keep working) · **cold-start power test** (UPS runs down, clean shutdown, power back, app comes up with an intact database) · **real 80 mm print with Arabic** on the clinic's own printer | Added to the existing rules: backup restored on a spare machine, UPS shutdown, read-only licence mode, licence agreement signed |
-| Spare machine | Ready **before** the pilot (an old laptop with the Compose file is enough), not in Q1 2027 | A dead mini PC is swapped within 2 hours from the latest backup |
+| Power | Line-interactive UPS with AVR and a USB cable; `apcupsd`/`nut` shuts the box down cleanly; BIOS powers on when power returns; Compose restarts by itself (*on hold with D1, §19*) | Part of the install script |
+| Pilot go/no-go tests (added) | **Offline LAN test** (pull the internet cable: appointments, chart, payments and the 80 mm receipt keep working) · **cold-start power test** (UPS runs down, clean shutdown, power back, app comes up with an intact database; *on hold with D1, §19*) · **real 80 mm print with Arabic** on the clinic's own printer | Added to the existing rules: backup restored on a spare machine, UPS shutdown, read-only licence mode, licence agreement signed |
+| Spare machine | Ready **before** the pilot (an old laptop with the Compose file is enough), not in Q1 2027 (*on hold with D1, §19*) | A dead mini PC is swapped within 2 hours from the latest backup |
 | Existing clinic data | Import the pilot clinic's patients and **opening balances** | Opening balances post through the ledger (`postJournal`), never raw inserts |
 | Licence | Read-only mode stays a pilot go rule, but built so it **cannot lock the clinic out**: the pilot licence runs long (e.g. 12 months) and a failed check-in never blocks work | Matches §8.4: never lock a doctor out |
 | December | **No dental coding Dec 1-12** (outside client beta Dec 9); inventory starts after the pilot settles, not during its first weeks | Pilot support only in that window |
+
+---
+
+## 19. Plan review decisions (2026-10-05, owner)
+
+A second review of the whole plan (repo, Notion clinic page, Technical Design, Company page and the dated plan) found that the engineering is solid but the business side is unvalidated: no pilot clinic, no prices, and 2027 targets with nothing behind them. The owner chose these changes. Hardware is set aside because the owner has ideas other than the mini PC.
+
+| Topic | Decision | What it means for the build |
+|---|---|---|
+| Order of work | **Clinical notes → daily WhatsApp reminder list → commission → deployment → pilot** | WhatsApp reminders are a must-have workflow and the main selling point; the daily list is built in week 2, before commission |
+| Commission | **Calculated live from payment allocations**, like balances; never stored as `CommissionEntry` rows | Voids, refunds and re-allocations are reflected without reversal rows; the monthly report reads allocations of paid lines per dentist |
+| Hardware (D1) | **Reopened, on hold.** The mini PC + UPS is no longer decided | Hardware purchases, budget lines and hardware-only tests (UPS shutdown, cold-start power, BIOS power-on, spare machine) wait. Software deployment (Compose, Caddy, Tailscale, restic → R2, healthchecks.io, manual updates, import) stays in the plan |
+| Pilot search | **2026-11-15:** no clinic → widen the offer (labs, supply reps, more dentists). **2026-12-31:** still none → stop adding features and find out why | A dated decision instead of an open-ended search |
+| Pilot success | All four: **no paper for 4 weeks** (appointments, chart, payments in the app) · **daily cash close** with small, explained differences · the owner **agrees a price** for after the free period · **at least one referral** | The pilot ends with a clear yes or no |
+| Pilot go rules (added) | **Install, restore and incident runbooks** written and **support hours** set before the pilot (moved from Q1 2027) | Written under `deploy/docs/` as part of Phase 5 |
+| Money safety (added) | A **nightly check** that the ledger equals the calculated balances (patient receivables, lab payables, cash since the last close), alerting on drift. An **outside review** (accountant or second developer) of billing and the ledger before real opening balances are imported | The check is a job in Phase 5; the review is a pilot go rule |
+| Dates | Pilot live **December or January**. The 2027 targets (3 / 10 / 25 clinics) are **unvalidated until pricing and the pilot are known** | Dates follow the go rules, not the other way round |
+| Pricing | A **pricing worksheet** on the Notion Company page (setup fee, monthly fee per tier, yearly, cost per clinic, what clinics pay today, break-even) | Filled in from dentist conversations, not guessed |

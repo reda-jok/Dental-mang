@@ -17,7 +17,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 
 ## Rules
 
-- **Money:** `Decimal(14,2)` + currency, never float or `parseFloat`. Balances are calculated, never stored.
+- **Money:** `Decimal(14,2)` + currency, never float or `parseFloat`. Balances are calculated, never stored. So is dentist commission: read it from payment allocations, never store commission rows.
 - **Ledger:** every money event (invoice issued, payment, refund…) posts a balanced journal entry with `postJournal(tx, …)` (`features/ledger/service.ts`) in the same transaction. Fix mistakes with `reverseJournal`; the database refuses edits, deletes and unbalanced entries. The clinic works in IQD only.
 - **Patient money:** billing writes that change what a patient owes (invoice, payment, refund, void) lock the patient row (`lockPatient`) and re-apply credit (`settle`) in the same transaction (`features/billing/service.ts`). Paid amounts and balances come from allocations at read time.
 - **Cash drawer:** each daily close takes in every money movement not yet closed (`unclosedMovements` in `features/billing/service.ts`; today: patient payments, voids, refunds, and cash paid to labs). A new kind of cash movement (e.g. an expense paid from the drawer) must be added there and to `CashMovement`, or the close won't count it.
