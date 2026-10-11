@@ -1,5 +1,8 @@
 import {
   BanknoteIcon,
+  FlameIcon,
+  TrophyIcon,
+  UserXIcon,
   CalendarDaysIcon,
   FlaskConicalIcon,
   HourglassIcon,
@@ -24,7 +27,15 @@ import { calendarParams } from "@/features/appointments/params"
 import { monthGrid, weekOf } from "@/features/appointments/rules"
 import { CustomizeDashboard } from "@/features/dashboard/components/customize-dashboard"
 import { StatCard } from "@/features/dashboard/components/stat-card"
-import { getDashboard, getDashboardLayout } from "@/features/dashboard/data"
+import { BusyHours } from "@/features/dashboard/components/busy-hours"
+import { TopProcedures } from "@/features/dashboard/components/top-procedures"
+import {
+  getAttendance,
+  getBusyHours,
+  getDashboard,
+  getDashboardLayout,
+  getTopProcedures,
+} from "@/features/dashboard/data"
 import { WIDGETS, type WidgetKey } from "@/features/dashboard/widgets"
 import { LabAlerts } from "@/features/lab/components/lab-alerts"
 import { getCashDrawer, getMoneySummary } from "@/features/billing/data"
@@ -66,6 +77,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     money,
     cash,
     labs,
+    attendance,
+    procedures,
+    busy,
     t,
     ta,
     format,
@@ -81,12 +95,19 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     show.has("collected") || show.has("owedByPatients") ? getMoneySummary() : null,
     show.has("cashDrawer") ? getCashDrawer() : null,
     show.has("owedToLabs") ? getLabAccounts() : null,
+    show.has("attendance") ? getAttendance() : null,
+    show.has("topProcedures") ? getTopProcedures() : null,
+    show.has("busyHours") ? getBusyHours() : null,
     getTranslations("dashboard"),
     getTranslations("appointments"),
     getFormatter(),
   ])
 
   const count = (status: string) => todays?.filter((a) => a.status === status).length ?? 0
+  const percent = (rate: number | null) =>
+    rate === null
+      ? t("noRate")
+      : format.number(rate, { style: "percent", maximumFractionDigits: 0 })
 
   const widgets: Record<WidgetKey, ReactNode> = {
     totalPatients: data.totalPatients !== null && (
@@ -220,6 +241,33 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         note={t("owedToLabsNote", { paid: formatMoney(labs.totals.paidThisMonth, "IQD") })}
         href="/lab/accounts"
       />
+    ),
+    attendance: attendance && (
+      <StatCard
+        title={t("noShowRate")}
+        value={percent(attendance.thisMonth.noShowRate)}
+        icon={UserXIcon}
+        iconClassName="bg-rose-50 text-rose-600"
+        note={t("noShowNote", {
+          last: percent(attendance.lastMonth.noShowRate),
+          cancel: percent(attendance.thisMonth.cancelRate),
+        })}
+        href="/appointments"
+      />
+    ),
+    topProcedures: procedures && (
+      <Panel
+        icon={TrophyIcon}
+        title={t("topProcedures")}
+        description={t("topProceduresDescription")}
+      >
+        <TopProcedures rows={procedures} />
+      </Panel>
+    ),
+    busyHours: busy && (
+      <Panel icon={FlameIcon} title={t("busyHours")} description={t("busyHoursDescription")}>
+        <BusyHours grid={busy} />
+      </Panel>
     ),
     labAlerts: lab && lab.urgent.length > 0 && <LabAlerts cases={lab.urgent} late={lab.late} />,
     todayAppointments: todays && (

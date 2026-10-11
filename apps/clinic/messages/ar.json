@@ -225,7 +225,10 @@
       "collected": "المقبوض اليوم وهذا الشهر",
       "owedByPatients": "ديون المرضى",
       "cashDrawer": "صندوق اليوم",
-      "owedToLabs": "مستحق للمختبرات"
+      "owedToLabs": "مستحق للمختبرات",
+      "attendance": "نسبة عدم الحضور",
+      "topProcedures": "أكثر العلاجات هذا الشهر",
+      "busyHours": "أكثر الأيام والساعات ازدحاماً"
     },
     "groups": {
       "stat": "الأرقام (بطاقات في الأعلى)",
@@ -241,7 +244,20 @@
     "cashOpenNote": "لم يُغلق صندوق اليوم بعد",
     "cashClosedNote": "أُغلق اليوم · الفرق {difference}",
     "owedToLabs": "مستحق للمختبرات",
-    "owedToLabsNote": "دُفع هذا الشهر {paid}"
+    "owedToLabsNote": "دُفع هذا الشهر {paid}",
+    "noShowRate": "عدم الحضور هذا الشهر",
+    "noShowNote": "الشهر الماضي {last} · الإلغاء {cancel}",
+    "noRate": "—",
+    "topProcedures": "أكثر العلاجات هذا الشهر",
+    "topProceduresDescription": "ما أُنجز من علاجات منذ بداية الشهر، بعددها وقيمتها بعد الخصم.",
+    "topProceduresEmpty": "لم يُنجز أي علاج هذا الشهر بعد.",
+    "timesDone": "{count, plural, one {مرة واحدة} two {مرتان} few {# مرات} many {# مرة} other {# مرة}}",
+    "busyHours": "أكثر الأيام والساعات ازدحاماً",
+    "busyHoursDescription": "المواعيد المحجوزة (غير الملغاة) في آخر 90 يوماً حسب اليوم والساعة. كلما غمق اللون زاد الازدحام.",
+    "busyHoursEmpty": "لا توجد مواعيد في آخر 90 يوماً.",
+    "busyCell": "{day} {hour}: {count, plural, =0 {لا مواعيد} one {موعد واحد} two {موعدان} few {# مواعيد} many {# موعداً} other {# موعد}}",
+    "less": "أقل",
+    "more": "أكثر"
   },
   "settings": {
     "title": "الإعدادات",

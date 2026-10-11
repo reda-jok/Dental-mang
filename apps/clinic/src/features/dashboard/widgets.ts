@@ -15,9 +15,12 @@ export const WIDGETS = [
   { key: "owedByPatients", permission: "billing:write", size: "stat" },
   { key: "cashDrawer", permission: "billing:write", size: "stat" },
   { key: "owedToLabs", permission: "lab:pay", size: "stat" },
+  { key: "attendance", permission: "appointment:read", size: "stat" },
   { key: "labAlerts", permission: "lab:read", size: "wide" },
   { key: "todayAppointments", permission: "appointment:read", size: "wide" },
   { key: "calendar", permission: "appointment:read", size: "wide" },
+  { key: "topProcedures", permission: "clinical:read", size: "wide" },
+  { key: "busyHours", permission: "appointment:read", size: "wide" },
 ] as const satisfies readonly { key: string; permission: Permission; size: "stat" | "wide" }[]
 
 export type WidgetKey = (typeof WIDGETS)[number]["key"]
