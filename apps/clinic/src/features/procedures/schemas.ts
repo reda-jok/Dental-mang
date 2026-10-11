@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { parseAmount } from "@/lib/money"
-import { text, toLatinDigits, uuid } from "@/lib/validation"
+import { optionalText, text, toLatinDigits, uuid } from "@/lib/validation"
 
 import { CONDITION_CODES } from "../chart/teeth"
 
@@ -25,6 +25,7 @@ const procedureFields = z.object({
     .transform((v) => (v ? Number(v) : null))
     .refine((v) => v === null || (v >= 5 && v <= 600), "invalidDuration"),
   requiresLab: z.boolean(),
+  patientNote: optionalText(200),
 })
 
 /** The price is parsed with the currency's decimals, so it's checked on the whole object. */

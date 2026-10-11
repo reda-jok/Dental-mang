@@ -6,9 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 
 import type { ToothState } from "../state"
-import { isUpper, PERMANENT_ROWS, PRIMARY_ROWS } from "../teeth"
-
-export type Dentition = "permanent" | "mixed" | "primary"
+import { isUpper, PERMANENT_ROWS, PRIMARY_ROWS, type Dentition } from "../teeth"
 
 /**
  * Tile colour per condition (the clinic's original odontogram style).

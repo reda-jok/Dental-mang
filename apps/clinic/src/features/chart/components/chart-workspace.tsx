@@ -33,8 +33,8 @@ import { addPlanItemsAction, createPlanAction } from "../../plans/actions"
 import { addFindingAction, resolveFindingAction } from "../actions"
 import type { ChartData } from "../data"
 import { buildChartState } from "../state"
-import { conditionInfo, SURFACES, TOOTH_CONDITIONS, type Surface } from "../teeth"
-import { LEGEND_DOTS, ToothChart, type Dentition } from "./tooth-chart"
+import { conditionInfo, SURFACES, TOOTH_CONDITIONS, type Dentition, type Surface } from "../teeth"
+import { LEGEND_DOTS, ToothChart } from "./tooth-chart"
 
 type OpenPlan = { id: string; title: string }
 

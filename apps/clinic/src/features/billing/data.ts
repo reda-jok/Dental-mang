@@ -762,3 +762,27 @@ export async function getPaymentReceipt(id: string) {
 }
 
 export type PaymentReceipt = NonNullable<Awaited<ReturnType<typeof getPaymentReceipt>>>
+
+/**
+ * What the patient has already paid toward one treatment plan: for each live invoice that
+ * bills the plan's items, its counted payments up to the plan's lines on it.
+ */
+// ponytail: an invoice that mixes this plan with other work and is only partly paid counts
+// its payments toward this plan first; split them per line if a clinic asks.
+export async function getPlanPaid(planId: string) {
+  const user = await authorize("billing:read")
+  const invoices = await db.invoice.findMany({
+    where: { ...visibleTo(user), status: "issued", lines: { some: { planItem: { planId } } } },
+    select: {
+      allocations: countedAllocations,
+      lines: { where: { planItem: { planId } }, select: { total: true } },
+    },
+  })
+  return fromMinor(
+    invoices.reduce((sum, invoice) => {
+      const paid = toMinor(sumAmounts(invoice.allocations.map((a) => a.amount)))
+      const planLines = toMinor(sumAmounts(invoice.lines.map((l) => l.total)))
+      return sum + (paid < planLines ? paid : planLines)
+    }, 0n),
+  )
+}

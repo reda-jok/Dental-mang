@@ -100,6 +100,7 @@ function ProcedureForm({
       chartResult: (procedure?.chartResult ?? "") as ProcedureFormInput["chartResult"],
       durationMinutes: procedure?.durationMinutes ? String(procedure.durationMinutes) : "",
       requiresLab: procedure?.requiresLab ?? false,
+      patientNote: procedure?.patientNote ?? "",
     },
   })
   const { errors } = form.formState
@@ -221,6 +222,14 @@ function ProcedureForm({
               <InfoHint>{t("procedures.requiresLabHint")}</InfoHint>
             </div>
           )}
+        />
+        <TextField
+          id="patientNote"
+          optional
+          label={t("procedures.patientNote")}
+          description={t("procedures.patientNoteHint")}
+          error={errors.patientNote?.message}
+          {...form.register("patientNote")}
         />
         <DialogFooter>
           <Button type="submit" disabled={pending}>

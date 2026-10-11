@@ -232,7 +232,7 @@ Reception books → WhatsApp reminder the day before → patient arrives (status
 - New appointment flow shows the tooth chart → select teeth → procedure
 - Calendar: edit/reschedule from the day view · **no-show → reschedule** · **completed → book next visit**
 - Dashboard: today's appointments, patient search, monthly revenue, recent procedures, real stats only
-- Billing: patients with total / paid / due · pay against patient + plan · print invoice/receipt after paying · overdue accounts · **no insurance, no payment plans**
+- Billing: patients with total / paid / due · pay against patient + plan · print invoice/receipt after paying · overdue accounts · **no insurance, no payment plans** *(payment plans superseded 2026-10-01: big plans are invoiced up front and paid in installments, §16; the printed plan suggests a schedule, §21)*
 
 ---
 
@@ -470,3 +470,16 @@ A second review of the whole plan (repo, Notion clinic page, Technical Design, C
 | Booking dialog: day bar | A thin bar of busy and free blocks above the free-time list; a free block can be tapped to choose the time | ✅ Built 2026-10-06 (`day-bar.tsx`) |
 | Booking dialog: several dentists | With no dentist chosen, a time is booked only when **every active dentist is busy** (every room if there are no dentists, the single chair if neither); bookings with no dentist or room only block each other, as the booking service checks | ✅ Built 2026-10-06 (`availabilityFor` in `appointments/rules.ts`, unit-tested); the database still refuses a double booking |
 | Order | Booking fix → customizable dashboard → daily reminder list (also a dashboard widget) → commission | Booking fix done; dashboard part 1 done, parts 2 (money widgets) and 3 (clinic widgets) next. The reminder list moves after the dashboard |
+
+---
+
+## 21. Printed treatment plan (2026-10-08, owner)
+
+| Topic | Decision | What it means for the build |
+|---|---|---|
+| Patient copy | The printed plan becomes a selling point: **tooth chart picture**, **visit timeline**, **payment plan**, **plain-Arabic explanations** | ✅ Built 2026-10-08. Chart: plan teeth filled black with their next unfinished phase number, finished teeth grey with a tick (readable on black-and-white printers), dentition from age, widened to mixed when the plan has other teeth. Timeline: the table grouped by phase with step number, chair time and "done" |
+| Chair time | **Auto from the catalog** durations | Sum of the procedures' durations per phase, rounded up to a quarter hour; nothing to type |
+| Payment plan | **Chosen at print time**, nothing saved | Options above the sheet (copies, full / per phase / 3, 6, 10 or 12 months, deposit 0–50 % for installments). Whole thousands of dinars, last installment takes the remainder; what's already paid covers the earliest phases first. "Paid so far" shows only to staff with billing access. No stored schedule or installment tracking |
+| Explanations | One plain-words line per procedure | New optional `procedure.patient_note` (catalog form, "شرح للمريض"); the 24 starter procedures come with one. Each distinct procedure is explained once |
+| One page | **Always one page** per copy, even on A5 | Measured in the browser after the fonts load (`FitPage`): too tall → the explanations are left out, still too tall → scaled down. A 15-item plan fits one A5 page (e2e) |
+| Copies | **Both**: patient copy + clinic copy | The clinic copy is a short signed agreement: treatments, total, agreed payment terms, consent sentence, both signatures and date. The quote no longer opens the print dialog by itself, so the options can be chosen first |

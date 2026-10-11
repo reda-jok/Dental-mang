@@ -66,7 +66,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - Wide content (the tooth chart, tables) scrolls inside its own box. Grid and flex children that contain it need `min-w-0`.
 - Money: amounts are strings, handled with `src/lib/money.ts` (exact minor units, totals per currency, `formatMoney`). Never use `Number` for arithmetic.
 - Destructive actions need an `AlertDialog` that says what happens and whether it can be undone.
-- **Printing:** printable pages live under `src/app/print/` (no app shell), wrap their content in `ThermalSheet` (80 mm receipts) or `PaperSheet` (A5 or A4, the clinic's setting; `features/printing/components/sheets.tsx`), start with `PrintToolbar`, and are opened with `PrintLink` (new tab, print dialog opens by itself). Each must print on one page (the e2e tests check the PDF).
+- **Printing:** printable pages live under `src/app/print/` (no app shell), wrap their content in `ThermalSheet` (80 mm receipts) or `PaperSheet` (A5 or A4, the clinic's setting; `features/printing/components/sheets.tsx`), start with `PrintToolbar`, and are opened with `PrintLink` (new tab, print dialog opens by itself, except where options are chosen first, like the plan quote). Each copy must print on one page (the e2e tests check the PDF); content that can grow goes in `FitPage` (`printing/components/fit-page.tsx`), which hides `data-optional` parts and then scales down to fit.
 
 ## Keeping records in sync
 

@@ -14,6 +14,7 @@ const procedureSelect = {
   chartResult: true,
   durationMinutes: true,
   requiresLab: true,
+  patientNote: true,
 } as const
 
 type Row = { price: { toString(): string }; currency: Currency }

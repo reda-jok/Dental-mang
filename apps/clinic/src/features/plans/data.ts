@@ -94,7 +94,8 @@ export async function getPlanQuote(id: string) {
           price: true,
           currency: true,
           discount: true,
-          procedure: { select: { name: true } },
+          status: true,
+          procedure: { select: { id: true, name: true, durationMinutes: true, patientNote: true } },
         },
       },
     },
@@ -102,7 +103,10 @@ export async function getPlanQuote(id: string) {
   if (!plan) return null
   const items = plan.items.map(({ procedure, price, discount, ...item }) => ({
     ...item,
+    procedureId: procedure.id,
     procedureName: procedure.name,
+    durationMinutes: procedure.durationMinutes,
+    patientNote: procedure.patientNote,
     price: price.toString(),
     discount: discount.toString(),
     net: subtractAmounts(price.toString(), discount.toString()),

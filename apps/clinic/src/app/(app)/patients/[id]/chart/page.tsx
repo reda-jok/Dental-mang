@@ -5,6 +5,7 @@ import { Panel } from "@/components/panel"
 
 import { ChartWorkspace } from "@/features/chart/components/chart-workspace"
 import { getChartData } from "@/features/chart/data"
+import { dentitionForAge } from "@/features/chart/teeth"
 import { getPlans } from "@/features/plans/data"
 import { isPlanOpen } from "@/features/plans/rules"
 import { getCatalogForPlanning } from "@/features/procedures/data"
@@ -29,9 +30,9 @@ export default async function ChartPage({ params }: PageProps<"/patients/[id]/ch
     getTranslations("chart"),
   ])
 
-  // Children: primary teeth under ~6, mixed until ~12.
-  const age = patient.birthDate ? ageInYears(patient.birthDate, todayIso()) : null
-  const dentition = age === null || age >= 12 ? "permanent" : age < 6 ? "primary" : "mixed"
+  const dentition = dentitionForAge(
+    patient.birthDate ? ageInYears(patient.birthDate, todayIso()) : null,
+  )
 
   return (
     <Panel icon={ActivityIcon} title={t("title")} description={t("description")}>

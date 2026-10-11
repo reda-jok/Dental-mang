@@ -8,7 +8,7 @@ import { AppError } from "@/server/errors"
 import type { CurrentUser } from "@/server/session"
 
 import type { categorySchema, createProcedureSchema, updateProcedureSchema } from "./schemas"
-import { STARTER_CATALOG } from "./starter"
+import { STARTER_CATALOG, STARTER_NOTES } from "./starter"
 
 export async function createCategory(actor: CurrentUser, input: z.output<typeof categorySchema>) {
   const existing = await db.procedureCategory.findUnique({ where: { name: input.name } })
@@ -105,6 +105,7 @@ export async function loadStarterCatalog(actor: CurrentUser) {
       await tx.procedure.createMany({
         data: group.procedures.map((p) => ({
           ...p,
+          patientNote: STARTER_NOTES[p.name] ?? null,
           categoryId: category.id,
           price: "0",
           currency: "IQD" as const,

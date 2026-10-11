@@ -53,7 +53,7 @@ import { shouldCompletePlan } from "@/features/plans/rules"
 import { createPrescriptionSchema } from "@/features/prescriptions/schemas"
 import { createPrescription } from "@/features/prescriptions/service"
 import { STARTER_MEDICATIONS } from "@/features/prescriptions/starter"
-import { STARTER_CATALOG } from "@/features/procedures/starter"
+import { STARTER_CATALOG, STARTER_NOTES } from "@/features/procedures/starter"
 import { addDays, isoDateInZone, todayIso, toIsoDate, weekdayOf, zonedInstant } from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
@@ -162,6 +162,20 @@ async function topUps() {
   await seedLabMoney()
   await seedClinicalNotes()
   await seedDashboardLayouts()
+  await seedProcedureNotes()
+}
+
+/** Patient explanations (2026-10-08) for catalogs loaded before the field existed. */
+async function seedProcedureNotes() {
+  let filled = 0
+  for (const [name, patientNote] of Object.entries(STARTER_NOTES)) {
+    const { count } = await db.procedure.updateMany({
+      where: { name, patientNote: null },
+      data: { patientNote },
+    })
+    filled += count
+  }
+  if (filled) console.log(`Procedure explanations: ${filled}`)
 }
 
 /**

@@ -12,6 +12,13 @@ export const PRIMARY_ROWS = [
   [85, 84, 83, 82, 81, 71, 72, 73, 74, 75],
 ] as const
 
+export type Dentition = "permanent" | "mixed" | "primary"
+
+/** Children: primary teeth under ~6, mixed until ~12. Unknown age = permanent. */
+export function dentitionForAge(age: number | null): Dentition {
+  return age === null || age >= 12 ? "permanent" : age < 6 ? "primary" : "mixed"
+}
+
 export const ALL_TEETH: readonly number[] = [...PERMANENT_ROWS.flat(), ...PRIMARY_ROWS.flat()]
 
 export function isValidTooth(tooth: number): boolean {

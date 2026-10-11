@@ -333,6 +333,8 @@ model Procedure {
   chartResult     String?    @map("chart_result")
   durationMinutes Int?       @map("duration_minutes")
   requiresLab     Boolean    @default(false) @map("requires_lab")
+  /// What the procedure is, in plain words for the patient (printed on the plan quote).
+  patientNote     String?    @map("patient_note")
   createdById     String?    @map("created_by_id") @db.Uuid
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)

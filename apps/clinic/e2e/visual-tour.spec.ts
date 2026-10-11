@@ -99,6 +99,14 @@ test("visual tour", async ({ page }, testInfo) => {
   )
   if (printable?.payment) await visit(page, `/print/receipt/${printable.payment}`, "print-receipt")
   if (printable?.plan) await visit(page, `/print/quote/${printable.plan}`, "print-quote")
+  const [bigPlan] = await query<{ id: string }>(
+    "select id from treatment_plan where title = 'خطة شاملة' order by created_at limit 1",
+  )
+  if (bigPlan) {
+    await page.goto(`/print/quote/${bigPlan.id}?copies=patient&pay=months&months=12`)
+    await page.locator("[data-fitted]").waitFor({ state: "attached" })
+    await shot("print-quote-big")
+  }
   const [prescription] = await query<{ id: string }>("select id from prescription limit 1")
   if (prescription)
     await visit(page, `/print/prescription/${prescription.id}`, "print-prescription")
