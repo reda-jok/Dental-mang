@@ -11,6 +11,7 @@ import {
   PERMANENT_ROWS,
   PRIMARY_ROWS,
 } from "./teeth"
+import { toothKind } from "./tooth-shapes"
 
 describe("FDI numbering", () => {
   it("has 32 permanent and 20 primary teeth, all valid and unique", () => {
@@ -48,5 +49,20 @@ describe("normalizeSurfaces", () => {
   it("orders and deduplicates", () => {
     expect(normalizeSurfaces(["O", "M", "M", "D"])).toEqual(["M", "D", "O"])
     expect(normalizeSurfaces(["X", "L"])).toEqual(["L"])
+  })
+})
+
+describe("toothKind", () => {
+  it("draws each FDI position as its kind of tooth; primary 4–5 are molars", () => {
+    expect([11, 22, 13, 14, 25, 16, 38].map(toothKind)).toEqual([
+      "incisor",
+      "incisor",
+      "canine",
+      "premolar",
+      "premolar",
+      "molar",
+      "molar",
+    ])
+    expect([51, 53, 54, 85].map(toothKind)).toEqual(["incisor", "canine", "molar", "molar"])
   })
 })

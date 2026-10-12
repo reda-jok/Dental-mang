@@ -34,7 +34,7 @@ export async function usableCondition(tx: Db, code: string, keep?: string | null
 
 /** One finding per selected tooth; whole-tooth conditions ignore surfaces. */
 export async function addFindings(actor: CurrentUser, input: z.output<typeof addFindingSchema>) {
-  await db.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const condition = await usableCondition(tx, input.condition)
     const surfaces = condition.scope === "tooth" ? [] : normalizeSurfaces(input.surfaces)
     const patient = await tx.patient.findFirst({
@@ -43,7 +43,8 @@ export async function addFindings(actor: CurrentUser, input: z.output<typeof add
     })
     if (!patient) throw new AppError("not_found")
     const teeth = [...new Set(input.teeth)]
-    await tx.toothFinding.createMany({
+    const created = await tx.toothFinding.createManyAndReturn({
+      select: { id: true },
       data: teeth.map((tooth) => ({
         patientId: input.patientId,
         tooth,
@@ -60,6 +61,7 @@ export async function addFindings(actor: CurrentUser, input: z.output<typeof add
       entityId: input.patientId,
       after: { teeth, surfaces, condition: input.condition, notes: input.notes },
     })
+    return created.map((f) => f.id)
   })
 }
 

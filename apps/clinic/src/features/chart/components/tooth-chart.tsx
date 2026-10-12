@@ -2,9 +2,8 @@
 
 import { CalendarClockIcon, TriangleAlertIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
-import type { KeyboardEvent } from "react"
+import { useId, type KeyboardEvent, type MouseEvent } from "react"
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 import { mainCondition, problemsOf, surfaceColor, toothConditions, type ToothState } from "../state"
@@ -13,33 +12,31 @@ import {
   mesialOnRight,
   PERMANENT_ROWS,
   PRIMARY_ROWS,
+  SURFACES,
   tint,
   type Conditions,
   type Dentition,
   type Surface,
 } from "../teeth"
+import { CROWN_TOP, OCCLUSAL_BAND, SHAPES, toothKind } from "../tooth-shapes"
+
+export type ToothTap = { tooth: number; surface: Surface | null; anchor: HTMLElement }
 
 type Props = {
   dentition: Dentition
   chart: Map<number, ToothState>
   conditions: Conditions
-  selectedTeeth: Set<number>
-  onToggleTooth: (tooth: number) => void
-  disabled?: boolean
+  /** The tooth whose details or surface choice is open. */
+  activeTooth: number | null
+  onTap: (tap: ToothTap) => void
 }
 
 /**
- * Interactive odontogram, FDI numbering. Always laid out left-to-right with the
+ * Interactive odontogram, FDI numbering: each tooth seen from the side (crown and roots)
+ * and from its biting side (five surfaces). Always laid out left-to-right with the
  * patient's right on the viewer's left — never mirrored by the RTL page.
  */
-export function ToothChart({
-  dentition,
-  chart,
-  conditions,
-  selectedTeeth,
-  onToggleTooth,
-  disabled,
-}: Props) {
+export function ToothChart({ dentition, chart, conditions, activeTooth, onTap }: Props) {
   const t = useTranslations("chart")
 
   const upperRows: (readonly number[])[] = []
@@ -49,183 +46,86 @@ export function ToothChart({
   if (dentition !== "permanent") lowerRows.push(PRIMARY_ROWS[1])
   if (dentition !== "primary") lowerRows.push(PERMANENT_ROWS[1])
 
-  const row = (teeth: readonly number[]) => (
-    <div className="flex justify-center gap-1.5">
-      {teeth.map((tooth, i) => (
-        <div key={tooth} className={cn("flex", i === teeth.length / 2 && "ms-3")}>
-          <ToothTile
-            tooth={tooth}
-            state={chart.get(tooth)}
-            conditions={conditions}
-            selected={selectedTeeth.has(tooth)}
-            onToggle={onToggleTooth}
-            disabled={disabled}
-          />
-        </div>
-      ))}
-    </div>
-  )
-
-  return (
-    <div dir="ltr" className="w-full overflow-x-auto py-3">
-      <div className="mx-auto flex w-max flex-col items-center gap-3 px-2">
-        <div className="text-muted-foreground flex w-full justify-between text-xs">
-          <span>{t("patientRight")}</span>
-          <span>{t("patientLeft")}</span>
-        </div>
-
-        <p className="text-muted-foreground text-sm font-semibold tracking-widest">{t("upper")}</p>
-        {upperRows.map((teeth) => (
-          <div key={teeth[0]}>{row(teeth)}</div>
+  // Each half of a jaw has room for 8 teeth, so primary and permanent teeth line up.
+  // When the chart is narrow (a phone, a tablet with the menu open) the two halves stack,
+  // so the teeth stay big enough to tap: sized by the chart's own width, not the screen's.
+  const half = (teeth: readonly number[], caption: string) => (
+    <div className="min-w-0 flex-1">
+      <p className="text-muted-foreground mb-0.5 text-center text-[11px] @2xl:hidden">{caption}</p>
+      <div className="flex justify-center">
+        {teeth.map((tooth) => (
+          <div key={tooth} className="max-w-[60px] min-w-0 basis-[12.5%]">
+            <ToothColumn
+              tooth={tooth}
+              state={chart.get(tooth)}
+              conditions={conditions}
+              active={activeTooth === tooth}
+              onTap={onTap}
+            />
+          </div>
         ))}
-
-        <div className="bg-border my-3 h-px w-3/4" role="separator" />
-
-        {lowerRows.map((teeth) => (
-          <div key={teeth[0]}>{row(teeth)}</div>
-        ))}
-        <p className="text-muted-foreground text-sm font-semibold tracking-widest">{t("lower")}</p>
       </div>
     </div>
   )
-}
+  const row = (teeth: readonly number[]) => (
+    <div key={teeth[0]} className="flex flex-col gap-2 @2xl:flex-row @2xl:gap-3">
+      {half(teeth.slice(0, teeth.length / 2), t("patientRight"))}
+      {half(teeth.slice(teeth.length / 2), t("patientLeft"))}
+    </div>
+  )
 
-/** Where each surface sits on the drawing: buccal faces out of the arch, mesial the midline. */
-function surfaceAt(tooth: number) {
-  const upper = isUpper(tooth)
-  const mesialRight = mesialOnRight(tooth)
-  return {
-    top: (upper ? "B" : "L") as Surface,
-    bottom: (upper ? "L" : "B") as Surface,
-    left: (mesialRight ? "D" : "M") as Surface,
-    right: (mesialRight ? "M" : "D") as Surface,
-  }
-}
-
-const REGIONS = {
-  top: "M0 0 H30 L20 10 H10 Z",
-  bottom: "M0 30 H30 L20 20 H10 Z",
-  left: "M0 0 L10 10 V20 L0 30 Z",
-  right: "M30 0 L20 10 V20 L30 30 Z",
-  center: "M10 10 H20 V20 H10 Z",
-} as const
-
-/**
- * A tooth seen from the biting side, split into its five surfaces. With `onToggle` each
- * surface is a checkbox (the surface picker); otherwise it only shows colours.
- */
-export function SurfaceDiagram({
-  tooth,
-  colorOf,
-  selected,
-  onToggle,
-  labels,
-  className,
-}: {
-  tooth: number
-  colorOf: (surface: Surface) => string | null
-  selected?: ReadonlySet<Surface>
-  onToggle?: (surface: Surface) => void
-  /** Surface names, shown as letters and read out (the picker). */
-  labels?: (surface: Surface) => string
-  className?: string
-}) {
-  const at = surfaceAt(tooth)
-  const regions = [
-    ["top", at.top],
-    ["bottom", at.bottom],
-    ["left", at.left],
-    ["right", at.right],
-    ["center", "O"],
-  ] as const
-  const letterAt = {
-    top: [15, 6],
-    bottom: [15, 26],
-    left: [5, 16],
-    right: [25, 16],
-    center: [15, 16],
-  }
-  const keyToggle = (surface: Surface) => (e: KeyboardEvent) => {
-    if (e.key === " " || e.key === "Enter") {
-      e.preventDefault()
-      onToggle?.(surface)
-    }
-  }
   return (
-    <svg viewBox="-1 -1 32 32" className={className} aria-hidden={onToggle ? undefined : true}>
-      {regions.map(([region, surface]) => {
-        const color = colorOf(surface)
-        const on = selected?.has(surface) ?? false
-        return (
-          <path
-            key={region}
-            d={REGIONS[region]}
-            data-surface={surface}
-            data-color={color ?? undefined}
-            {...(onToggle && {
-              "data-surface-chip": surface,
-              role: "checkbox",
-              "aria-checked": on,
-              "aria-label": labels?.(surface),
-              tabIndex: 0,
-              onClick: () => onToggle(surface),
-              onKeyDown: keyToggle(surface),
-            })}
-            style={{
-              fill: on ? "var(--steel-100)" : (color ?? "#ffffff"),
-              stroke: on ? "var(--steel-600)" : onToggle ? "#94a3b8" : "#cbd5e1",
-            }}
-            strokeWidth={on ? 1.2 : onToggle ? 0.6 : 0.5}
-            strokeLinejoin="round"
-            className={cn(
-              onToggle && "cursor-pointer outline-none hover:opacity-80 focus-visible:opacity-70",
-            )}
-          />
-        )
-      })}
-      {labels &&
-        regions.map(([region, surface]) => (
-          <text
-            key={region}
-            x={letterAt[region][0]}
-            y={letterAt[region][1]}
-            fontSize="4.5"
-            fontWeight="700"
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill={colorOf(surface) && !selected?.has(surface) ? "#ffffff" : "#334155"}
-            className="pointer-events-none select-none"
-          >
-            {surface}
-          </text>
-        ))}
-    </svg>
+    <div dir="ltr" className="@container flex w-full flex-col gap-1 px-1 py-2">
+      <div className="text-muted-foreground flex justify-between text-xs">
+        <span className="hidden @2xl:inline">{t("patientRight")}</span>
+        <span className="mx-auto @2xl:mx-0">{t("upper")}</span>
+        <span className="hidden @2xl:inline">{t("patientLeft")}</span>
+      </div>
+      {upperRows.map(row)}
+      <div className="bg-border my-2 h-px w-full" role="separator" />
+      {lowerRows.map(row)}
+      <p className="text-muted-foreground text-center text-xs">{t("lower")}</p>
+    </div>
   )
 }
 
-function ToothTile({
+const ENAMEL_LINE = "#94a3b8"
+const ROOT_LINE = "#b9ab92"
+
+function ToothColumn({
   tooth,
   state,
   conditions,
-  selected,
-  onToggle,
-  disabled,
+  active,
+  onTap,
 }: {
   tooth: number
   state: ToothState | undefined
   conditions: Conditions
-  selected: boolean
-  onToggle: (tooth: number) => void
-  disabled?: boolean
+  active: boolean
+  onTap: (tap: ToothTap) => void
 }) {
   const t = useTranslations("chart")
+  const id = useId()
   const upper = isUpper(tooth)
+  const shape = SHAPES[toothKind(tooth)]
+  const colorOf = (s: Surface) => surfaceColor(state, s, conditions)
+  const has = (code: string) => state?.marks.some((m) => m.condition === code) ?? false
+  const color = (code: string) => conditions.get(code)?.color ?? "#64748b"
   const problems = problemsOf(state, conditions)
   const planned = state?.planned ?? []
   const inProgress = planned.some((p) => p.status === "in_progress")
-  const lead = state?.gone ?? toothConditions(state, conditions)[0]
-  const leadColor = lead ? conditions.get(lead)?.color : undefined
-  const problemColor = problems[0] ? conditions.get(problems[0].condition)?.color : undefined
+  const missing = state?.gone === "missing"
+  const implant = state?.gone === "implant"
+  const remnant = has("root_remnant")
+  // A whole-tooth condition tints the crown (the ones with their own drawing aside).
+  const lead = toothConditions(state, conditions).find(
+    (c) => !["root_canal", "implant", "missing", "root_remnant"].includes(c),
+  )
+  const leadColor = lead ? color(lead) : undefined
+  const problemColor = problems[0] ? color(problems[0].condition) : undefined
+  const left: Surface = mesialOnRight(tooth) ? "D" : "M"
+  const right: Surface = mesialOnRight(tooth) ? "M" : "D"
   const surfaceName = (s: Surface) => t(`surfaces.${s}`)
 
   const lines = [
@@ -237,82 +137,206 @@ function ToothTile({
   ]
   const label = `${t("toothLabel", { tooth: String(tooth) })} · ${lines.length ? lines.join(" · ") : t("healthy")}`
 
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          data-tooth={tooth}
-          data-condition={mainCondition(state, conditions) ?? "healthy"}
-          data-problem={problems.length > 0 || undefined}
-          aria-pressed={selected}
-          aria-label={label}
-          disabled={disabled}
-          onClick={() => onToggle(tooth)}
-          style={{
-            background: leadColor ? tint(leadColor, 0.82) : undefined,
-            borderColor: problemColor ?? (leadColor ? tint(leadColor, 0.35) : undefined),
-          }}
-          className={cn(
-            "relative flex h-16 w-11 flex-col items-center gap-1 border-2 border-slate-200 bg-white px-1 py-1 text-slate-700 transition-all duration-200 disabled:cursor-default",
-            upper ? "rounded-t-xl rounded-b-md" : "flex-col-reverse rounded-t-md rounded-b-xl",
-            state?.gone === "missing" && "border-dashed opacity-60",
-            selected
-              ? "ring-steel-300 z-10 scale-110 ring-4"
-              : upper
-                ? "hover:-translate-y-1 hover:shadow-md"
-                : "hover:translate-y-1 hover:shadow-md",
-            "focus-visible:ring-ring focus-visible:ring-4 focus-visible:outline-none",
-          )}
-        >
-          <span className="text-xs leading-none font-bold">{tooth}</span>
-          {state?.gone === "missing" ? (
-            <svg viewBox="0 0 30 30" className="size-7 text-slate-500" aria-hidden>
-              <path d="M5 5 L25 25 M25 5 L5 25" stroke="currentColor" strokeWidth="3" />
-            </svg>
-          ) : state?.gone === "implant" ? (
-            <svg viewBox="0 0 30 30" className="size-7" style={{ color: leadColor }} aria-hidden>
-              <path
-                d="M8 4 H22 M10 9 H20 M11 14 H19 M12 19 H18 M13.5 24 H16.5 M15 4 V27"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          ) : (
-            <SurfaceDiagram
-              tooth={tooth}
-              colorOf={(s) => surfaceColor(state, s, conditions)}
-              className="size-7"
-            />
-          )}
+  const tap = (e: MouseEvent<HTMLButtonElement>) => {
+    const hit = (e.target as Element).closest("[data-surface],[data-side-surface]")
+    const surface = (hit?.getAttribute("data-surface") ??
+      hit?.getAttribute("data-side-surface") ??
+      null) as Surface | null
+    onTap({ tooth, surface, anchor: e.currentTarget })
+  }
+  // Keyboard: Enter is the whole tooth, a surface letter that surface.
+  const key = (e: KeyboardEvent<HTMLButtonElement>) => {
+    const surface = e.key.toUpperCase() as Surface
+    if (!SURFACES.includes(surface)) return
+    e.preventDefault()
+    onTap({ tooth, surface, anchor: e.currentTarget })
+  }
 
-          {problems.length > 0 && (
-            <span
-              className={cn(
-                "absolute -start-2 flex size-4 items-center justify-center rounded-full text-white ring-2 ring-white",
-                upper ? "-top-2" : "-bottom-2",
-              )}
-              style={{ background: problemColor }}
-            >
-              <TriangleAlertIcon className="size-2.5" />
-            </span>
-          )}
-          {planned.length > 0 && (
-            <span
-              data-planned
-              className={cn(
-                "absolute -end-2 flex size-4 items-center justify-center rounded-full text-white ring-2 ring-white",
-                upper ? "-top-2" : "-bottom-2",
-                inProgress ? "bg-amber-500" : "bg-blue-600",
-              )}
-            >
-              <CalendarClockIcon className="size-2.5" />
-            </span>
-          )}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-60 text-start">{label}</TooltipContent>
-    </Tooltip>
+  // The biting surface seen from above (40 × 30): four sides around the middle.
+  const o = shape.occlusal
+  const [x0, y0] = [(40 - o.w) / 2, (30 - o.h) / 2]
+  const [x1, y1] = [x0 + o.w, y0 + o.h]
+  const [ix0, ix1, iy0, iy1] = [x0 + o.w * 0.3, x1 - o.w * 0.3, y0 + o.h * 0.3, y1 - o.h * 0.3]
+  const outward: Surface = upper ? "B" : "L"
+  const inward: Surface = upper ? "L" : "B"
+  const occlusal = (
+    <g opacity={missing ? 0.25 : 1}>
+      <clipPath id={`${id}o`}>
+        <rect x={x0} y={y0} width={o.w} height={o.h} rx={o.rx} ry={o.ry} />
+      </clipPath>
+      <linearGradient id={`${id}e`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#ffffff" />
+        <stop offset="1" stopColor="#e8edf3" />
+      </linearGradient>
+      <linearGradient id={`${id}r`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#f7f2e8" />
+        <stop offset="1" stopColor="#e6dcc7" />
+      </linearGradient>
+      <g clipPath={`url(#${id}o)`}>
+        {(
+          [
+            [outward, `M${x0} ${y0} H${x1} L${ix1} ${iy0} H${ix0} Z`],
+            [inward, `M${x0} ${y1} H${x1} L${ix1} ${iy1} H${ix0} Z`],
+            [left, `M${x0} ${y0} L${ix0} ${iy0} V${iy1} L${x0} ${y1} Z`],
+            [right, `M${x1} ${y0} L${ix1} ${iy0} V${iy1} L${x1} ${y1} Z`],
+            [
+              "O",
+              `M${ix0} ${(iy0 + iy1) / 2} a${(ix1 - ix0) / 2} ${(iy1 - iy0) / 2} 0 1 0 ${ix1 - ix0} 0 a${(ix1 - ix0) / 2} ${(iy1 - iy0) / 2} 0 1 0 ${ix0 - ix1} 0 Z`,
+            ],
+          ] as const
+        ).map(([surface, d]) => (
+          <path
+            key={surface}
+            d={d}
+            data-surface={surface}
+            data-color={colorOf(surface) ?? undefined}
+            fill={colorOf(surface) ?? `url(#${id}e)`}
+            stroke="#cbd5e1"
+            strokeWidth={0.6}
+          />
+        ))}
+      </g>
+      <rect
+        x={x0}
+        y={y0}
+        width={o.w}
+        height={o.h}
+        rx={o.rx}
+        ry={o.ry}
+        fill="none"
+        stroke={leadColor ?? ENAMEL_LINE}
+        strokeWidth={1}
+        pointerEvents="none"
+      />
+    </g>
+  )
+
+  // Seen from the side, crown down (an upper tooth); lower teeth are flipped.
+  const side = (
+    <g transform={upper ? undefined : "translate(0 132) scale(1 -1)"}>
+      <g opacity={missing ? 0.25 : 1} strokeDasharray={missing ? "2 2" : undefined}>
+        {implant ? (
+          <g stroke={color("implant")} strokeWidth={2} strokeLinecap="round">
+            <path
+              d="M14.5 56 L15.5 16 Q20 10 24.5 16 L25.5 56 Z"
+              fill={tint(color("implant"), 0.75)}
+            />
+            {[22, 30, 38, 46].map((y) => (
+              <path key={y} d={`M14 ${y} L26 ${y - 3}`} />
+            ))}
+          </g>
+        ) : (
+          <>
+            <path
+              d={shape.root}
+              fill={remnant ? tint(color("root_remnant"), 0.6) : `url(#${id}r)`}
+              stroke={remnant ? color("root_remnant") : ROOT_LINE}
+              strokeWidth={1}
+            />
+            {has("root_canal") &&
+              shape.canals.map((d) => (
+                <path
+                  key={d}
+                  d={d}
+                  fill="none"
+                  stroke={color("root_canal")}
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                />
+              ))}
+          </>
+        )}
+        <g opacity={remnant ? 0.25 : 1}>
+          <clipPath id={`${id}c`}>
+            <path d={shape.crown} />
+          </clipPath>
+          <path d={shape.crown} fill={leadColor ? tint(leadColor, 0.55) : `url(#${id}e)`} />
+          <g clipPath={`url(#${id}c)`}>
+            {(
+              [
+                ["O", 0, OCCLUSAL_BAND, 40, 100 - OCCLUSAL_BAND],
+                [left, 0, CROWN_TOP, 15, OCCLUSAL_BAND - CROWN_TOP],
+                [right, 25, CROWN_TOP, 15, OCCLUSAL_BAND - CROWN_TOP],
+                ["B", 15, CROWN_TOP, 10, OCCLUSAL_BAND - CROWN_TOP],
+              ] as const
+            ).map(([surface, x, y, w, h]) => (
+              <rect
+                key={surface}
+                data-side-surface={surface}
+                x={x}
+                y={y}
+                width={w}
+                height={h}
+                fill={colorOf(surface) ?? "transparent"}
+              />
+            ))}
+          </g>
+          <path
+            d={shape.crown}
+            fill="none"
+            stroke={leadColor ?? ENAMEL_LINE}
+            strokeWidth={leadColor ? 1.6 : 1}
+            pointerEvents="none"
+          />
+        </g>
+      </g>
+      {missing && <path d="M9 60 L31 94 M31 60 L9 94" stroke="#64748b" strokeWidth={2} />}
+    </g>
+  )
+
+  return (
+    <button
+      type="button"
+      data-tooth={tooth}
+      data-condition={mainCondition(state, conditions) ?? "healthy"}
+      data-problem={problems.length > 0 || undefined}
+      aria-label={label}
+      aria-keyshortcuts="M D O B L"
+      aria-expanded={active}
+      onClick={tap}
+      onKeyDown={key}
+      className={cn(
+        "relative flex w-full flex-col items-center gap-0.5 rounded-lg px-px py-1 transition-colors",
+        !upper && "flex-col-reverse",
+        active ? "bg-accent ring-primary ring-1" : "hover:bg-accent",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+      )}
+    >
+      <span className="text-foreground text-[11px] leading-none font-bold">{tooth}</span>
+      <svg viewBox="0 0 40 132" className="h-auto w-full" aria-hidden>
+        {upper ? (
+          <>
+            {side}
+            <g transform="translate(0 102)">{occlusal}</g>
+          </>
+        ) : (
+          <>
+            {occlusal}
+            {side}
+          </>
+        )}
+      </svg>
+      <span className="flex h-3.5 items-center gap-0.5">
+        {problems.length > 0 && (
+          <span
+            className="flex size-3.5 items-center justify-center rounded-full text-white"
+            style={{ background: problemColor }}
+          >
+            <TriangleAlertIcon className="size-2.5" />
+          </span>
+        )}
+        {planned.length > 0 && (
+          <span
+            data-planned
+            className={cn(
+              "flex size-3.5 items-center justify-center rounded-full text-white",
+              inProgress ? "bg-amber-500" : "bg-blue-600",
+            )}
+          >
+            <CalendarClockIcon className="size-2.5" />
+          </span>
+        )}
+      </span>
+    </button>
   )
 }

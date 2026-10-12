@@ -34,43 +34,53 @@ test("chart → plan → done: caries becomes a filling and the plan completes",
   const box28 = await page.locator('[data-tooth="28"]').boundingBox()
   expect(box18!.x).toBeLessThan(box28!.x)
 
-  // Record caries on 16, surfaces O + M: pick the surfaces, then tap the condition.
-  await tooth(page, 16).click()
-  await surfaceChip(page, "O").click()
-  await surfaceChip(page, "M").click()
-  await page.getByTestId("tooth-panel").getByRole("button", { name: "تسوس" }).click()
-  await expect(page.getByText("تم تسجيل الحالة")).toBeVisible()
+  // Record caries on 16, surfaces O + M: choose the condition, then tap the surfaces.
+  await page.locator('[data-tool="caries"]').click()
+  await tooth(page, 16).locator('[data-surface="O"]').click()
+  await expect(page.getByText("تم تسجيل تسوس على السن 16").first()).toBeVisible()
+  await tooth(page, 16).locator('[data-surface="M"]').click()
+  await expect(tooth(page, 16).locator('[data-surface="M"]')).toHaveAttribute(
+    "data-color",
+    "#dc2626",
+  )
   await expect(tooth(page, 16)).toHaveAttribute("data-condition", "caries")
   await expect(tooth(page, 16)).toHaveAttribute("data-problem", "true")
-  // The affected surfaces are coloured on the tile, the others aren't.
   await expect(tooth(page, 16).locator('[data-surface="O"]')).toHaveAttribute(
     "data-color",
     "#dc2626",
   )
   await expect(tooth(page, 16).locator('[data-surface="D"]')).not.toHaveAttribute("data-color")
   await expect(tooth(page, 17)).toHaveAttribute("data-condition", "healthy")
-  // With nothing selected, the panel lists what needs treatment.
   await expect(page.getByTestId("needs-treatment")).toContainText("تسوس")
 
-  // A surface procedure without surfaces is refused.
+  // A mistake is undone from the confirmation.
+  await tooth(page, 26).locator('[data-surface="O"]').click()
+  await expect(tooth(page, 26)).toHaveAttribute("data-condition", "caries")
+  await page.getByRole("button", { name: "تراجع" }).first().click()
+  await expect(tooth(page, 26)).toHaveAttribute("data-condition", "healthy")
+
+  // With nothing chosen, tapping a tooth shows what's on it.
+  await page.locator('[data-tool="view"]').click()
   await tooth(page, 16).click()
-  await page.getByRole("button", { name: "إضافة علاج" }).click()
+  await expect(page.getByTestId("tooth-popover")).toContainText("تسوس")
+  await page.keyboard.press("Escape")
+
+  // Plan the filling: tapping the tooth offers the carious surfaces (new plan).
+  await page.locator('[data-tool="treatment"]').click()
   await pickProcedure(page, /حشوة تجميلية/)
-  await page.getByRole("button", { name: "إضافة إلى الخطة" }).click()
-  await expect(page.getByText("هذا الإجراء يحتاج تحديد أسطح السن")).toBeVisible()
+  // The number, not a surface: the tooth as a whole.
+  await tooth(page, 16).getByText("16", { exact: true }).click()
+  const popover = page.getByTestId("tooth-popover")
+  await expect(surfaceChip(page, "M")).toHaveAttribute("aria-pressed", "true")
+  await expect(surfaceChip(page, "O")).toHaveAttribute("aria-pressed", "true")
+  await expect(surfaceChip(page, "D")).toHaveAttribute("aria-pressed", "false")
+  await popover.getByRole("button", { name: "إضافة إلى الخطة" }).click()
+  await expect(page.getByText(/أُضيف حشوة تجميلية.* على السن 16 إلى الخطة/)).toBeVisible()
 
-  // Plan the filling on the carious surfaces (new plan).
-  await surfaceChip(page, "O").click()
-  await surfaceChip(page, "M").click()
-  await page.getByRole("button", { name: "إضافة إلى الخطة" }).click()
-  await expect(page.getByText("تمت إضافة علاج واحد")).toBeVisible()
-
-  // Implant on 36.
-  await tooth(page, 36).click()
-  await page.getByRole("button", { name: "إضافة علاج" }).click()
+  // Implant on 36: one tap.
   await pickProcedure(page, /زرعة سنية/)
-  await page.getByRole("button", { name: "إضافة إلى الخطة" }).click()
-  await expect(page.getByText("تمت إضافة علاج واحد")).toBeVisible()
+  await tooth(page, 36).click()
+  await expect(page.getByText(/أُضيف زرعة سنية.* على السن 36 إلى الخطة/)).toBeVisible()
 
   // Plans tab: both items and the plan total.
   await page.goto(`${patientUrl}/plans`)

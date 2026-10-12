@@ -178,8 +178,8 @@ function ColorPicker({
             aria-label={t(`colors.${color.slice(1) as "dc2626"}`)}
             onClick={() => onChange(color)}
             className={cn(
-              "focus-visible:ring-brand-cyan size-8 rounded-full ring-offset-2 transition focus-visible:ring-2 focus-visible:outline-none",
-              value === color && "ring-2 ring-slate-900",
+              "focus-visible:ring-ring size-8 rounded-full ring-offset-2 transition focus-visible:ring-2 focus-visible:outline-none",
+              value === color && "ring-foreground ring-2",
             )}
             style={{ background: color }}
           />

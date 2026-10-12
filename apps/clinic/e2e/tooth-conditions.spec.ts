@@ -30,9 +30,9 @@ test("the clinic adds its own tooth condition, records it, then hides it", async
   await expectCreated(page)
   const patientUrl = new URL(page.url()).pathname
   await page.goto(`${patientUrl}/chart`)
+  await page.getByTestId("chart-tools").getByRole("button", { name }).click()
   await page.locator('[data-tooth="11"]').click()
-  await page.getByTestId("tooth-panel").getByRole("button", { name }).click()
-  await expect(page.getByText("تم تسجيل الحالة")).toBeVisible()
+  await expect(page.getByText(`تم تسجيل ${name} على السن 11`)).toBeVisible()
   await expect(page.locator('[data-tooth="11"]')).toHaveAttribute("data-problem", "true")
   await expect(page.getByTestId("needs-treatment")).toContainText(name)
 
@@ -42,8 +42,7 @@ test("the clinic adds its own tooth condition, records it, then hides it", async
   await expect(page.getByText("تم إخفاء الحالة")).toBeVisible()
   await page.goto(`${patientUrl}/chart`)
   await expect(page.getByTestId("needs-treatment").filter({ visible: true })).toContainText(name)
-  await page.locator('[data-tooth="12"]').click()
-  await expect(page.getByTestId("tooth-panel").getByRole("button", { name })).toHaveCount(0)
+  await expect(page.getByTestId("chart-tools").getByRole("button", { name })).toHaveCount(0)
 })
 
 test("the database keeps conditions: never deleted, meaning never changed", async ({}, testInfo) => {

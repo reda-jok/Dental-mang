@@ -23,9 +23,9 @@ export const addFindingAction = defineAction({
   schema: addFindingSchema,
   permission: "clinical:write",
   handler: async (input, { user }) => {
-    await addFindings(user, input)
+    const ids = await addFindings(user, input)
     revalidatePath(`/patients/${input.patientId}/chart`)
-    return null
+    return { ids }
   },
 })
 
