@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/select"
 import { useActionErrorHandler, useValidationMessage, useInvalidHandler } from "@/lib/form"
 
-import { TOOTH_CONDITIONS } from "../../chart/teeth"
 import { createProcedureAction, updateProcedureAction } from "../actions"
 import type { Catalog, CatalogProcedure } from "../data"
 import {
@@ -42,6 +41,8 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   categories: Pick<Catalog[number], "id" | "name">[]
+  /** Conditions a done procedure can leave on the chart (Settings → Tooth conditions). */
+  conditions: { code: string; label: string; hidden: boolean }[]
   procedure?: CatalogProcedure
   defaultCategoryId?: string
 }
@@ -50,6 +51,7 @@ export function ProcedureDialog({
   open,
   onOpenChange,
   categories,
+  conditions,
   procedure,
   defaultCategoryId,
 }: Props) {
@@ -63,6 +65,7 @@ export function ProcedureDialog({
         {open && (
           <ProcedureForm
             categories={categories}
+            conditions={conditions}
             procedure={procedure}
             defaultCategoryId={defaultCategoryId}
             onDone={() => onOpenChange(false)}
@@ -75,6 +78,7 @@ export function ProcedureDialog({
 
 function ProcedureForm({
   categories,
+  conditions,
   procedure,
   defaultCategoryId,
   onDone,
@@ -190,10 +194,9 @@ function ProcedureForm({
           t("procedures.chartResult"),
           [
             { value: "", label: t("procedures.chartResultNone") },
-            ...TOOTH_CONDITIONS.map((c) => ({
-              value: c.code,
-              label: t(`chart.conditions.${c.code}`),
-            })),
+            ...conditions
+              .filter((c) => !c.hidden || c.code === procedure?.chartResult)
+              .map((c) => ({ value: c.code, label: c.label })),
           ],
           t("procedures.chartResultHint"),
         )}

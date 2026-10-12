@@ -3,7 +3,7 @@ import { z } from "zod"
 import { parseAmount } from "@/lib/money"
 import { optionalText, text, toLatinDigits, uuid } from "@/lib/validation"
 
-import { CONDITION_CODES } from "../chart/teeth"
+import { conditionCode } from "../chart/schemas"
 
 export const TOOTH_SCOPES = ["none", "tooth", "surfaces"] as const
 
@@ -16,7 +16,7 @@ const procedureFields = z.object({
   currency: z.literal("IQD"),
   price: z.string({ error: "required" }),
   toothScope: z.enum(TOOTH_SCOPES),
-  chartResult: z.union([z.enum(CONDITION_CODES), z.literal("")]).transform((v) => v || null),
+  chartResult: z.union([conditionCode, z.literal("")]).transform((v) => v || null),
   durationMinutes: z
     .string()
     .optional()

@@ -1,12 +1,12 @@
 // A starter catalog of common procedures (prices left at 0 for the clinic to fill in).
-import type { ToothCondition } from "../chart/teeth"
+import type { BuiltInCondition } from "../chart/teeth"
 
 type Starter = {
   category: string
   procedures: {
     name: string
     toothScope: "none" | "tooth" | "surfaces"
-    chartResult?: ToothCondition
+    chartResult?: BuiltInCondition
     durationMinutes?: number
     requiresLab?: boolean
   }[]

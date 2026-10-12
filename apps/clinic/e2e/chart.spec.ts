@@ -34,18 +34,27 @@ test("chart → plan → done: caries becomes a filling and the plan completes",
   const box28 = await page.locator('[data-tooth="28"]').boundingBox()
   expect(box18!.x).toBeLessThan(box28!.x)
 
-  // Record caries on 16, surfaces O + M.
+  // Record caries on 16, surfaces O + M: pick the surfaces, then tap the condition.
   await tooth(page, 16).click()
   await surfaceChip(page, "O").click()
   await surfaceChip(page, "M").click()
-  await page.getByRole("button", { name: "تسجيل", exact: true }).click()
+  await page.getByTestId("tooth-panel").getByRole("button", { name: "تسوس" }).click()
   await expect(page.getByText("تم تسجيل الحالة")).toBeVisible()
   await expect(tooth(page, 16)).toHaveAttribute("data-condition", "caries")
-  await expect(tooth(page, 16)).toContainText("MO") // the affected surfaces show on the tile
+  await expect(tooth(page, 16)).toHaveAttribute("data-problem", "true")
+  // The affected surfaces are coloured on the tile, the others aren't.
+  await expect(tooth(page, 16).locator('[data-surface="O"]')).toHaveAttribute(
+    "data-color",
+    "#dc2626",
+  )
+  await expect(tooth(page, 16).locator('[data-surface="D"]')).not.toHaveAttribute("data-color")
   await expect(tooth(page, 17)).toHaveAttribute("data-condition", "healthy")
+  // With nothing selected, the panel lists what needs treatment.
+  await expect(page.getByTestId("needs-treatment")).toContainText("تسوس")
 
   // A surface procedure without surfaces is refused.
   await tooth(page, 16).click()
+  await page.getByRole("button", { name: "إضافة علاج" }).click()
   await pickProcedure(page, /حشوة تجميلية/)
   await page.getByRole("button", { name: "إضافة إلى الخطة" }).click()
   await expect(page.getByText("هذا الإجراء يحتاج تحديد أسطح السن")).toBeVisible()
@@ -58,6 +67,7 @@ test("chart → plan → done: caries becomes a filling and the plan completes",
 
   // Implant on 36.
   await tooth(page, 36).click()
+  await page.getByRole("button", { name: "إضافة علاج" }).click()
   await pickProcedure(page, /زرعة سنية/)
   await page.getByRole("button", { name: "إضافة إلى الخطة" }).click()
   await expect(page.getByText("تمت إضافة علاج واحد")).toBeVisible()

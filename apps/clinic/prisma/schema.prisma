@@ -343,17 +343,52 @@ model Procedure {
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
   archivedAt      DateTime?  @map("archived_at") @db.Timestamptz(3)
 
-  category     ProcedureCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  createdBy    User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  planItems    TreatmentPlanItem[]
-  appointments Appointment[]
-  invoiceLines InvoiceLine[]
+  category       ProcedureCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy      User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  chartCondition ToothCondition?     @relation(fields: [chartResult], references: [code], onDelete: Restrict)
+  planItems      TreatmentPlanItem[]
+  appointments   Appointment[]
+  invoiceLines   InvoiceLine[]
 
   @@unique([categoryId, name])
   @@map("procedure")
 }
 
 // ─── Tooth chart ─────────────────────────────────────────────────────────────
+
+enum ConditionScope {
+  surfaces // can be on particular surfaces (caries, filling)
+  tooth // the whole tooth (crown, missing)
+}
+
+enum ConditionKind {
+  problem // needs treatment; a treatment done on the same surfaces or tooth clears it
+  existing // the mouth as it is: earlier work, a missing tooth
+}
+
+/// What the chart can show. The built-in conditions (TOOTH_CONDITIONS in
+/// src/features/chart/teeth.ts) come with the migration and can be renamed, recoloured
+/// or hidden; the clinic adds its own. Never deleted: findings and procedures use them.
+model ToothCondition {
+  code      String         @id
+  /// The clinic's own name; null shows a built-in condition under its translated name.
+  name      String?
+  /// "#rrggbb", one of CONDITION_COLORS.
+  color     String
+  scope     ConditionScope
+  kind      ConditionKind
+  builtIn   Boolean        @default(false) @map("built_in")
+  sortOrder Int            @default(0) @map("sort_order")
+  /// Hidden conditions aren't offered any more; teeth that have one still show it.
+  hiddenAt  DateTime?      @map("hidden_at") @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  findings   ToothFinding[]
+  procedures Procedure[]
+
+  @@map("tooth_condition")
+}
 
 /// Something observed on a tooth (existing state, not treatment we did):
 /// caries, an old filling, a missing tooth… Treatment we do is a plan item.
@@ -364,7 +399,6 @@ model ToothFinding {
   tooth        Int
   /// Surface codes (M, D, O, B, L); empty = whole tooth.
   surfaces     String[]
-  /// Code from TOOTH_CONDITIONS (src/features/chart/teeth.ts)
   condition    String
   notes        String?
   recordedById String?   @map("recorded_by_id") @db.Uuid
@@ -372,8 +406,9 @@ model ToothFinding {
   /// Set when the finding no longer applies (e.g. caries treated elsewhere).
   resolvedAt   DateTime? @map("resolved_at") @db.Timestamptz(3)
 
-  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  recordedBy User?   @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  patient        Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  recordedBy     User?          @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  toothCondition ToothCondition @relation(fields: [condition], references: [code], onDelete: Restrict)
 
   @@index([patientId])
   @@map("tooth_finding")

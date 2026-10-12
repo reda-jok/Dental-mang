@@ -7,6 +7,7 @@ import { db } from "@/server/db"
 import { AppError } from "@/server/errors"
 import type { CurrentUser } from "@/server/session"
 
+import { usableCondition } from "../chart/service"
 import type { categorySchema, createProcedureSchema, updateProcedureSchema } from "./schemas"
 import { STARTER_CATALOG, STARTER_NOTES } from "./starter"
 
@@ -43,6 +44,7 @@ export async function createProcedure(
 ) {
   await assertCategory(input.categoryId)
   return db.$transaction(async (tx) => {
+    if (input.chartResult) await usableCondition(tx, input.chartResult)
     const procedure = await tx.procedure.create({
       data: { ...input, createdById: actor.id },
       select: { id: true },
@@ -68,6 +70,7 @@ export async function updateProcedure(
   await db.$transaction(async (tx) => {
     const before = await tx.procedure.findFirst({ where: { id, archivedAt: null } })
     if (!before) throw new AppError("not_found")
+    if (data.chartResult) await usableCondition(tx, data.chartResult, before.chartResult)
     await tx.procedure.update({ where: { id }, data })
     await recordAudit(tx, {
       userId: actor.id,

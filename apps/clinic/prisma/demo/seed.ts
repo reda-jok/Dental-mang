@@ -175,6 +175,46 @@ async function topUps() {
   await seedProcedureNotes()
   await seedAppointmentReminders()
   await seedDentistPay()
+  await seedToothConditions()
+}
+
+/**
+ * A condition the clinic added itself (2026-10-12): a periapical lesion, a whole-tooth
+ * problem, recorded on a few patients so the chart and Settings → Tooth conditions show it.
+ */
+async function seedToothConditions() {
+  if (await db.toothCondition.findFirst({ where: { builtIn: false } })) return
+  const condition = await db.toothCondition.create({
+    data: {
+      code: crypto.randomUUID(),
+      name: "التهاب حول الذروة",
+      color: "#c026d3",
+      scope: "tooth",
+      kind: "problem",
+      sortOrder: 12,
+    },
+  })
+  const [dentist, patients] = await Promise.all([
+    db.user.findFirst({ where: { username: "sara" }, select: { id: true } }),
+    db.patient.findMany({
+      where: { deletedAt: null, toothFindings: { some: {} } },
+      orderBy: { code: "asc" },
+      take: 6,
+      select: { id: true },
+    }),
+  ])
+  await db.toothFinding.createMany({
+    data: patients.map((p, i) => ({
+      patientId: p.id,
+      tooth: [46, 36, 26, 16, 47, 37][i]!,
+      surfaces: [],
+      condition: condition.code,
+      notes: "ألم عند الضغط، تظهر في الأشعة",
+      recordedById: dentist?.id,
+      createdAt: new Date(`${addDays(today, -7 * (i + 1))}T09:00:00Z`),
+    })),
+  })
+  console.log(`Tooth conditions: "${condition.name}" on ${patients.length} patients`)
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   ListChecksIcon,
   PillIcon,
   ShieldCheckIcon,
+  SwatchBookIcon,
   UsersIcon,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -23,6 +24,7 @@ export function SettingsNav({
   const ta = useTranslations("appointments.settings")
   const tp = useTranslations("permissions")
   const tm = useTranslations("medications")
+  const tt = useTranslations("toothConditions")
   const items: PillNavItem[] = [
     { key: "clinic", label: t("clinicTab"), icon: Building2Icon, href: "/settings/clinic" },
     {
@@ -30,6 +32,12 @@ export function SettingsNav({
       label: t("proceduresTab"),
       icon: ListChecksIcon,
       href: "/settings/procedures",
+    },
+    {
+      key: "conditions",
+      label: tt("tab"),
+      icon: SwatchBookIcon,
+      href: "/settings/conditions",
     },
     { key: "schedule", label: ta("tab"), icon: CalendarClockIcon, href: "/settings/schedule" },
     { key: "medications", label: tm("tab"), icon: PillIcon, href: "/settings/medications" },

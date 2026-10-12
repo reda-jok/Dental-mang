@@ -61,31 +61,64 @@ export function mesialOnRight(tooth: number): boolean {
 }
 
 /**
- * Conditions the chart shows. `scope: "surfaces"` conditions can be on specific
- * surfaces; "tooth" conditions apply to the whole tooth.
+ * The built-in conditions. The migration puts them in `tooth_condition`, where the clinic
+ * can rename, recolour or hide them and add its own. `scope: "surfaces"` conditions can be
+ * on specific surfaces, "tooth" ones apply to the whole tooth. A "problem" needs treatment,
+ * and a treatment done on the same surfaces (or the whole tooth) clears it from the chart.
  */
 export const TOOTH_CONDITIONS = [
-  { code: "caries", scope: "surfaces", color: "#dc2626" },
-  { code: "filling", scope: "surfaces", color: "#2563eb" },
-  { code: "fracture", scope: "surfaces", color: "#ea580c" },
-  { code: "crown", scope: "tooth", color: "#ca8a04" },
-  { code: "root_canal", scope: "tooth", color: "#7c3aed" },
-  { code: "missing", scope: "tooth", color: "#6b7280" },
-  { code: "implant", scope: "tooth", color: "#0d9488" },
-  { code: "bridge", scope: "tooth", color: "#a16207" },
-  { code: "veneer", scope: "tooth", color: "#db2777" },
-  { code: "impacted", scope: "tooth", color: "#4b5563" },
-  { code: "root_remnant", scope: "tooth", color: "#b91c1c" },
+  { code: "caries", scope: "surfaces", kind: "problem", color: "#dc2626" },
+  { code: "fracture", scope: "surfaces", kind: "problem", color: "#ea580c" },
+  { code: "root_remnant", scope: "tooth", kind: "problem", color: "#b91c1c" },
+  { code: "impacted", scope: "tooth", kind: "problem", color: "#4b5563" },
+  { code: "filling", scope: "surfaces", kind: "existing", color: "#2563eb" },
+  { code: "crown", scope: "tooth", kind: "existing", color: "#ca8a04" },
+  { code: "root_canal", scope: "tooth", kind: "existing", color: "#7c3aed" },
+  { code: "bridge", scope: "tooth", kind: "existing", color: "#a16207" },
+  { code: "veneer", scope: "tooth", kind: "existing", color: "#db2777" },
+  { code: "implant", scope: "tooth", kind: "existing", color: "#0d9488" },
+  { code: "missing", scope: "tooth", kind: "existing", color: "#6b7280" },
 ] as const
 
-export type ToothCondition = (typeof TOOTH_CONDITIONS)[number]["code"]
-export const CONDITION_CODES = TOOTH_CONDITIONS.map((c) => c.code) as [
-  ToothCondition,
-  ...ToothCondition[],
-]
+export type BuiltInCondition = (typeof TOOTH_CONDITIONS)[number]["code"]
 
-export function conditionInfo(code: string) {
-  return TOOTH_CONDITIONS.find((c) => c.code === code)
+/** A condition as the chart uses it: from the database, with its name already resolved. */
+export type ConditionInfo = {
+  code: string
+  name: string
+  color: string
+  scope: "surfaces" | "tooth"
+  kind: "problem" | "existing"
+  hidden: boolean
+}
+
+export type Conditions = ReadonlyMap<string, ConditionInfo>
+
+/** The colours a condition can have (Settings → Tooth conditions). */
+export const CONDITION_COLORS = [
+  "#dc2626",
+  "#b91c1c",
+  "#ea580c",
+  "#ca8a04",
+  "#a16207",
+  "#65a30d",
+  "#16a34a",
+  "#0d9488",
+  "#0891b2",
+  "#2563eb",
+  "#4f46e5",
+  "#7c3aed",
+  "#c026d3",
+  "#db2777",
+  "#4b5563",
+  "#6b7280",
+] as const
+
+/** A colour mixed with white (`amount` 0 = the colour, 1 = white): tile backgrounds. */
+export function tint(hex: string, amount: number): string {
+  const n = Number.parseInt(hex.slice(1), 16)
+  const mix = (c: number) => Math.round(c + (255 - c) * amount)
+  return `rgb(${mix(n >> 16)} ${mix((n >> 8) & 255)} ${mix(n & 255)})`
 }
 
 /** Whole-tooth conditions that replace the tooth's normal drawing. */

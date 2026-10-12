@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { FolderPlusIcon, ListPlusIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { useState, useTransition } from "react"
+import { useState, useTransition, type ComponentProps } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -46,10 +46,12 @@ import { ProcedureDialog } from "./procedure-dialog"
 
 export function CatalogManager({
   catalog,
+  conditions,
   canEdit,
   openNew = false,
 }: {
   catalog: Catalog
+  conditions: ComponentProps<typeof ProcedureDialog>["conditions"]
   canEdit: boolean
   /** Open the "add procedure" dialog right away. */
   openNew?: boolean
@@ -196,12 +198,14 @@ export function CatalogManager({
         open={!!adding}
         onOpenChange={(open) => !open && setAdding(null)}
         categories={categories}
+        conditions={conditions}
         defaultCategoryId={adding?.categoryId}
       />
       <ProcedureDialog
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
         categories={categories}
+        conditions={conditions}
         procedure={editing ?? undefined}
       />
       <CategoryDialog open={addingCategory} onOpenChange={setAddingCategory} />

@@ -36,10 +36,10 @@ describe("createProcedureSchema", () => {
     })
   })
 
-  it("rejects out-of-range durations and unknown chart results", () => {
+  it("rejects out-of-range durations and malformed chart results", () => {
     expect(createProcedureSchema.safeParse({ ...valid, durationMinutes: "2" }).success).toBe(false)
-    expect(createProcedureSchema.safeParse({ ...valid, chartResult: "gold_star" }).success).toBe(
-      false,
-    )
+    // Whether the condition exists (or is hidden) is the service's check, against the database.
+    const tooLong = { ...valid, chartResult: "x".repeat(65) }
+    expect(createProcedureSchema.safeParse(tooLong).success).toBe(false)
   })
 })

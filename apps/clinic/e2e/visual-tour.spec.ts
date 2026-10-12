@@ -135,6 +135,7 @@ test("visual tour", async ({ page }, testInfo) => {
   await visit(page, "/settings/schedule", "settings-schedule")
   await visit(page, "/settings/clinic", "settings-clinic")
   await visit(page, "/settings/procedures", "settings-procedures")
+  await visit(page, "/settings/conditions", "settings-conditions")
   await visit(page, "/settings/users", "settings-users")
   await visit(page, "/settings/permissions", "settings-permissions")
   await page.goto("/settings/procedures")

@@ -1,75 +1,28 @@
 "use client"
 
+import { CalendarClockIcon, TriangleAlertIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
+import type { KeyboardEvent } from "react"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-import type { ToothState } from "../state"
-import { isUpper, PERMANENT_ROWS, PRIMARY_ROWS, type Dentition } from "../teeth"
-
-/**
- * Tile colour per condition (the clinic's original odontogram style).
- * Whole-tooth conditions win over surface conditions; the list is in priority order.
- */
-const TILE_STYLES: { condition: string; className: string }[] = [
-  {
-    condition: "missing",
-    className:
-      "bg-slate-200 border-slate-400 text-slate-500 opacity-50 hover:bg-slate-300 line-through",
-  },
-  {
-    condition: "implant",
-    className: "bg-teal-100 border-teal-300 text-teal-700 hover:bg-teal-200",
-  },
-  {
-    condition: "crown",
-    className: "bg-amber-100 border-amber-300 text-amber-700 hover:bg-amber-200",
-  },
-  {
-    condition: "bridge",
-    className: "bg-yellow-100 border-yellow-400 text-yellow-800 hover:bg-yellow-200",
-  },
-  { condition: "veneer", className: "bg-pink-100 border-pink-300 text-pink-700 hover:bg-pink-200" },
-  {
-    condition: "root_canal",
-    className: "bg-purple-100 border-purple-300 text-purple-700 hover:bg-purple-200",
-  },
-  {
-    condition: "root_remnant",
-    className: "bg-rose-100 border-rose-300 text-rose-700 hover:bg-rose-200",
-  },
-  {
-    condition: "impacted",
-    className: "bg-gray-100 border-gray-400 border-dashed text-gray-600 hover:bg-gray-200",
-  },
-  { condition: "caries", className: "bg-red-100 border-red-300 text-red-700 hover:bg-red-200" },
-  {
-    condition: "fracture",
-    className: "bg-orange-100 border-orange-300 text-orange-700 hover:bg-orange-200",
-  },
-  {
-    condition: "filling",
-    className: "bg-blue-100 border-blue-300 text-blue-700 hover:bg-blue-200",
-  },
-]
-const HEALTHY = "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-
-/** The condition that decides the tile's colour (or null when healthy). */
-export function tileCondition(state: ToothState | undefined): string | null {
-  if (!state) return null
-  const present = new Set(state.marks.map((m) => m.condition))
-  if (state.gone) present.add(state.gone)
-  return TILE_STYLES.find((s) => present.has(s.condition))?.condition ?? null
-}
-
-export function tileClassName(condition: string | null) {
-  return TILE_STYLES.find((s) => s.condition === condition)?.className ?? HEALTHY
-}
+import { mainCondition, problemsOf, surfaceColor, toothConditions, type ToothState } from "../state"
+import {
+  isUpper,
+  mesialOnRight,
+  PERMANENT_ROWS,
+  PRIMARY_ROWS,
+  tint,
+  type Conditions,
+  type Dentition,
+  type Surface,
+} from "../teeth"
 
 type Props = {
   dentition: Dentition
   chart: Map<number, ToothState>
+  conditions: Conditions
   selectedTeeth: Set<number>
   onToggleTooth: (tooth: number) => void
   disabled?: boolean
@@ -79,7 +32,14 @@ type Props = {
  * Interactive odontogram, FDI numbering. Always laid out left-to-right with the
  * patient's right on the viewer's left — never mirrored by the RTL page.
  */
-export function ToothChart({ dentition, chart, selectedTeeth, onToggleTooth, disabled }: Props) {
+export function ToothChart({
+  dentition,
+  chart,
+  conditions,
+  selectedTeeth,
+  onToggleTooth,
+  disabled,
+}: Props) {
   const t = useTranslations("chart")
 
   const upperRows: (readonly number[])[] = []
@@ -96,6 +56,7 @@ export function ToothChart({ dentition, chart, selectedTeeth, onToggleTooth, dis
           <ToothTile
             tooth={tooth}
             state={chart.get(tooth)}
+            conditions={conditions}
             selected={selectedTeeth.has(tooth)}
             onToggle={onToggleTooth}
             disabled={disabled}
@@ -129,35 +90,150 @@ export function ToothChart({ dentition, chart, selectedTeeth, onToggleTooth, dis
   )
 }
 
+/** Where each surface sits on the drawing: buccal faces out of the arch, mesial the midline. */
+function surfaceAt(tooth: number) {
+  const upper = isUpper(tooth)
+  const mesialRight = mesialOnRight(tooth)
+  return {
+    top: (upper ? "B" : "L") as Surface,
+    bottom: (upper ? "L" : "B") as Surface,
+    left: (mesialRight ? "D" : "M") as Surface,
+    right: (mesialRight ? "M" : "D") as Surface,
+  }
+}
+
+const REGIONS = {
+  top: "M0 0 H30 L20 10 H10 Z",
+  bottom: "M0 30 H30 L20 20 H10 Z",
+  left: "M0 0 L10 10 V20 L0 30 Z",
+  right: "M30 0 L20 10 V20 L30 30 Z",
+  center: "M10 10 H20 V20 H10 Z",
+} as const
+
+/**
+ * A tooth seen from the biting side, split into its five surfaces. With `onToggle` each
+ * surface is a checkbox (the surface picker); otherwise it only shows colours.
+ */
+export function SurfaceDiagram({
+  tooth,
+  colorOf,
+  selected,
+  onToggle,
+  labels,
+  className,
+}: {
+  tooth: number
+  colorOf: (surface: Surface) => string | null
+  selected?: ReadonlySet<Surface>
+  onToggle?: (surface: Surface) => void
+  /** Surface names, shown as letters and read out (the picker). */
+  labels?: (surface: Surface) => string
+  className?: string
+}) {
+  const at = surfaceAt(tooth)
+  const regions = [
+    ["top", at.top],
+    ["bottom", at.bottom],
+    ["left", at.left],
+    ["right", at.right],
+    ["center", "O"],
+  ] as const
+  const letterAt = {
+    top: [15, 6],
+    bottom: [15, 26],
+    left: [5, 16],
+    right: [25, 16],
+    center: [15, 16],
+  }
+  const keyToggle = (surface: Surface) => (e: KeyboardEvent) => {
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault()
+      onToggle?.(surface)
+    }
+  }
+  return (
+    <svg viewBox="-1 -1 32 32" className={className} aria-hidden={onToggle ? undefined : true}>
+      {regions.map(([region, surface]) => {
+        const color = colorOf(surface)
+        const on = selected?.has(surface) ?? false
+        return (
+          <path
+            key={region}
+            d={REGIONS[region]}
+            data-surface={surface}
+            data-color={color ?? undefined}
+            {...(onToggle && {
+              "data-surface-chip": surface,
+              role: "checkbox",
+              "aria-checked": on,
+              "aria-label": labels?.(surface),
+              tabIndex: 0,
+              onClick: () => onToggle(surface),
+              onKeyDown: keyToggle(surface),
+            })}
+            style={{
+              fill: on ? "var(--steel-100)" : (color ?? "#ffffff"),
+              stroke: on ? "var(--steel-600)" : onToggle ? "#94a3b8" : "#cbd5e1",
+            }}
+            strokeWidth={on ? 1.2 : onToggle ? 0.6 : 0.5}
+            strokeLinejoin="round"
+            className={cn(
+              onToggle && "cursor-pointer outline-none hover:opacity-80 focus-visible:opacity-70",
+            )}
+          />
+        )
+      })}
+      {labels &&
+        regions.map(([region, surface]) => (
+          <text
+            key={region}
+            x={letterAt[region][0]}
+            y={letterAt[region][1]}
+            fontSize="4.5"
+            fontWeight="700"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill={colorOf(surface) && !selected?.has(surface) ? "#ffffff" : "#334155"}
+            className="pointer-events-none select-none"
+          >
+            {surface}
+          </text>
+        ))}
+    </svg>
+  )
+}
+
 function ToothTile({
   tooth,
   state,
+  conditions,
   selected,
   onToggle,
   disabled,
 }: {
   tooth: number
   state: ToothState | undefined
+  conditions: Conditions
   selected: boolean
   onToggle: (tooth: number) => void
   disabled?: boolean
 }) {
   const t = useTranslations("chart")
   const upper = isUpper(tooth)
-  const condition = tileCondition(state)
+  const problems = problemsOf(state, conditions)
   const planned = state?.planned ?? []
   const inProgress = planned.some((p) => p.status === "in_progress")
-  const surfaces = [...new Set((state?.marks ?? []).flatMap((m) => m.surfaces))].join("")
+  const lead = state?.gone ?? toothConditions(state, conditions)[0]
+  const leadColor = lead ? conditions.get(lead)?.color : undefined
+  const problemColor = problems[0] ? conditions.get(problems[0].condition)?.color : undefined
+  const surfaceName = (s: Surface) => t(`surfaces.${s}`)
 
   const lines = [
     ...(state?.marks ?? []).map(
       (m) =>
-        `${t(`conditions.${m.condition as "caries"}`)}${m.surfaces.length ? ` (${m.surfaces.join("")})` : ""}`,
+        `${conditions.get(m.condition)?.name ?? m.condition}${m.surfaces.length ? ` (${m.surfaces.map(surfaceName).join("، ")})` : ""}`,
     ),
-    ...planned.map(
-      (p) =>
-        `${t("plannedOnTooth")}: ${p.procedureName}${p.surfaces.length ? ` (${p.surfaces.join("")})` : ""}`,
-    ),
+    ...planned.map((p) => `${t("plannedOnTooth")}: ${p.procedureName}`),
   ]
   const label = `${t("toothLabel", { tooth: String(tooth) })} · ${lines.length ? lines.join(" · ") : t("healthy")}`
 
@@ -167,69 +243,76 @@ function ToothTile({
         <button
           type="button"
           data-tooth={tooth}
-          data-condition={condition ?? "healthy"}
+          data-condition={mainCondition(state, conditions) ?? "healthy"}
+          data-problem={problems.length > 0 || undefined}
           aria-pressed={selected}
           aria-label={label}
           disabled={disabled}
           onClick={() => onToggle(tooth)}
+          style={{
+            background: leadColor ? tint(leadColor, 0.82) : undefined,
+            borderColor: problemColor ?? (leadColor ? tint(leadColor, 0.35) : undefined),
+          }}
           className={cn(
-            "relative flex h-14 w-10 flex-col items-center justify-center border-2 transition-all duration-200 disabled:cursor-default",
-            upper ? "rounded-t-lg rounded-b-sm" : "rounded-t-sm rounded-b-lg",
-            tileClassName(condition),
+            "relative flex h-16 w-11 flex-col items-center gap-1 border-2 border-slate-200 bg-white px-1 py-1 text-slate-700 transition-all duration-200 disabled:cursor-default",
+            upper ? "rounded-t-xl rounded-b-md" : "flex-col-reverse rounded-t-md rounded-b-xl",
+            state?.gone === "missing" && "border-dashed opacity-60",
             selected
-              ? "z-10 scale-110 ring-4 ring-blue-300"
+              ? "ring-steel-300 z-10 scale-110 ring-4"
               : upper
                 ? "hover:-translate-y-1 hover:shadow-md"
                 : "hover:translate-y-1 hover:shadow-md",
             "focus-visible:ring-ring focus-visible:ring-4 focus-visible:outline-none",
           )}
         >
-          {/* Crown area (biting side), as in the original chart */}
-          {!upper && (
-            <div className="mb-auto h-1/2 w-full rounded-t-sm border-b border-black/10 bg-white/40" />
-          )}
-          <span
-            className={cn("absolute text-xs font-bold opacity-70", upper ? "top-1" : "bottom-1")}
-          >
-            {tooth}
-          </span>
-          {surfaces && (
-            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[9px] leading-none font-semibold">
-              {surfaces}
-            </span>
-          )}
-          {upper && (
-            <div className="mt-auto h-1/2 w-full rounded-b-sm border-t border-black/10 bg-white/40" />
+          <span className="text-xs leading-none font-bold">{tooth}</span>
+          {state?.gone === "missing" ? (
+            <svg viewBox="0 0 30 30" className="size-7 text-slate-500" aria-hidden>
+              <path d="M5 5 L25 25 M25 5 L5 25" stroke="currentColor" strokeWidth="3" />
+            </svg>
+          ) : state?.gone === "implant" ? (
+            <svg viewBox="0 0 30 30" className="size-7" style={{ color: leadColor }} aria-hidden>
+              <path
+                d="M8 4 H22 M10 9 H20 M11 14 H19 M12 19 H18 M13.5 24 H16.5 M15 4 V27"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          ) : (
+            <SurfaceDiagram
+              tooth={tooth}
+              colorOf={(s) => surfaceColor(state, s, conditions)}
+              className="size-7"
+            />
           )}
 
+          {problems.length > 0 && (
+            <span
+              className={cn(
+                "absolute -start-2 flex size-4 items-center justify-center rounded-full text-white ring-2 ring-white",
+                upper ? "-top-2" : "-bottom-2",
+              )}
+              style={{ background: problemColor }}
+            >
+              <TriangleAlertIcon className="size-2.5" />
+            </span>
+          )}
           {planned.length > 0 && (
             <span
               data-planned
               className={cn(
-                "absolute -end-1 size-2.5 rounded-full border border-white",
-                upper ? "-top-1" : "-bottom-1",
+                "absolute -end-2 flex size-4 items-center justify-center rounded-full text-white ring-2 ring-white",
+                upper ? "-top-2" : "-bottom-2",
                 inProgress ? "bg-amber-500" : "bg-blue-600",
               )}
-            />
+            >
+              <CalendarClockIcon className="size-2.5" />
+            </span>
           )}
         </button>
       </TooltipTrigger>
-      <TooltipContent className="max-w-56 text-start">{label}</TooltipContent>
+      <TooltipContent className="max-w-60 text-start">{label}</TooltipContent>
     </Tooltip>
   )
-}
-
-/** Legend dots matching the tile colours. */
-export const LEGEND_DOTS: Record<string, string> = {
-  caries: "bg-red-400",
-  filling: "bg-blue-400",
-  fracture: "bg-orange-400",
-  crown: "bg-amber-400",
-  root_canal: "bg-purple-400",
-  missing: "bg-slate-300",
-  implant: "bg-teal-400",
-  bridge: "bg-yellow-400",
-  veneer: "bg-pink-400",
-  impacted: "bg-gray-400",
-  root_remnant: "bg-rose-400",
 }

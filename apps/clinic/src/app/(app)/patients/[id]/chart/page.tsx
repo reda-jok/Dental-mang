@@ -4,7 +4,7 @@ import { ActivityIcon } from "lucide-react"
 import { Panel } from "@/components/panel"
 
 import { ChartWorkspace } from "@/features/chart/components/chart-workspace"
-import { getChartData } from "@/features/chart/data"
+import { getChartData, getToothConditions } from "@/features/chart/data"
 import { dentitionForAge } from "@/features/chart/teeth"
 import { getPlans } from "@/features/plans/data"
 import { isPlanOpen } from "@/features/plans/rules"
@@ -23,8 +23,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ChartPage({ params }: PageProps<"/patients/[id]/chart">) {
   const user = await requirePagePermission("clinical:read")
   const patient = await loadPatient((await params).id)
-  const [data, catalog, plans, t] = await Promise.all([
+  const [data, conditions, catalog, plans, t] = await Promise.all([
     getChartData(patient.id),
+    getToothConditions(),
     getCatalogForPlanning(),
     getPlans(patient.id),
     getTranslations("chart"),
@@ -39,11 +40,13 @@ export default async function ChartPage({ params }: PageProps<"/patients/[id]/ch
       <ChartWorkspace
         patientId={patient.id}
         data={data}
+        conditions={conditions}
         catalog={catalog}
         openPlans={plans
           .filter((p) => isPlanOpen(p.status))
           .map(({ id, title }) => ({ id, title }))}
         canEdit={hasPermission(user.role, "clinical:write")}
+        canManageConditions={hasPermission(user.role, "settings:write")}
         defaultDentition={dentition}
       />
     </Panel>
