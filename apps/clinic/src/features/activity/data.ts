@@ -62,7 +62,7 @@ export async function listActivity({ person, area, day, page }: ActivitySearch) 
   return {
     total,
     pageCount: Math.max(1, Math.ceil(total / ACTIVITY_PAGE_SIZE)),
-    rows: entries.map(({ row, detail }) => ({
+    rows: entries.map(({ row, detail: { patientId, ...facts } }) => ({
       id: row.id,
       at: row.createdAt,
       day: isoDateInZone(row.createdAt, tz),
@@ -71,14 +71,8 @@ export async function listActivity({ person, area, day, page }: ActivitySearch) 
       person: row.user?.name ?? null,
       // Shown only where it says something: where a failed sign-in came from.
       ip: row.action === "login_failed" ? row.ipAddress : null,
-      number: detail.number ?? null,
-      amount: detail.amount ?? null,
-      difference: detail.difference ?? null,
-      reason: detail.reason ?? null,
-      username: detail.username ?? null,
-      patient: detail.patientId
-        ? { id: detail.patientId, name: patientName.get(detail.patientId) ?? null }
-        : null,
+      ...facts,
+      patient: patientId ? { id: patientId, name: patientName.get(patientId) ?? null } : null,
     })),
   }
 }

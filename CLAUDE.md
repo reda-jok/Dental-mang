@@ -9,7 +9,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - Pages in `src/app/` stay thin. All real code lives in `src/features/<feature>/`:
   - `schemas.ts`: Zod schemas shared by the form and the server. Error messages are keys under `validation` in `messages/ar.json`.
   - `data.ts`: `server-only` reads. Start with `await authorize("<resource>:<action>")` (or `connection()` for public reads). Return only the fields the UI needs.
-  - `service.ts`: `server-only` writes and business rules. Multi-step writes go in `db.$transaction`, and each writes `recordAudit(tx, …)` in the same transaction.
+  - `service.ts`: `server-only` writes and business rules. Multi-step writes go in `db.$transaction`, and each writes `recordAudit(tx, …)` in the same transaction. The owner reads the audit log in Settings → سجل النشاط: a new audit `entity` needs a name under `activity.entities` in `ar.json` and an area in `ACTIVITY_AREAS` (`features/activity/rules.ts`), or the unit test fails.
   - `actions.ts`: `"use server"`. Every action is `defineAction({ schema, permission, handler })`, with `permission: "public"` only when deliberate.
 - Pages never import `db` directly. Client components never import from `src/server/`.
 - Permissions are defined in `src/lib/permissions.ts`. Ownership rules ("dentist sees own…") go in the feature's data layer.

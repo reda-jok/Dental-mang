@@ -26,6 +26,7 @@ export async function ActivityList({ rows }: { rows: ActivityRow[] }) {
     return t("line", { action, entity })
   }
   const money = (amount: string) => <span dir="ltr">{formatMoney(amount, "IQD")}</span>
+  const ltr = (chunks: ReactNode) => <span dir="ltr">{chunks}</span>
 
   const days: { day: string; rows: ActivityRow[] }[] = []
   for (const row of rows) {
@@ -53,11 +54,16 @@ export async function ActivityList({ rows }: { rows: ActivityRow[] }) {
                   </Link>
                 ),
                 row.amount && money(row.amount),
-                row.difference &&
-                  t.rich("difference", {
-                    amount: formatMoney(row.difference, "IQD"),
-                    ltr: (chunks) => <span dir="ltr">{chunks}</span>,
+                row.discount &&
+                  t.rich("discount", { amount: formatMoney(row.discount, "IQD"), ltr }),
+                row.price &&
+                  t.rich("price", {
+                    from: formatMoney(row.price.from, "IQD"),
+                    to: formatMoney(row.price.to, "IQD"),
+                    ltr,
                   }),
+                row.difference &&
+                  t.rich("difference", { amount: formatMoney(row.difference, "IQD"), ltr }),
                 row.reason && t("reason", { reason: row.reason }),
                 row.username && t("username", { username: row.username }),
                 row.ip && t("ip", { ip: row.ip }),
@@ -79,6 +85,9 @@ export async function ActivityList({ rows }: { rows: ActivityRow[] }) {
                       )}
                     >
                       {what(row)}
+                      {row.name && (
+                        <span className="text-muted-foreground ms-2 font-normal">{row.name}</span>
+                      )}
                       {row.number && (
                         <span className="text-muted-foreground ms-2 font-normal">
                           <bdi>{row.number}</bdi>

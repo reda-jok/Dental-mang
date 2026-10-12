@@ -43,6 +43,35 @@ group("describe", () => {
     expect(close("0")).toEqual({ amount: "250000" })
   })
 
+  it("shows an invoice's discount only when there was one", () => {
+    const invoice = (discountTotal: string) =>
+      describe({
+        entity: "invoice",
+        entityId: "x",
+        before: undefined,
+        after: { number: "INV-2026-000001", total: "90000", discountTotal },
+      })
+    expect(invoice("10000")).toEqual({
+      number: "INV-2026-000001",
+      amount: "90000",
+      discount: "10000",
+    })
+    expect(invoice("0").discount).toBeUndefined()
+  })
+
+  it("shows a price that changed, and what it belongs to", () => {
+    const edit = (price: string) =>
+      describe({
+        entity: "procedure",
+        entityId: "x",
+        before: { name: "حشوة ضوئية", price: "25000" },
+        after: { name: "حشوة ضوئية", price },
+      })
+    expect(edit("30000")).toEqual({ name: "حشوة ضوئية", price: { from: "25000", to: "30000" } })
+    // The same price written differently is not a change.
+    expect(edit("25000.00").price).toBeUndefined()
+  })
+
   it("keeps the username typed in a failed sign-in", () => {
     expect(
       describe({ entity: "session", entityId: null, before: null, after: { username: "reem" } }),

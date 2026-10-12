@@ -1,5 +1,7 @@
 // The activity history reads the audit log. Pure helpers, shared by the data layer and tests.
 
+import { isAmount, toMinor } from "@/lib/money"
+
 export const ACTIVITY_FILTERS = [
   "all",
   "money",
@@ -76,7 +78,13 @@ export const STANDALONE_ACTIONS = [
 export type ActivityDetail = {
   /** A human number such as INV-2026-000012. */
   number?: string
+  /** What was added or changed, when it has a name (a procedure, a medicine, an employee). */
+  name?: string
   amount?: string
+  /** An invoice's discount, when there was one. */
+  discount?: string
+  /** A price that changed: from → to. */
+  price?: { from: string; to: string }
   /** A cash close's counted − expected, when not zero. */
   difference?: string
   reason?: string
@@ -107,9 +115,15 @@ export function describe(entry: {
   const pick = (key: string) => field(after, key) ?? field(before, key)
   const patientId = entity === "patient" ? (entityId ?? undefined) : pick("patientId")
   const difference = entity === "cash_close" ? field(after, "difference") : undefined
+  const discount = field(after, "discountTotal")
+  const [from, to] = [field(before, "price"), field(after, "price")]
+  const priceChanged = from && to && isAmount(from) && isAmount(to) && toMinor(from) !== toMinor(to)
   return {
     number: pick("number"),
+    name: pick("name"),
     amount: entity === "cash_close" ? field(after, "counted") : (pick("amount") ?? pick("total")),
+    discount: discount && isAmount(discount) && toMinor(discount) > 0n ? discount : undefined,
+    price: priceChanged ? { from, to } : undefined,
     difference: difference === "0" ? undefined : difference,
     reason: field(after, "reason"),
     username: entity === "session" ? field(after, "username") : undefined,
