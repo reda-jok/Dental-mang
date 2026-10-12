@@ -49,7 +49,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 - The CSP is set per request in `proxy.ts` (nonce). No inline scripts and no external origins.
 - Sensitive actions (role change, disable, password reset) sign the user out everywhere.
 - Money amounts on invoices come from the server (plan item or catalog price), never from the browser; the browser sends only ids, quantities and discounts.
-- Discount, void, refund and paying labs are _adjustable_ (`ADJUSTABLE_PERMISSIONS`): the owner sets them per role in Settings → Permissions. Check them on the server with `authorize()` or `await can(user, …)` (`src/server/permissions.ts`). The synchronous `hasPermission` only accepts fixed permissions, so TypeScript catches misuse.
+- Every permission except user management and `settings:permissions` is _adjustable_: the owner sets it per role in Settings → Permissions. A new one goes in `ADJUSTABLE_PERMISSIONS` with its prerequisites (`requires`) and a title and description under `permissions.items`. The signed-in user's permissions are resolved once per request (`CurrentUser.permissions`): check them with `authorize()` or `hasPermission(user, …)` (also in client components, given `user.permissions`), never against a role's defaults.
 
 ## UI
 

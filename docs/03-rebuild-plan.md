@@ -568,3 +568,10 @@ The owner designed a new look in the company design system (claude.ai artifact "
 | Logo | `Logo` and `LoadingLogo` in `src/components/logo.tsx` | The login page shows the logo; `(app)/loading.tsx` shows the mark building itself while a page loads (pages now stream, so a missing page returns 200 with `noindex` instead of 404) |
 | Icons | Favicon: a simplified crop of the mark at 16 px, the whole mark at 32 and 48 px; `apple-icon.png` for iPad home screens | Covers the iPad part of the "home-screen icon" pilot item (§25, item 4); Android still needs a web manifest |
 | Still open | Clear-space and minimum-size rules for the logo; the "powered by" line on receipts (after Company decision C1) | — |
+
+## 28. Permissions and employees (owner, 2026-10-12)
+
+| Topic | Decision | What it means for the build |
+| --- | --- | --- |
+| Which permissions the owner adjusts | **All of them**, not only the money ones: patients, clinical records, prescriptions, appointments, invoices (discount, void, refund), labs and lab payments, pay and commission, settings. ✅ **Built 2026-10-12** | Settings → Permissions groups them by area with a switch per role. Each permission names its prerequisites (issuing invoices needs viewing them, booking needs viewing patients): a role missing one gets a locked switch that says why, and loses the permissions that depend on it. Staff accounts and the permissions page stay owner/admin-only; modules not built yet (accounting, stock) are added when they are built |
+| Users and employees | **One list.** Staff accounts move from Settings → Users into the sidebar's "الموظفون" page, next to commission. Adding an employee has a **"can sign in" checkbox**: without it there is no username or password, just a name and role (e.g. a dentist who never logs in still has appointments and commission) | A user row without a credential account; sign-in can be given later. Next up |
