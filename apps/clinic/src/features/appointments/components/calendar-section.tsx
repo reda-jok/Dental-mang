@@ -153,7 +153,7 @@ export function CalendarSection({
                   className={cn(
                     "flex flex-col gap-1 rounded-lg border p-2 text-start transition-colors hover:bg-slate-50",
                     view === "month" ? "min-h-[100px]" : "min-h-[160px]",
-                    isToday ? "border-steel-200 bg-steel-50" : "border-slate-200 bg-white",
+                    isToday ? "border-primary/30 bg-accent" : "border-slate-200 bg-white",
                     rest && "border-red-200 bg-red-50 hover:bg-red-100/60",
                     !inMonth && "opacity-40",
                   )}
@@ -162,7 +162,7 @@ export function CalendarSection({
                     <span
                       className={cn(
                         "text-sm font-medium",
-                        isToday ? "text-steel-700" : rest ? "text-red-700" : "text-slate-900",
+                        isToday ? "text-primary" : rest ? "text-red-700" : "text-slate-900",
                       )}
                     >
                       {Number(d.slice(8))}

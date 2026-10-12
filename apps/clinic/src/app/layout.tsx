@@ -1,23 +1,20 @@
 import type { Metadata } from "next"
-import { IBM_Plex_Sans_Arabic, Reem_Kufi } from "next/font/google"
+import { Readex_Pro } from "next/font/google"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getTranslations } from "next-intl/server"
+import { cookies, headers } from "next/headers"
 
 import { DirectionProvider } from "@/components/ui/direction"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { directionOf, languageOf } from "@/i18n/config"
+import { THEME_COOKIE, themeFor } from "@/lib/theme"
 
 import "./globals.css"
 
+// Readex Pro (variable weight) for every word, Arabic and Latin: the Tamkeen Clear face.
 // Downloaded at build time and served locally — no internet needed at runtime.
-const font = IBM_Plex_Sans_Arabic({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-sans",
-})
-// Kufic display face (variable, 400–700) for titles and big numbers: the brand's classic voice.
-const display = Reem_Kufi({ subsets: ["arabic", "latin"], variable: "--font-display" })
+const font = Readex_Pro({ subsets: ["arabic", "latin"], variable: "--font-sans" })
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("app")
@@ -27,19 +24,24 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const locale = await getLocale()
   const dir = directionOf(locale)
+  // Set on the server, so the page never flashes light before turning dark.
+  const theme = themeFor(
+    (await cookies()).get(THEME_COOKIE)?.value,
+    (await headers()).get("x-pathname"),
+  )
 
   return (
     <html
       lang={languageOf(locale)}
       dir={dir}
-      className={`${font.variable} ${display.variable} h-full antialiased`}
+      className={`${font.variable} h-full antialiased ${theme === "dark" ? "dark" : ""}`}
     >
       <body className="min-h-full">
         <NextIntlClientProvider>
           <DirectionProvider dir={dir}>
             <TooltipProvider delayDuration={300}>
               {children}
-              <Toaster position="top-center" richColors />
+              <Toaster position="top-center" richColors theme={theme} />
             </TooltipProvider>
           </DirectionProvider>
         </NextIntlClientProvider>

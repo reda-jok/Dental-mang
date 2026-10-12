@@ -69,7 +69,7 @@ export function LabCaseButton(props: Props) {
         <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FlaskConicalIcon className="text-steel-600 size-5" aria-hidden />
+              <FlaskConicalIcon className="text-primary size-5" aria-hidden />
               {editing ? t("editTitle") : t("newCase")}
             </DialogTitle>
             <DialogDescription>{t("formDescription")}</DialogDescription>

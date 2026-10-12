@@ -134,7 +134,7 @@ export function Scheduler({
                   month: "long",
                   timeZone: "UTC",
                 })}
-                className={cn(rest && "border-red-200", d === today && "ring-steel-200 ring-2")}
+                className={cn(rest && "border-red-200", d === today && "ring-primary/30 ring-2")}
                 actions={
                   <Button variant="ghost" size="sm" onClick={() => go({ date: d, view: "day" })}>
                     {t("openDay")}

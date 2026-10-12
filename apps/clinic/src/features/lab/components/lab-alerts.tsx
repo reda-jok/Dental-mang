@@ -21,7 +21,7 @@ export function LabAlerts({ cases, late }: { cases: LabCaseView[]; late: number 
       description={t("alertsDescription", { count: late })}
       className="border-red-200"
       actions={
-        <Link href={"/lab?status=late" as Route} className="text-steel-700 text-sm hover:underline">
+        <Link href={"/lab?status=late" as Route} className="text-primary text-sm hover:underline">
           {t("alertsAll")}
         </Link>
       }

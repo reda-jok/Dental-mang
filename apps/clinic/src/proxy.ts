@@ -28,6 +28,8 @@ export function proxy(request: NextRequest) {
   // Next.js reads the nonce from this request header and applies it to its scripts.
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set("x-nonce", nonce)
+  // Layouts can't see the URL; the root layout uses this to keep printouts light.
+  requestHeaders.set("x-pathname", pathname)
   requestHeaders.set("Content-Security-Policy", csp)
 
   const response = NextResponse.next({ request: { headers: requestHeaders } })

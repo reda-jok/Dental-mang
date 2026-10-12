@@ -7,7 +7,12 @@ import { Input } from "@/components/ui/input"
 export async function HeaderSearch() {
   const t = await getTranslations("search")
   return (
-    <form action="/patients" method="get" role="search" className="relative w-full max-w-xs">
+    <form
+      action="/patients"
+      method="get"
+      role="search"
+      className="relative w-full max-w-xs sm:w-80"
+    >
       <SearchIcon className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2" />
       <Input
         name="q"

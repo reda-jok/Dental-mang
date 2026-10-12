@@ -233,7 +233,7 @@ function InvoiceForm({
                 className={cn(
                   "rounded-xl border p-3 text-start transition-colors disabled:opacity-50",
                   kind === k
-                    ? "border-steel-500 bg-steel-50 ring-steel-500 ring-1"
+                    ? "border-primary bg-accent ring-primary ring-1"
                     : "border-slate-200 hover:bg-slate-50",
                 )}
               >

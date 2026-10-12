@@ -41,3 +41,18 @@ test("signing up through the auth API is disabled", async ({ request }) => {
   })
   expect(res.ok()).toBe(false)
 })
+
+test("dark mode is chosen in the user menu and kept after a reload", async ({ page, isMobile }) => {
+  await login(page)
+  const html = page.locator("html")
+  await expect(html).not.toHaveClass(/\bdark\b/)
+
+  if (isMobile) await page.getByRole("button", { name: "إظهار/إخفاء القائمة" }).click()
+  await page.locator("[data-sidebar=sidebar]").last().getByText(OWNER.name).click()
+  await page.getByRole("menuitem", { name: "المظهر الداكن" }).click()
+  await expect(html).toHaveClass(/\bdark\b/)
+
+  // The server renders the choice from the cookie: no light flash on the next load.
+  await page.reload()
+  await expect(html).toHaveClass(/\bdark\b/)
+})

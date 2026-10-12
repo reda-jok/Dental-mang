@@ -10,14 +10,14 @@ import { cn } from "@/lib/utils"
 import { formatTime } from "../../appointments/display"
 import { heatStep, type busyGrid } from "../stats"
 
-/** One hue, light → dark (the steel steps get darker in order); empty = slate. */
+/** One hue, light → dark (the primary blue at rising strength); empty = slate. */
 const SHADES = [
   "bg-slate-100",
-  "bg-steel-100",
-  "bg-steel-200",
-  "bg-steel-300",
-  "bg-steel-500",
-  "bg-steel-700",
+  "bg-primary/15",
+  "bg-primary/30",
+  "bg-primary/50",
+  "bg-primary/75",
+  "bg-primary",
 ] as const
 
 /** A known Sunday, to name any weekday 0-6. */
@@ -101,7 +101,7 @@ function HeatCell({ label, count, shade }: { label: string; count: number; shade
           data-count={count}
           onClick={() => setOpen((o) => !o)}
           className={cn(
-            "focus-visible:ring-steel-600 block h-8 w-full rounded-sm focus-visible:ring-2 focus-visible:outline-none",
+            "focus-visible:ring-primary block h-8 w-full rounded-sm focus-visible:ring-2 focus-visible:outline-none",
             shade,
           )}
         />

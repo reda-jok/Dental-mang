@@ -76,7 +76,7 @@ export default async function RemindersPage({
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm font-medium",
                 params.show === show
-                  ? "bg-steel-50 text-steel-700"
+                  ? "bg-accent text-accent-foreground"
                   : "text-slate-600 hover:bg-slate-100",
               )}
             >
