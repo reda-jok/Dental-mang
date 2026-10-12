@@ -50,7 +50,8 @@ function contentSecurityPolicy(nonce: string) {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    // No upgrade-insecure-requests: the clinic LAN may run plain HTTP (decision D4).
+    // No upgrade-insecure-requests: development and e2e run on plain http://localhost.
+    // At the clinic, Caddy redirects HTTP to HTTPS (deploy/appliance/Caddyfile).
   ].join("; ")
 }
 

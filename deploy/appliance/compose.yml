@@ -1,0 +1,88 @@
+# The clinic server: database, app and HTTPS. Set up by install.sh, which writes .env.
+# Devices open https://<CLINIC_HOST>; the certificate comes from Caddy's own authority
+# (decision D4), trusted once per device from http://<CLINIC_HOST>/clinic.crt.
+name: dental
+
+x-logging: &logging
+  driver: local # rotated (5 × 20 MB per container), so logs never fill the disk
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dental
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run install.sh first}
+      POSTGRES_DB: dental
+      TZ: UTC
+    volumes:
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dental -d dental"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # Time to finish writing and close cleanly when the machine shuts down.
+    stop_grace_period: 60s
+    networks: [inner]
+    logging: *logging
+
+  # Applies database migrations, then exits; the app starts only after it succeeds.
+  migrate:
+    image: ghcr.io/reda-jok/dental-clinic:${APP_VERSION:?}
+    command: ["node", "/migrate/node_modules/prisma/build/index.js", "migrate", "deploy"]
+    working_dir: /migrate
+    environment:
+      DATABASE_URL: postgresql://dental:${DB_PASSWORD}@db:5432/dental?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks: [inner]
+    logging: *logging
+
+  app:
+    image: ghcr.io/reda-jok/dental-clinic:${APP_VERSION:?}
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: postgresql://dental:${DB_PASSWORD}@db:5432/dental?schema=public
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      BETTER_AUTH_URL: https://${CLINIC_HOST:?}
+      CLINIC_TIMEZONE: ${CLINIC_TIMEZONE:-Asia/Baghdad}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 30s
+    networks: [inner]
+    logging: *logging
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      CLINIC_HOST: ${CLINIC_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Holds the clinic's certificate authority: lose it and every device must trust
+      # a new one, so it is backed up with the database.
+      - caddy:/data
+    networks: [default, inner]
+    depends_on:
+      - app
+    logging: *logging
+
+networks:
+  # No route to the internet: the app and database work offline by construction.
+  inner:
+    internal: true
+
+volumes:
+  db:
+  uploads:
+  caddy:

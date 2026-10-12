@@ -1,0 +1,14 @@
+**/node_modules
+**/.next*
+**/src/generated
+**/storage
+**/test-results
+**/playwright-report
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+.claude
+docs
+deploy

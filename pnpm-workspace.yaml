@@ -9,4 +9,4 @@ allowBuilds:
   prisma: true
   sharp: true
   unrs-resolver: false
-  esbuild: set this to true or false
+  esbuild: false

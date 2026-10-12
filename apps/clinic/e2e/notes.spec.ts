@@ -11,12 +11,7 @@ import {
 } from "./fixtures"
 
 /** A note written straight to the database, signed `hoursAgo` hours ago. */
-async function seedNote(
-  patientId: string,
-  authorUsername: string,
-  body: string,
-  hoursAgo: number,
-) {
+async function seedNote(patientId: string, authorUsername: string, body: string, hoursAgo: number) {
   const [note] = await query<{ id: string }>(
     `insert into clinical_note (id, patient_id, author_id, visit_on, created_at)
      select gen_random_uuid(), $1, u.id,
