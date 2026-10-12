@@ -83,3 +83,15 @@ export function shouldCompletePlan(items: { status: ItemStatus }[]): boolean {
   const active = items.filter((i) => i.status !== "cancelled")
   return active.length > 0 && active.every((i) => i.status === "done")
 }
+
+/** Visits a treatment still needs, [fewest, most]: none once done or cancelled, at least one while open. */
+export function visitsLeft(item: {
+  status: ItemStatus
+  visitsMin: number
+  visitsMax: number
+  visitsSoFar: number
+}): [number, number] {
+  if (item.status === "done" || item.status === "cancelled") return [0, 0]
+  const fewest = Math.max(1, item.visitsMin - item.visitsSoFar)
+  return [fewest, Math.max(fewest, item.visitsMax - item.visitsSoFar)]
+}

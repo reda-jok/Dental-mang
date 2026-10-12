@@ -7,8 +7,8 @@ import { BookingDialog, type BookingPrefill } from "./booking-dialog"
 import { WhatsAppDialog, type WhatsAppDraft } from "@/components/whatsapp-dialog"
 
 type BookingContext = {
-  /** Null when the user may not book appointments. */
-  openBooking: ((prefill?: BookingPrefill) => void) | null
+  /** Null when the user may not book appointments. Bookings start from a patient. */
+  openBooking: ((prefill: BookingPrefill) => void) | null
   /** Open the WhatsApp message dialog (reminders, completed visits…). */
   openWhatsApp: (draft: WhatsAppDraft) => void
   config: ScheduleConfig
@@ -16,7 +16,7 @@ type BookingContext = {
 
 const Ctx = createContext<BookingContext | null>(null)
 
-/** Lets any page open the booking form (header button, calendar day, patient page…). */
+/** Lets the patient page and the plan open the booking form, and any page the WhatsApp dialog. */
 export function BookingProvider({
   options,
   config,
@@ -27,10 +27,10 @@ export function BookingProvider({
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
-  const [prefill, setPrefill] = useState<BookingPrefill>({})
+  const [prefill, setPrefill] = useState<BookingPrefill | null>(null)
   const [draft, setDraft] = useState<WhatsAppDraft | null>(null)
 
-  const openBooking = useCallback((p: BookingPrefill = {}) => {
+  const openBooking = useCallback((p: BookingPrefill) => {
     setPrefill(p)
     setOpen(true)
   }, [])

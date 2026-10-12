@@ -49,13 +49,14 @@ import {
 import { buildSearchText } from "@/features/patients/search"
 import { createClinicalNoteSchema, reviseClinicalNoteSchema } from "@/features/notes/schemas"
 import { createClinicalNote, reviseClinicalNote } from "@/features/notes/service"
+import { nextVisitItems } from "@/features/appointments/rules"
 import { nextOpenDay } from "@/features/reminders/rules"
 import { logAppointmentReminder } from "@/features/reminders/service"
 import { shouldCompletePlan } from "@/features/plans/rules"
 import { createPrescriptionSchema } from "@/features/prescriptions/schemas"
 import { createPrescription } from "@/features/prescriptions/service"
 import { STARTER_MEDICATIONS } from "@/features/prescriptions/starter"
-import { STARTER_CATALOG, STARTER_NOTES } from "@/features/procedures/starter"
+import { STARTER_CATALOG, STARTER_NOTES, STARTER_VISITS } from "@/features/procedures/starter"
 import {
   addDays,
   isoDateInZone,
@@ -192,6 +193,80 @@ async function topUps() {
   await seedDentistPay()
   await seedToothConditions()
   await seedStaffWithoutSignIn()
+  await seedVisitItems()
+}
+
+/**
+ * Visits tied to the plan (2026-10-12): the catalog's multi-visit procedures get their
+ * visit range; each finished visit is linked to the treatments done that day; each visit
+ * still to come is booked for the patient's next phase, or for a check-up or consultation
+ * when nothing in a plan is left.
+ */
+async function seedVisitItems() {
+  for (const [name, [visitsMin, visitsMax]] of Object.entries(STARTER_VISITS)) {
+    await db.procedure.updateMany({
+      where: { name, visitsMin: 1, visitsMax: 1 },
+      data: { visitsMin, visitsMax },
+    })
+  }
+  if ((await db.appointmentItem.count()) > 0) return
+
+  const done = await db.$queryRaw<{ appointment_id: string; plan_item_id: string }[]>`
+    select a.id as appointment_id, i.id as plan_item_id
+    from appointment a
+    join treatment_plan p on p.patient_id = a.patient_id
+    join treatment_plan_item i on i.plan_id = p.id
+    where a.status = 'completed' and i.status = 'done'
+      and (i.completed_at at time zone ${TZ})::date = (a.starts_at at time zone ${TZ})::date`
+  await db.appointmentItem.createMany({
+    data: done.map((d) => ({
+      appointmentId: d.appointment_id,
+      planItemId: d.plan_item_id,
+      outcome: "done" as const,
+    })),
+    skipDuplicates: true,
+  })
+
+  const coming = await db.appointment.findMany({
+    where: { status: { in: ["pending", "in_progress"] } },
+    orderBy: { startsAt: "asc" },
+    select: { id: true, patientId: true },
+  })
+  const booked = new Set<string>()
+  let linked = 0
+  for (const visit of coming) {
+    const plans = await db.treatmentPlan.findMany({
+      where: { patientId: visit.patientId, status: { in: ["accepted", "proposed"] } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        items: {
+          where: { status: { in: ["planned", "in_progress"] } },
+          orderBy: [{ phase: "asc" }, { tooth: "asc" }],
+          select: { id: true, phase: true },
+        },
+      },
+    })
+    const items = plans
+      .sort((a, b) => Number(b.status === "accepted") - Number(a.status === "accepted"))
+      .flatMap((p) => p.items.map((i) => ({ ...i, planId: p.id, bookedAhead: booked.has(i.id) })))
+    const ids = nextVisitItems(items)
+    if (ids.length === 0) {
+      const hasPlan = await db.treatmentPlan.count({ where: { patientId: visit.patientId } })
+      await db.appointment.update({
+        where: { id: visit.id },
+        data: { reason: hasPlan ? "checkup" : "consultation" },
+      })
+      continue
+    }
+    await db.appointmentItem.createMany({
+      data: ids.map((planItemId) => ({ appointmentId: visit.id, planItemId })),
+    })
+    ids.forEach((id) => booked.add(id))
+    linked++
+  }
+  console.log(`Visit treatments: ${done.length} done, ${linked} visits booked from plans`)
 }
 
 /**

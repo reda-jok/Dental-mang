@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache"
 
 import { defineAction } from "@/server/action"
 
-import { getAvailability, searchPatientsForBooking } from "./data"
+import { getAvailability, getBookingItems, getFinishOptions } from "./data"
 import {
+  appointmentIdSchema,
   archiveRoomSchema,
   availabilitySchema,
   bookAppointmentSchema,
-  bookingPatientSearchSchema,
+  bookingItemsSchema,
+  finishVisitSchema,
   restDaySchema,
   roomSchema,
   scheduleSettingsSchema,
@@ -19,6 +21,7 @@ import {
   addRoom,
   archiveRoom,
   bookAppointment,
+  finishVisit,
   setAppointmentStatus,
   setRestDay,
   updateScheduleSettings,
@@ -53,10 +56,28 @@ export const availabilityAction = defineAction({
   handler: async (input) => getAvailability(input),
 })
 
-export const searchBookingPatientsAction = defineAction({
-  schema: bookingPatientSearchSchema,
-  permission: "patient:read",
-  handler: async (input) => searchPatientsForBooking(input.q, input.date),
+export const finishVisitAction = defineAction({
+  schema: finishVisitSchema,
+  permission: "appointment:write",
+  handler: async (input, { user }) => {
+    await finishVisit(user, input)
+    refresh()
+    return null
+  },
+})
+
+/** The patient's unfinished plan treatments, for the booking form. */
+export const bookingItemsAction = defineAction({
+  schema: bookingItemsSchema,
+  permission: "appointment:write",
+  handler: async (input) => getBookingItems(input.patientId),
+})
+
+/** What the finish dialog lists for a visit. */
+export const finishOptionsAction = defineAction({
+  schema: appointmentIdSchema,
+  permission: "clinical:write",
+  handler: async (input) => getFinishOptions(input.id),
 })
 
 export const setRestDayAction = defineAction({

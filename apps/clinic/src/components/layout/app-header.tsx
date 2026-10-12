@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarPlusIcon, ListPlusIcon, UserPlusIcon } from "lucide-react"
+import { ListPlusIcon, UserPlusIcon } from "lucide-react"
 import type { Route } from "next"
 import { useTranslations } from "next-intl"
 import Link from "next/link"
@@ -11,11 +11,9 @@ import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-import { useBooking } from "@/features/appointments/components/booking-provider"
-
 import { navGroups, type NavItem } from "./nav-items"
 
-type QuickAction = "newPatient" | "newAppointment" | "newProcedure"
+type QuickAction = "newPatient" | "newProcedure"
 
 type Props = {
   /** Server-rendered search box (shown when the user may read patients). */
@@ -38,29 +36,16 @@ export function AppHeader({ search, actions }: Props) {
   const t = useTranslations()
   const pathname = usePathname()
   const section = sectionFor(pathname)
-  const { openBooking } = useBooking()
 
   const quick: Record<
     QuickAction,
-    {
-      label: string
-      icon: ReactNode
-      href?: Route
-      onClick?: () => void
-      variant: "default" | "outline"
-    }
+    { label: string; icon: ReactNode; href: Route; variant: "default" | "outline" }
   > = {
     newPatient: {
       label: t("header.newPatient"),
       icon: <UserPlusIcon />,
       href: "/patients/new",
       variant: "default",
-    },
-    newAppointment: {
-      label: t("header.newAppointment"),
-      icon: <CalendarPlusIcon />,
-      onClick: openBooking ? () => openBooking() : undefined,
-      variant: "outline",
     },
     newProcedure: {
       label: t("header.newProcedure"),
@@ -87,52 +72,22 @@ export function AppHeader({ search, actions }: Props) {
           {search}
           {actions.map((key) => {
             const action = quick[key]
-            const content = (
-              <>
-                {action.icon}
-                <span className="hidden xl:inline">{action.label}</span>
-              </>
-            )
             return (
               <Tooltip key={key}>
                 <TooltipTrigger asChild>
-                  {action.href ? (
-                    <Button
-                      asChild
-                      variant={action.variant}
-                      className="gap-2"
-                      aria-label={action.label}
-                    >
-                      <Link href={action.href}>{content}</Link>
-                    </Button>
-                  ) : action.onClick ? (
-                    <Button
-                      variant={action.variant}
-                      className="gap-2"
-                      aria-label={action.label}
-                      onClick={action.onClick}
-                    >
-                      {content}
-                    </Button>
-                  ) : (
-                    // Not available: disabled, and the tip says so.
-                    <span tabIndex={0} className="inline-flex">
-                      <Button
-                        variant={action.variant}
-                        className="gap-2"
-                        disabled
-                        aria-label={action.label}
-                      >
-                        {content}
-                      </Button>
-                    </span>
-                  )}
+                  <Button
+                    asChild
+                    variant={action.variant}
+                    className="gap-2"
+                    aria-label={action.label}
+                  >
+                    <Link href={action.href}>
+                      {action.icon}
+                      <span className="hidden xl:inline">{action.label}</span>
+                    </Link>
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  {action.href || action.onClick
-                    ? action.label
-                    : `${action.label} · ${t("common.comingSoonHint")}`}
-                </TooltipContent>
+                <TooltipContent>{action.label}</TooltipContent>
               </Tooltip>
             )
           })}
