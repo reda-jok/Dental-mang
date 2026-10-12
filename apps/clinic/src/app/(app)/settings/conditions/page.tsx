@@ -21,10 +21,7 @@ export default async function ConditionsSettingsPage() {
   ])
   return (
     <Panel icon={SwatchBookIcon} title={t("title")} description={t("description")}>
-      <ConditionsManager
-        conditions={conditions}
-        canEdit={hasPermission(user.role, "settings:write")}
-      />
+      <ConditionsManager conditions={conditions} canEdit={hasPermission(user, "settings:write")} />
     </Panel>
   )
 }

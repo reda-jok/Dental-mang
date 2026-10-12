@@ -46,7 +46,7 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
   const payable =
     invoice.status === "issued" &&
     toMinor(invoice.balance) > 0n &&
-    hasPermission(user.role, "billing:write")
+    hasPermission(user, "billing:write")
   const paymentForm = payable ? await getPaymentFormData(invoice.patient.id) : null
 
   const day = (iso: string) =>

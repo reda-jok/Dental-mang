@@ -34,7 +34,7 @@ export default async function AppointmentsPage({ searchParams }: PageProps<"/app
       appointments={appointments}
       holidays={holidays}
       weeklyOffDays={config.weeklyOffDays}
-      canWrite={hasPermission(user.role, "appointment:write")}
+      canWrite={hasPermission(user, "appointment:write")}
     />
   )
 }

@@ -12,7 +12,7 @@ export default async function PatientLayout({ children, params }: LayoutProps<"/
   const user = await requirePagePermission("patient:read")
   const { id } = await params
   const patient = await loadPatient(id)
-  const clinical = hasPermission(user.role, "clinical:read")
+  const clinical = hasPermission(user, "clinical:read")
   const history = clinical ? await getMedicalHistory(id) : null
 
   return (
@@ -20,16 +20,16 @@ export default async function PatientLayout({ children, params }: LayoutProps<"/
       <PatientHeader
         patient={patient}
         today={todayIso()}
-        canEdit={hasPermission(user.role, "patient:write")}
-        canArchive={hasPermission(user.role, "patient:delete")}
+        canEdit={hasPermission(user, "patient:write")}
+        canArchive={hasPermission(user, "patient:delete")}
       />
       {clinical && <MedicalAlertBanner patientId={id} history={history} />}
       <PatientTabs
         patientId={id}
         clinical={clinical}
-        appointments={hasPermission(user.role, "appointment:read")}
-        billing={hasPermission(user.role, "billing:read")}
-        lab={hasPermission(user.role, "lab:read")}
+        appointments={hasPermission(user, "appointment:read")}
+        billing={hasPermission(user, "billing:read")}
+        lab={hasPermission(user, "lab:read")}
       />
       <div className="pt-2">{children}</div>
     </div>

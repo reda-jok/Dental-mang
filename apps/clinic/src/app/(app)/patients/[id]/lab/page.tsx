@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PatientLabPage({ params }: PageProps<"/patients/[id]/lab">) {
   const user = await requirePagePermission("lab:read")
   const patient = await loadPatient((await params).id)
-  const canWrite = hasPermission(user.role, "lab:write")
+  const canWrite = hasPermission(user, "lab:write")
   const [cases, options, planItems, t] = await Promise.all([
     listPatientLabCases(patient.id),
     canWrite ? getLabFormOptions() : null,

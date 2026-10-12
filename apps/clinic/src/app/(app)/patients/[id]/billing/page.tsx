@@ -20,7 +20,6 @@ import {
 import { parseIsoDate } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
 import { hasPermission } from "@/lib/permissions"
-import { can } from "@/server/permissions"
 import { requirePagePermission } from "@/server/session"
 
 import { loadPatient } from "../load"
@@ -37,13 +36,13 @@ export default async function PatientBillingPage({
   const user = await requirePagePermission("billing:read")
   const patient = await loadPatient((await params).id)
   const { new: newKind } = await searchParams
-  const canWrite = hasPermission(user.role, "billing:write")
+  const canWrite = hasPermission(user, "billing:write")
   const [billing, debt, invoiceForm, paymentForm, canVoid, t, format] = await Promise.all([
     getPatientBilling(patient.id),
     getPatientDebt(patient.id),
     canWrite ? getInvoiceFormData(patient.id) : null,
     canWrite ? getPaymentFormData(patient.id) : null,
-    can(user, "billing:void"),
+    hasPermission(user, "billing:void"),
     getTranslations("billing"),
     getFormatter(),
   ])

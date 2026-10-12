@@ -5,7 +5,7 @@ import { searchTokens } from "@/lib/arabic"
 import { addDays, todayIso, toIsoDate } from "@/lib/dates"
 import { fromMinor, subtractAmounts, toMinor } from "@/lib/money"
 import { db } from "@/server/db"
-import { can } from "@/server/permissions"
+import { hasPermission } from "@/lib/permissions"
 import { authorize, type CurrentUser } from "@/server/session"
 
 import { getClinicSettings } from "../settings/data"
@@ -304,7 +304,7 @@ export async function getInvoice(id: string) {
     voidedByName: invoice.voidedBy?.name ?? null,
     journalNumber: invoice.journalEntry?.number ?? null,
     reversalNumber: invoice.journalEntry?.reversedBy?.number ?? null,
-    canVoid: invoice.status === "issued" && (await can(user, "billing:void")),
+    canVoid: invoice.status === "issued" && hasPermission(user, "billing:void"),
     lines: invoice.lines.map(({ dentist, unitPrice, discount, total: lineTotal, ...line }) => ({
       ...line,
       dentistName: dentist?.name ?? null,
@@ -362,7 +362,7 @@ export async function getInvoiceFormData(patientId: string) {
         },
       },
     }),
-    can(user, "billing:discount"),
+    hasPermission(user, "billing:discount"),
   ])
   return {
     today: todayIso(settings?.timezone),
@@ -509,7 +509,7 @@ export async function getPaymentFormData(patientId: string) {
     }),
     db.payment.aggregate({ where: { patientId, voidedAt: null }, _sum: { amount: true } }),
     db.refund.aggregate({ where: { patientId }, _sum: { amount: true } }),
-    can(user, "billing:refund"),
+    hasPermission(user, "billing:refund"),
   ])
   const open = invoices
     .map((i) => ({

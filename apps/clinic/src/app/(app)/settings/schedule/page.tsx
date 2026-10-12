@@ -23,7 +23,7 @@ export default async function ScheduleSettingsPage() {
   return (
     <Panel icon={CalendarClockIcon} title={t("title")} description={t("description")}>
       <ScheduleSettings
-        canEdit={hasPermission(user.role, "settings:write")}
+        canEdit={hasPermission(user, "settings:write")}
         config={config}
         rooms={options.rooms}
       />

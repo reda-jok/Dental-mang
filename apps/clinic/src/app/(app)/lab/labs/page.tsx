@@ -18,7 +18,7 @@ export default async function LabsPage() {
   const [labs, t] = await Promise.all([getLabs(), getTranslations("lab")])
   return (
     <Panel icon={BuildingIcon} title={t("tabs.labs")} description={t("labsDescription")}>
-      <LabsManager labs={labs} canEdit={hasPermission(user.role, "lab:write")} />
+      <LabsManager labs={labs} canEdit={hasPermission(user, "lab:write")} />
     </Panel>
   )
 }

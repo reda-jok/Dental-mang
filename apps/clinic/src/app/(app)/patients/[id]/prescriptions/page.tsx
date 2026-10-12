@@ -21,7 +21,7 @@ export default async function PrescriptionsPage({
 }: PageProps<"/patients/[id]/prescriptions">) {
   const user = await requirePagePermission("clinical:read")
   const patient = await loadPatient((await params).id)
-  const canPrescribe = hasPermission(user.role, "clinical:prescribe")
+  const canPrescribe = hasPermission(user, "clinical:prescribe")
   const [prescriptions, formData, t] = await Promise.all([
     listPrescriptions(patient.id),
     canPrescribe ? getPrescriptionFormData(patient.id) : null,

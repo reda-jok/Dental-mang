@@ -22,7 +22,7 @@ export default async function PatientFilesPage({ params }: PageProps<"/patients/
     <AttachmentsPanel
       patientId={patient.id}
       rows={rows}
-      canEdit={hasPermission(user.role, "clinical:write")}
+      canEdit={hasPermission(user, "clinical:write")}
     />
   )
 }

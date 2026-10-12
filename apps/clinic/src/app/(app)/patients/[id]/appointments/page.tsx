@@ -26,7 +26,7 @@ export default async function PatientAppointmentsPage({
   ])
   const upcoming = all.filter((a) => a.upcoming).reverse()
   const past = all.filter((a) => !a.upcoming)
-  const canWrite = hasPermission(user.role, "appointment:write")
+  const canWrite = hasPermission(user, "appointment:write")
 
   const list = (items: typeof all) =>
     items.length === 0 ? (

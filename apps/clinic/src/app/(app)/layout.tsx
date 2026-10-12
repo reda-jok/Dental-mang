@@ -19,12 +19,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   // Quick actions in the header, only for users who can use them.
   const actions = [
-    ...(hasPermission(user.role, "patient:write") ? (["newPatient"] as const) : []),
-    ...(hasPermission(user.role, "appointment:write") ? (["newAppointment"] as const) : []),
-    ...(hasPermission(user.role, "settings:write") ? (["newProcedure"] as const) : []),
+    ...(hasPermission(user, "patient:write") ? (["newPatient"] as const) : []),
+    ...(hasPermission(user, "appointment:write") ? (["newAppointment"] as const) : []),
+    ...(hasPermission(user, "settings:write") ? (["newProcedure"] as const) : []),
   ]
 
-  const canBook = hasPermission(user.role, "appointment:write")
+  const canBook = hasPermission(user, "appointment:write")
   const [config, bookingOptions] = await Promise.all([
     getScheduleConfig(),
     canBook ? getBookingOptions() : null,
@@ -33,10 +33,13 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <BookingProvider options={bookingOptions} config={config}>
       <SidebarProvider>
-        <AppSidebar clinicName={settings.name} user={{ name: user.name, role: user.role }} />
+        <AppSidebar
+          clinicName={settings.name}
+          user={{ name: user.name, role: user.role, permissions: user.permissions }}
+        />
         <SidebarInset className="bg-background">
           <AppHeader
-            search={hasPermission(user.role, "patient:read") ? <HeaderSearch /> : undefined}
+            search={hasPermission(user, "patient:read") ? <HeaderSearch /> : undefined}
             actions={actions}
           />
           <main className="flex-1 p-4 md:p-6">{children}</main>

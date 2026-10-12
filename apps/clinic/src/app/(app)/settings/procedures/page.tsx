@@ -32,7 +32,7 @@ export default async function ProceduresSettingsPage({
           label,
           hidden: hiddenAt !== null,
         }))}
-        canEdit={hasPermission(user.role, "settings:write")}
+        canEdit={hasPermission(user, "settings:write")}
         // The header's "add procedure" button links here with ?new=1.
         openNew={(await searchParams).new === "1"}
       />

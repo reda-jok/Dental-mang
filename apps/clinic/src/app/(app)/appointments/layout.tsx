@@ -5,7 +5,7 @@ import { requirePagePermission } from "@/server/session"
 /** Tabs only for those who send reminders (anyone who books appointments). */
 export default async function AppointmentsLayout({ children }: LayoutProps<"/appointments">) {
   const user = await requirePagePermission("appointment:read")
-  if (!hasPermission(user.role, "appointment:write")) return children
+  if (!hasPermission(user, "appointment:write")) return children
   return (
     <div className="space-y-6">
       <AppointmentsNav />

@@ -66,9 +66,18 @@ import {
   zonedInstant,
 } from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
+import { permissionsFor, type RoleName } from "@/lib/permissions"
 import { db } from "@/server/db"
 import { detectFileType, saveUpload } from "@/server/storage"
 import type { CurrentUser } from "@/server/session"
+
+/** A staff member acting through the real services, with their role's default permissions. */
+function asActor(
+  user: { id: string; name: string; username: string | null },
+  role: RoleName,
+): CurrentUser {
+  return { ...user, role, permissions: permissionsFor(role, []) }
+}
 
 import {
   AREAS,
@@ -276,7 +285,7 @@ async function seedAppointmentReminders() {
     select: { id: true, name: true, username: true },
   })
   if (!reem) return
-  const actor: CurrentUser = { ...reem, role: "reception" }
+  const actor = asActor(reem, "reception")
   const settings = await db.clinicSettings.findUnique({
     where: { id: 1 },
     select: { weeklyOffDays: true },
@@ -473,12 +482,10 @@ async function seedClinicalNotes() {
     const body = pick(
       template?.notes ?? ["مراجعة ومتابعة. المريض بحالة جيدة، لا شكوى جديدة."],
     ).replaceAll("{teeth}", teeth.length ? `السن ${[...new Set(teeth)].join(" و")}` : "السن المعني")
-    const actor: CurrentUser = {
-      id: visit.dentist_id,
-      name: visit.dentist_name,
-      username: null,
-      role: "dentist",
-    }
+    const actor = asActor(
+      { id: visit.dentist_id, name: visit.dentist_name, username: null },
+      "dentist",
+    )
     const signedAt = new Date(visit.ends_at.getTime() + int(3, 25) * 60_000)
     if (signedAt > new Date()) continue
     const note = await createClinicalNote(
@@ -612,12 +619,7 @@ async function seedLabCases() {
     const dentistId = item.dentistId ?? item.plan.createdById
     const user = dentistId ? users.get(dentistId) : null
     if (!user) continue
-    const actor: CurrentUser = {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      role: "dentist",
-    }
+    const actor = asActor(user, "dentist")
     const planDay = toDay(item.createdAt)
     const cost = String(LAB_WORK[work]!.cost)
     let sentOn: string
@@ -696,7 +698,7 @@ async function seedLabMoney() {
     select: { id: true, name: true, username: true },
   })
   if (!accountant) return
-  const actor: CurrentUser = { ...accountant, role: "accountant" }
+  const actor = asActor(accountant, "accountant")
 
   const unbilled = await db.labCase.findMany({
     where: { billedOn: null, receivedOn: { not: null }, cost: { gt: 0 } },
@@ -910,7 +912,7 @@ async function seedPrescriptions() {
         : []),
     ]
     await createPrescription(
-      { id: visit.dentist_id, name: visit.dentist_name, username: null, role: "dentist" },
+      asActor({ id: visit.dentist_id, name: visit.dentist_name, username: null }, "dentist"),
       createPrescriptionSchema.parse({
         patientId: visit.patient_id,
         items,
@@ -990,12 +992,7 @@ async function seedHistory({ patients: patientCount, mode }: { patients: number;
           })
         : null
     const user = existing ?? (await createUser(member))
-    staff[member.username] = {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      role: member.role,
-    }
+    staff[member.username] = asActor(user, member.role)
   }
   // A former employee whose account was disabled (Settings → Users).
   await createUser(

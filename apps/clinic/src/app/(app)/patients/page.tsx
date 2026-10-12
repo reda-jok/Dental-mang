@@ -41,7 +41,7 @@ export default async function PatientsPage({ searchParams }: PageProps<"/patient
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="flex flex-wrap items-center justify-between gap-3">
           <PatientSearchInput initialQuery={q} />
-          {hasPermission(user.role, "patient:write") && (
+          {hasPermission(user, "patient:write") && (
             <Button asChild>
               <Link href="/patients/new">
                 <PlusIcon />

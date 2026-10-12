@@ -20,14 +20,14 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { hasPermission, type RoleName } from "@/lib/permissions"
+import { hasPermission, type Permission, type RoleName } from "@/lib/permissions"
 
 import { navGroups } from "./nav-items"
 import { UserMenu } from "./user-menu"
 
 type Props = {
   clinicName: string
-  user: { name: string; role: RoleName }
+  user: { name: string; role: RoleName; permissions: Permission[] }
 }
 
 export function AppSidebar({ clinicName, user }: Props) {
@@ -50,7 +50,7 @@ export function AppSidebar({ clinicName, user }: Props) {
       <SidebarContent>
         {navGroups.map((group) => {
           const items = group.items.filter(
-            (item) => !item.permission || hasPermission(user.role, item.permission),
+            (item) => !item.permission || hasPermission(user, item.permission),
           )
           if (items.length === 0) return null
           return (

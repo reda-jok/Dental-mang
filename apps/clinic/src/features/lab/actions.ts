@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { defineAction } from "@/server/action"
 import { AppError } from "@/server/errors"
-import { can } from "@/server/permissions"
+import { hasPermission } from "@/lib/permissions"
 
 import {
   archiveLabSchema,
@@ -117,7 +117,7 @@ export const voidLabPaymentAction = defineAction({
   schema: voidLabPaymentSchema,
   permission: "billing:void",
   handler: async (input, { user }) => {
-    if (!(await can(user, "lab:pay"))) throw new AppError("forbidden")
+    if (!hasPermission(user, "lab:pay")) throw new AppError("forbidden")
     const result = await voidLabPayment(user, input)
     refreshMoney()
     return result

@@ -52,7 +52,7 @@ export default async function MedicalHistoryPage({ params }: PageProps<"/patient
         patientId={patient.id}
         gender={patient.gender}
         history={history}
-        canEdit={hasPermission(user.role, "clinical:write")}
+        canEdit={hasPermission(user, "clinical:write")}
       />
     </Panel>
   )

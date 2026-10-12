@@ -1,5 +1,5 @@
 import { LabNav } from "@/features/lab/components/lab-nav"
-import { can } from "@/server/permissions"
+import { hasPermission } from "@/lib/permissions"
 import { requirePagePermission } from "@/server/session"
 
 export default async function LabLayout({ children }: LayoutProps<"/lab">) {
@@ -7,7 +7,7 @@ export default async function LabLayout({ children }: LayoutProps<"/lab">) {
   return (
     <div className="space-y-6">
       {/* The page title is in the header. */}
-      <LabNav accounts={await can(user, "lab:pay")} />
+      <LabNav accounts={hasPermission(user, "lab:pay")} />
       {children}
     </div>
   )

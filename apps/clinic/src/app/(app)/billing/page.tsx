@@ -41,7 +41,7 @@ export default async function BillingPage({ searchParams }: PageProps<"/billing"
     getTranslations("billing"),
     getFormatter(),
   ])
-  const canWrite = hasPermission(user.role, "billing:write")
+  const canWrite = hasPermission(user, "billing:write")
   const money = (amount: string) => <span dir="ltr">{formatMoney(amount, "IQD")}</span>
 
   const hrefFor = (p: number) => {

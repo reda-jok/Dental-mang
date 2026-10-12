@@ -23,7 +23,7 @@ export default async function MedicationsSettingsPage() {
     <Panel icon={PillIcon} title={t("title")} description={t("description")}>
       <MedicationsManager
         medications={medications}
-        canEdit={hasPermission(user.role, "settings:write")}
+        canEdit={hasPermission(user, "settings:write")}
       />
     </Panel>
   )

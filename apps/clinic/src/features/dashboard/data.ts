@@ -17,7 +17,6 @@ import { subtractAmounts, sumByCurrency, type Currency } from "@/lib/money"
 import { hasPermission } from "@/lib/permissions"
 import { db } from "@/server/db"
 import { env } from "@/server/env"
-import { can } from "@/server/permissions"
 import { authorize, type CurrentUser } from "@/server/session"
 
 import { storedLayoutSchema } from "./schemas"
@@ -30,8 +29,9 @@ import { resolveLayout, WIDGETS, type WidgetKey } from "./widgets"
  */
 export async function getDashboardLayout(user: CurrentUser) {
   await connection()
-  const allowed = new Set<WidgetKey>()
-  for (const w of WIDGETS) if (await can(user, w.permission)) allowed.add(w.key)
+  const allowed = new Set<WidgetKey>(
+    WIDGETS.filter((w) => hasPermission(user, w.permission)).map((w) => w.key),
+  )
   const rows = await db.dashboardLayout.findMany({
     where: { OR: [{ userId: user.id }, { role: user.role }] },
     select: { userId: true, widgets: true },
@@ -54,8 +54,8 @@ export async function getDashboardLayout(user: CurrentUser) {
 export async function getDashboard(user: CurrentUser) {
   await connection()
   const monthStart = startOfMonthUtc(env.CLINIC_TIMEZONE)
-  const canPatients = hasPermission(user.role, "patient:read")
-  const canClinical = hasPermission(user.role, "clinical:read")
+  const canPatients = hasPermission(user, "patient:read")
+  const canClinical = hasPermission(user, "clinical:read")
   const alive = { deletedAt: null }
 
   const [totalPatients, newPatients, openPlans, doneItems] = await Promise.all([

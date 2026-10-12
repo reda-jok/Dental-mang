@@ -2,10 +2,10 @@
 // Shared by the server (authorization) and the client (hiding UI the user can't use).
 // Ownership rules ("dentist sees own appointments") live in each feature's data layer.
 //
-// A few permissions are *adjustable*: the owner can grant or remove them per role in
-// Settings → Permissions (stored as overrides in the database). Those can only be
-// checked on the server with the overrides loaded (`can()` in src/server/permissions.ts);
-// the synchronous `hasPermission` accepts only the fixed ones, so TypeScript stops misuse.
+// Most permissions are *adjustable*: the owner grants or removes them per role in
+// Settings → Permissions (stored as overrides in the database). The signed-in user's
+// effective permissions are resolved once per request (`getCurrentUser()`), so check
+// them with `hasPermission(user, …)`, never against the role's defaults.
 
 import { createAccessControl } from "better-auth/plugins/access"
 import { adminAc, defaultStatements } from "better-auth/plugins/admin/access"
@@ -98,29 +98,49 @@ export type Permission = {
 }[keyof Statements]
 
 /**
- * Permissions the owner can grant or remove per role. `requires`: a role must already
- * have this to be eligible (a discount is given while writing an invoice).
+ * Permissions the owner can grant or remove per role, in the order Settings → Permissions
+ * shows them. `requires`: a role only has the permission while it also has these (a
+ * discount is given while writing an invoice), so removing one takes its dependents with it.
+ * Not listed (fixed): user and session management (Better Auth checks those itself),
+ * `settings:permissions` (owner only), and modules not built yet.
  */
 export const ADJUSTABLE_PERMISSIONS = [
-  { permission: "billing:discount", requires: "billing:write" },
-  { permission: "billing:void", requires: "billing:write" },
-  { permission: "billing:refund", requires: "billing:write" },
+  { permission: "patient:read", requires: [] },
+  { permission: "patient:write", requires: ["patient:read"] },
+  { permission: "patient:delete", requires: ["patient:write"] },
+  { permission: "clinical:read", requires: ["patient:read"] },
+  { permission: "clinical:write", requires: ["clinical:read"] },
+  { permission: "clinical:prescribe", requires: ["clinical:write"] },
+  { permission: "appointment:read", requires: [] },
+  // Booking searches patients.
+  { permission: "appointment:write", requires: ["appointment:read", "patient:read"] },
+  { permission: "billing:read", requires: [] },
+  { permission: "billing:write", requires: ["billing:read"] },
+  { permission: "billing:discount", requires: ["billing:write"] },
+  { permission: "billing:void", requires: ["billing:write"] },
+  { permission: "billing:refund", requires: ["billing:write"] },
+  { permission: "lab:read", requires: [] },
+  { permission: "lab:write", requires: ["lab:read"] },
   // Paying a lab takes money out of the clinic, so only roles that handle money.
-  { permission: "lab:pay", requires: "billing:write" },
-] as const satisfies readonly { permission: Permission; requires: Permission }[]
+  { permission: "lab:pay", requires: ["lab:read", "billing:write"] },
+  { permission: "hr:self", requires: [] },
+  { permission: "hr:commission", requires: ["hr:self"] },
+  { permission: "hr:pay", requires: ["hr:commission"] },
+  { permission: "settings:read", requires: [] },
+  { permission: "settings:write", requires: ["settings:read"] },
+] as const satisfies readonly { permission: Permission; requires: readonly Permission[] }[]
 
 export type AdjustablePermission = (typeof ADJUSTABLE_PERMISSIONS)[number]["permission"]
-export type FixedPermission = Exclude<Permission, AdjustablePermission>
 
 /** Owner-made exceptions to the defaults, as stored in the role_permission table. */
 export type PermissionOverride = { role: string; permission: string; granted: boolean }
 
+const ALL_PERMISSIONS = Object.entries(statements).flatMap(([resource, actions]) =>
+  actions.map((action) => `${resource}:${action}` as Permission),
+)
+
 export function isRoleName(value: unknown): value is RoleName {
   return typeof value === "string" && value in roles
-}
-
-export function isAdjustable(permission: Permission): permission is AdjustablePermission {
-  return ADJUSTABLE_PERMISSIONS.some((p) => p.permission === permission)
 }
 
 /** The code default, ignoring overrides. */
@@ -133,21 +153,10 @@ export function defaultHasPermission(
   return roles[role].authorize({ [resource]: [action] } as never).success
 }
 
-/** For fixed permissions (safe anywhere, including client components). */
-export function hasPermission(role: string | null | undefined, permission: FixedPermission) {
-  return defaultHasPermission(role, permission)
-}
-
-/** Roles the owner may grant `permission` to: everyone with its prerequisite, except the owner. */
-export function eligibleRoles(permission: AdjustablePermission): RoleName[] {
-  const { requires } = ADJUSTABLE_PERMISSIONS.find((p) => p.permission === permission)!
-  return ROLE_NAMES.filter((role) => role !== "owner" && defaultHasPermission(role, requires))
-}
-
 /**
  * The effective permission with the owner's overrides applied. The owner always has
- * everything (an override can't lock them out), and an override only counts for a
- * role that is eligible for it.
+ * everything (an override can't lock them out), and a permission whose prerequisites
+ * the role lacks is off whatever its own setting.
  */
 export function resolvePermission(
   role: string | null | undefined,
@@ -155,8 +164,25 @@ export function resolvePermission(
   overrides: readonly PermissionOverride[],
 ): boolean {
   if (!isRoleName(role)) return false
-  if (role === "owner" || !isAdjustable(permission)) return defaultHasPermission(role, permission)
-  if (!eligibleRoles(permission).includes(role)) return false
+  const adjustable = ADJUSTABLE_PERMISSIONS.find((p) => p.permission === permission)
+  if (role === "owner" || !adjustable) return defaultHasPermission(role, permission)
   const override = overrides.find((o) => o.role === role && o.permission === permission)
-  return override ? override.granted : defaultHasPermission(role, permission)
+  const own = override ? override.granted : defaultHasPermission(role, permission)
+  return own && adjustable.requires.every((r) => resolvePermission(role, r, overrides))
+}
+
+/** Everything a role may do, with the owner's overrides applied (see `CurrentUser`). */
+export function permissionsFor(
+  role: string | null | undefined,
+  overrides: readonly PermissionOverride[],
+): Permission[] {
+  return ALL_PERMISSIONS.filter((p) => resolvePermission(role, p, overrides))
+}
+
+/** Safe anywhere, including client components: the user carries their resolved permissions. */
+export function hasPermission(
+  user: { permissions: readonly Permission[] } | null | undefined,
+  permission: Permission,
+): boolean {
+  return !!user?.permissions.includes(permission)
 }

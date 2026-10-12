@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function NotesPage({ params }: PageProps<"/patients/[id]/notes">) {
   const user = await requirePagePermission("clinical:read")
   const patient = await loadPatient((await params).id)
-  const canWrite = hasPermission(user.role, "clinical:write")
+  const canWrite = hasPermission(user, "clinical:write")
   const [notes, formData, t] = await Promise.all([
     listClinicalNotes(patient.id),
     canWrite ? getClinicalNoteFormData(patient.id) : null,

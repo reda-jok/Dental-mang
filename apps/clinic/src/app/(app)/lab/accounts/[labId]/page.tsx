@@ -34,7 +34,7 @@ import { PrintLink } from "@/features/printing/components/print-link"
 import { parseIsoDate } from "@/lib/dates"
 import { formatMoney, toMinor } from "@/lib/money"
 import { cn } from "@/lib/utils"
-import { can } from "@/server/permissions"
+import { hasPermission } from "@/lib/permissions"
 import { requirePagePermission } from "@/server/session"
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -54,7 +54,7 @@ export default async function LabStatementPage({
     getLabStatement(labId, month),
     getLabChoices(),
     getLabAccounts(),
-    can(user, "billing:void"),
+    hasPermission(user, "billing:void"),
     getTranslations("lab"),
     getFormatter(),
   ])

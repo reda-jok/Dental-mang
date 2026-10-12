@@ -9,8 +9,8 @@ export default async function SettingsLayout({ children }: LayoutProps<"/setting
     <div className="space-y-6">
       {/* The page title is in the header. */}
       <SettingsNav
-        showUsers={hasPermission(user.role, "user:list")}
-        showPermissions={hasPermission(user.role, "settings:permissions")}
+        showUsers={hasPermission(user, "user:list")}
+        showPermissions={hasPermission(user, "settings:permissions")}
       />
       {children}
     </div>

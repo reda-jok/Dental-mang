@@ -34,7 +34,7 @@ export default async function QuotePrintPage({
     searchParams.then((p) => quoteOptionsSchema.parse(p)),
   ])
   if (!plan) notFound()
-  const paid = hasPermission(user.role, "billing:read") ? await getPlanPaid(plan.id) : null
+  const paid = hasPermission(user, "billing:read") ? await getPlanPaid(plan.id) : null
   const pay = options.pay ?? (plan.phases.length > 1 ? "phase" : "full")
   const props = {
     plan,

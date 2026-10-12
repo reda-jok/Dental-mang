@@ -24,7 +24,7 @@ export default async function PlansPage({ params }: PageProps<"/patients/[id]/pl
       <PlansList
         patientId={patient.id}
         plans={plans}
-        canEdit={hasPermission(user.role, "clinical:write")}
+        canEdit={hasPermission(user, "clinical:write")}
       />
     </Panel>
   )

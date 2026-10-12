@@ -26,7 +26,7 @@ export default async function HrPage({ searchParams }: PageProps<"/hr">) {
   const thisMonth = currentMonth()
   const { month = thisMonth } = monthParams.parse(await searchParams)
   const [report, t] = await Promise.all([getCommissionReport(month), getTranslations("hr")])
-  const canPay = hasPermission(user.role, "hr:pay")
+  const canPay = hasPermission(user, "hr:pay")
 
   return (
     <Panel

@@ -4,16 +4,24 @@ import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import { cache } from "react"
 
-import { isRoleName, type Permission, type RoleName } from "@/lib/permissions"
+import {
+  hasPermission,
+  isRoleName,
+  permissionsFor,
+  type Permission,
+  type RoleName,
+} from "@/lib/permissions"
 import { auth } from "@/server/auth"
+import { db } from "@/server/db"
 import { AppError } from "@/server/errors"
-import { can } from "@/server/permissions"
 
 export type CurrentUser = {
   id: string
   name: string
   username: string | null
   role: RoleName
+  /** The role's permissions with the owner's overrides applied; check with `hasPermission`. */
+  permissions: Permission[]
 }
 
 /** The signed-in user for this request, or null. Cached per request. */
@@ -22,7 +30,17 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!session || session.user.banned) return null
   const { id, name, username, role } = session.user
   if (!isRoleName(role)) return null
-  return { id, name, username: username ?? null, role }
+  const overrides = await db.rolePermission.findMany({
+    where: { role },
+    select: { role: true, permission: true, granted: true },
+  })
+  return {
+    id,
+    name,
+    username: username ?? null,
+    role,
+    permissions: permissionsFor(role, overrides),
+  }
 })
 
 export async function requireUser(): Promise<CurrentUser> {
@@ -34,7 +52,7 @@ export async function requireUser(): Promise<CurrentUser> {
 /** Every data-layer function and service starts with this. */
 export async function authorize(permission: Permission): Promise<CurrentUser> {
   const user = await requireUser()
-  if (!(await can(user, permission))) throw new AppError("forbidden")
+  if (!hasPermission(user, permission)) throw new AppError("forbidden")
   return user
 }
 
@@ -45,6 +63,6 @@ export async function authorize(permission: Permission): Promise<CurrentUser> {
 export async function requirePagePermission(permission: Permission): Promise<CurrentUser> {
   const user = await getCurrentUser()
   if (!user) redirect("/login")
-  if (!(await can(user, permission))) notFound()
+  if (!hasPermission(user, permission)) notFound()
   return user
 }

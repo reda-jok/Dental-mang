@@ -7,7 +7,7 @@ import { fromMinor, subtractAmounts, toMinor } from "@/lib/money"
 import { recordAudit } from "@/server/audit"
 import { db, type Db } from "@/server/db"
 import { AppError } from "@/server/errors"
-import { can } from "@/server/permissions"
+import { hasPermission } from "@/lib/permissions"
 import type { CurrentUser } from "@/server/session"
 
 import { postJournal, reverseJournal } from "../ledger/service"
@@ -229,7 +229,7 @@ export async function createInvoice(
       }
     })
 
-    if (givesNewDiscount(lines, input.extraDiscount) && !(await can(actor, "billing:discount"))) {
+    if (givesNewDiscount(lines, input.extraDiscount) && !hasPermission(actor, "billing:discount")) {
       throw new AppError("forbidden", "discountNotAllowed")
     }
 

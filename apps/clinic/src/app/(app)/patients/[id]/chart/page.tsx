@@ -45,8 +45,8 @@ export default async function ChartPage({ params }: PageProps<"/patients/[id]/ch
         openPlans={plans
           .filter((p) => isPlanOpen(p.status))
           .map(({ id, title }) => ({ id, title }))}
-        canEdit={hasPermission(user.role, "clinical:write")}
-        canManageConditions={hasPermission(user.role, "settings:write")}
+        canEdit={hasPermission(user, "clinical:write")}
+        canManageConditions={hasPermission(user, "settings:write")}
         defaultDentition={dentition}
       />
     </Panel>

@@ -25,7 +25,7 @@ function monthRange(month: string) {
 
 /** Every dentist for those who see everyone's commission; otherwise only yourself. */
 function canSeeAll(user: CurrentUser) {
-  return hasPermission(user.role, "hr:commission")
+  return hasPermission(user, "hr:commission")
 }
 
 async function payVersions(dentistIds: string[]) {

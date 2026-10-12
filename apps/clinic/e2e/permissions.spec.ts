@@ -2,14 +2,15 @@ import { expect, test } from "@playwright/test"
 
 import { login, loginAsOwner, query, RECEPTION } from "./fixtures"
 
-test("the owner decides who may discount and void", async ({ page }, testInfo) => {
-  // Desktop and phone change different switches, so they can run side by side.
+test("the owner decides what each role may do", async ({ page }, testInfo) => {
+  // Desktop and phone change different switches, so they can run side by side: a money
+  // permission on desktop, booking on the phone.
   const desktop = testInfo.project.name === "desktop"
-  const section = desktop ? "منح الخصم" : "إلغاء الفواتير"
-  const permission = desktop ? "billing:discount" : "billing:void"
+  const section = desktop ? "منح الخصم" : "حجز المواعيد"
+  const permission = desktop ? "billing:discount" : "appointment:write"
   const role = desktop
     ? { label: "استقبال", name: "reception" }
-    : { label: "محاسب", name: "accountant" }
+    : { label: "مساعد", name: "assistant" }
 
   await loginAsOwner(page)
   await page.goto("/settings")
@@ -22,7 +23,9 @@ test("the owner decides who may discount and void", async ({ page }, testInfo) =
   await expect(discount.getByRole("switch", { name: "مدير" })).toBeChecked()
   await expect(voids.getByRole("switch", { name: "مدير" })).not.toBeChecked()
   await expect(discount).toContainText("دائماً") // the owner, not switchable
-  await expect(discount.getByRole("switch", { name: "طبيب أسنان" })).toHaveCount(0) // can't invoice
+  // A dentist doesn't write invoices, so their discount switch is locked and says why.
+  await expect(discount.getByRole("switch", { name: "طبيب أسنان" })).toBeDisabled()
+  await expect(discount).toContainText("تتطلب أولاً: الفواتير واستلام الدفعات")
 
   // Grant it, and it sticks.
   const target = page

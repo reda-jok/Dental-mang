@@ -24,7 +24,7 @@ export default async function ClinicSettingsPage() {
 
   return (
     <Panel icon={Building2Icon} title={t("clinicTab")} description={t("clinicDescription")}>
-      <ClinicSettingsForm initial={settings} canEdit={hasPermission(user.role, "settings:write")} />
+      <ClinicSettingsForm initial={settings} canEdit={hasPermission(user, "settings:write")} />
     </Panel>
   )
 }

@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LabPage({ searchParams }: PageProps<"/lab">) {
   const user = await requirePagePermission("lab:read")
   const { q, status } = labCaseSearchSchema.parse(await searchParams)
-  const canWrite = hasPermission(user.role, "lab:write")
+  const canWrite = hasPermission(user, "lab:write")
   const [summary, { rows, today }, options, t] = await Promise.all([
     getLabSummary(),
     listLabCases({ q, status }),

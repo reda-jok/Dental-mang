@@ -322,7 +322,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         appointments={calendarAppointments}
         holidays={holidays}
         weeklyOffDays={config.weeklyOffDays}
-        canManageRestDays={hasPermission(user.role, "settings:write")}
+        canManageRestDays={hasPermission(user, "settings:write")}
       />
     ),
   }
@@ -340,7 +340,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           items={layout.items}
           custom={layout.custom}
           roles={
-            hasPermission(user.role, "settings:permissions")
+            hasPermission(user, "settings:permissions")
               ? ROLE_NAMES.filter((r) => r !== "owner")
               : null
           }

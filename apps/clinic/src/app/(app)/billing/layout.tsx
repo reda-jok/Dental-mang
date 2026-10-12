@@ -7,7 +7,7 @@ export default async function BillingLayout({ children }: LayoutProps<"/billing"
   return (
     <div className="space-y-6">
       {/* The page title is in the header. */}
-      <BillingNav showDebts={hasPermission(user.role, "billing:write")} />
+      <BillingNav showDebts={hasPermission(user, "billing:write")} />
       {children}
     </div>
   )
