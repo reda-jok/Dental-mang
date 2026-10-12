@@ -524,3 +524,17 @@ Hardware stays on hold (owner, 2026-10-12: "leave the hardware"), so the server 
 | Tested | On this machine: install, owner setup, login (secure cookie), a patient saved through Caddy, update, failed update (nothing changes), restart (same certificate authority, data kept), restore of an update copy | CI job `appliance` builds the image, installs it and updates it on every push |
 | Runbooks | `deploy/docs/install.md` (install, connecting devices, pilot go checks, updates, everyday commands), `deploy/docs/restore.md` (update copies) | Restore from the cloud backups joins in part 2 |
 
+## 25. What the product needs next (owner, 2026-10-12)
+
+The owner accepted the suggested list and added a design rework of screens they don't like. Order: **design first** (the chart and the printouts are what dentists see in a demo, which helps find the pilot clinic), then the remaining pilot items, then the rest.
+
+| Order | Item | Why / what it means for the build |
+|---|---|---|
+| 1 | **Tooth chart: problems visible at a glance, one panel instead of three forms** | Owner: conditions only show as a border colour, letters like `MO` or a dot; the three dropdown forms below the chart are too much. The tile look and colours stay |
+| 1 | **Tooth conditions set in Settings** | The owner can add conditions (name, colour, surfaces or whole tooth) and rename, recolour or hide the built-in ones. Built-ins can't be deleted (findings and procedures use them) |
+| 2 | **Treatment plan screen redesign** | Owner: a plain table, no visible progress, a status dropdown on every row, small unlabelled buttons |
+| 3 | **Prescription and receipt redesign** | Owner: too plain, no clinic logo or doctor block, layout and alignment, the receipt prints two thank-you lines. **The receipt also prints on A5** (a Settings choice next to 80 mm). Needs a clinic logo in Settings |
+| 4 | Pilot items (Phase 5): backups (restic → R2, healthchecks.io, restore test), **cash-drawer expenses**, **installment schedules on plan invoices**, **auto-lock on shared PCs + home-screen icon**, import, nightly money check, read-only licence, incident runbook + support hours | Drawer expenses: without them every day reception pays something from the drawer shows a shortage, breaking a pilot success rule. Installments: a plan invoice has one due date, so a patient paying monthly as agreed shows as overdue |
+| 5 | While the pilot runs: recall list (6-month check-ups via WhatsApp), unfinished-plans call list, "where patients come from" card (the patient field exists), owner's activity history screen (the audit log has no screen), full data export; a walk-in waiting list only if the pilot clinic needs it | Money-earning and trust features for selling to the next clinics |
+| 6 | After the pilot: as planned (inventory, accounting reports, payroll, A4 invoice, plan templates, drag-to-reschedule, English/Kurdish; later WhatsApp Cloud API, cloud admin, remote owner view) | — |
+
