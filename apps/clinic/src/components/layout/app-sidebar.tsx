@@ -1,11 +1,11 @@
 "use client"
 
-import { StethoscopeIcon } from "lucide-react"
 import type { Route } from "next"
 import { useTranslations } from "next-intl"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+import { Logo } from "@/components/logo"
 import { Badge } from "@/components/ui/badge"
 import {
   Sidebar,
@@ -37,12 +37,12 @@ export function AppSidebar({ clinicName, user }: Props) {
   return (
     <Sidebar side="right" collapsible="icon" className="shadow-lg">
       <SidebarHeader className="border-b p-3">
-        {/* Logo block, as in the clinic's original design */}
+        {/* The cyan Al-Tamkeen mark on an ink octagon, then the clinic's name */}
         <div className="flex items-center gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-600">
-            <StethoscopeIcon className="size-4 text-white" />
+          <div className="tk-side-tile">
+            <Logo variant="mark" tone="cyan" className="tk-side-logo" />
           </div>
-          <span className="truncate text-lg font-bold text-slate-900 group-data-[collapsible=icon]:hidden">
+          <span className="tk-side-name truncate text-lg group-data-[collapsible=icon]:hidden">
             {clinicName}
           </span>
         </div>

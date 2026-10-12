@@ -46,7 +46,7 @@ export function PermissionSettings({ settings }: { settings: PermissionSetting[]
             className="min-w-0 rounded-xl border border-slate-200 p-4"
           >
             <h3 id={titleId} className="flex items-center gap-2 font-semibold text-slate-800">
-              <Icon className="size-4 text-blue-500" aria-hidden />
+              <Icon className="text-steel-600 size-4" aria-hidden />
               {t(`items.${key}.title`)}
             </h3>
             <p className="mt-1 text-sm text-slate-500">{t(`items.${key}.description`)}</p>

@@ -276,7 +276,7 @@ function LabAdjustmentForm({ lab, onDone }: { lab: LabRef; onDone: () => void })
                     className={cn(
                       "rounded-xl border p-3 text-center transition-colors",
                       field.value === kind
-                        ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                        ? "border-steel-500 bg-steel-50 ring-steel-500 ring-1"
                         : "border-slate-200 hover:bg-slate-50",
                     )}
                   >

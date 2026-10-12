@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { IBM_Plex_Sans_Arabic } from "next/font/google"
+import { IBM_Plex_Sans_Arabic, Reem_Kufi } from "next/font/google"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getTranslations } from "next-intl/server"
 
@@ -16,6 +16,8 @@ const font = IBM_Plex_Sans_Arabic({
   weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
 })
+// Kufic display face (variable, 400–700) for titles and big numbers: the brand's classic voice.
+const display = Reem_Kufi({ subsets: ["arabic", "latin"], variable: "--font-display" })
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("app")
@@ -27,7 +29,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const dir = directionOf(locale)
 
   return (
-    <html lang={languageOf(locale)} dir={dir} className={`${font.variable} h-full antialiased`}>
+    <html
+      lang={languageOf(locale)}
+      dir={dir}
+      className={`${font.variable} ${display.variable} h-full antialiased`}
+    >
       <body className="min-h-full">
         <NextIntlClientProvider>
           <DirectionProvider dir={dir}>

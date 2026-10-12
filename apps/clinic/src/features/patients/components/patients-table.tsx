@@ -37,9 +37,7 @@ export async function PatientsTable({ rows, today }: { rows: PatientListRow[]; t
               <TableCell className="ps-6">
                 <div className="flex items-center gap-3">
                   <Avatar className="size-9">
-                    <AvatarFallback className="bg-blue-100 font-medium text-blue-700">
-                      {p.fullName.slice(0, 1)}
-                    </AvatarFallback>
+                    <AvatarFallback>{p.fullName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     {/* The link covers the whole row, so any cell opens the patient. */}

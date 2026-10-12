@@ -17,7 +17,7 @@ type Props = {
   as?: "h2" | "h3"
 }
 
-/** Section card in the clinic's design: rounded, soft shadow, white header strip. */
+/** Section card: a Kufic-cut card, Kufi title with its icon in an octagon, a ledger rule under the header. */
 export function Panel({
   icon: Icon,
   title,
@@ -33,13 +33,13 @@ export function Panel({
     <Card
       className={cn("gap-0 overflow-hidden rounded-2xl border-slate-200 py-0 shadow-sm", className)}
     >
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white py-4">
+      <CardHeader className="tk-panel-head flex flex-row flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white py-4">
         <div className="min-w-0 space-y-1">
           <Heading
             data-slot="card-title"
-            className="flex items-center gap-2 text-lg font-semibold text-slate-800 md:text-xl"
+            className="tk-panel-title flex items-center gap-3 text-lg md:text-xl"
           >
-            {Icon && <Icon className="size-5 shrink-0 text-blue-500" aria-hidden />}
+            {Icon && <Icon className="tk-tile size-5 shrink-0" aria-hidden />}
             {title}
           </Heading>
           {description && <CardDescription>{description}</CardDescription>}

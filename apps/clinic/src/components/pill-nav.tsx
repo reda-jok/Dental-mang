@@ -19,13 +19,13 @@ export type PillNavItem = {
   disabledHint?: string
 }
 
-/** Pill tabs in the clinic's design: white tray, the active tab tinted blue. */
+/** Pill tabs: a Kufic-cut white tray, the active tab in pressed steel with a cyan line. */
 export function PillNav({ items, label }: { items: PillNavItem[]; label: string }) {
   const pathname = usePathname()
 
   return (
     <nav aria-label={label} className="max-w-full overflow-x-auto">
-      <div className="inline-flex min-w-max gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200/70">
+      <div className="tk-pilltray inline-flex min-w-max gap-1 p-1">
         {items.map((item) => {
           const Icon = item.icon
           const inner = (
@@ -35,7 +35,7 @@ export function PillNav({ items, label }: { items: PillNavItem[]; label: string 
             </>
           )
           const base =
-            "flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-all"
+            "tk-pill flex items-center gap-2 whitespace-nowrap px-3 py-1.5 text-sm transition-all"
 
           if (!item.href) {
             return (
@@ -65,7 +65,7 @@ export function PillNav({ items, label }: { items: PillNavItem[]; label: string 
               className={cn(
                 base,
                 active
-                  ? "bg-blue-50 text-blue-700 shadow-sm"
+                  ? "tk-pill-on shadow-sm"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
               )}
             >

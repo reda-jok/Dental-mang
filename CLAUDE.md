@@ -53,10 +53,12 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 
 ## UI
 
-- **Design = the clinic's April design** (blue-600 primary, slate neutrals, soft shadows, rounded-2xl). Colours come from the tokens in `globals.css`, not ad-hoc palettes.
-  - The company design system (https://claude.ai/artifact/6T3XZWg16ihhaGixFom9zN) records these tokens, components and the Al-Tamkeen logo. The logo's colours (cyan `#22aae1` → charcoal `#231f20`) are for the logo, the loading logo and marketing, never for product buttons, links or text.
+- **Design = "Kufic & Steel"**, from the company design system (https://claude.ai/artifact/6T3XZWg16ihhaGixFom9zN; read its `project/README.md` before new screens). Steel primary (`bg-primary` = steel-700), graphite `slate-*` neutrals, an ink sidebar with the cyan logo, Reem Kufi (`font-display`) for titles and big numbers, IBM Plex Sans Arabic for everything people read and type. Colours come from the tokens in `globals.css`, not ad-hoc palettes.
+  - Shared components are restyled globally through their `data-slot` (bevelled corners, ledger fields and tables, octagon checkboxes) by the Kufic block in `globals.css`: use them as they are, without adding `rounded-*` or shadow classes. When the design system changes, copy its `bundle.css` theme and component blocks into `globals.css`.
+  - Selected option: `border-steel-500 bg-steel-50 ring-1 ring-steel-500`; links `text-steel-700`. Blue stays only where it means something: tooth conditions, the planned-work dot, status chips, credit amounts. `brand-cyan` is an accent (focus, active marker), never text on light grounds.
+  - Logo: `<Logo>` / `<LoadingLogo>` (`src/components/logo.tsx`); `(app)/loading.tsx` shows the loader while pages load.
   - Page sections: `<Panel icon title description actions>` (`src/components/panel.tsx`). Tabs: `<PillNav>`. Dashboard numbers: `<StatCard>` (`href` makes the card a link to its details). List search + status filter (URL params): `<FilterBar>` (`src/components/filter-bar.tsx`).
-  - Charts: one series = one colour (`blue-600`); magnitude = one blue ramp, light → dark, with a less/more scale (never a rainbow); exact numbers as text beside the mark or in a tooltip that also opens on tap (`HeatCell` in `features/dashboard/components/busy-hours.tsx`).
+  - Charts: one series = one colour (`steel-600`); magnitude = one steel ramp, light → dark, with a less/more scale (never a rainbow); exact numbers as text beside the mark or in a tooltip that also opens on tap (`HeatCell` in `features/dashboard/components/busy-hours.tsx`).
   - Dashboard widgets: add an entry to `WIDGETS` (`features/dashboard/widgets.ts`: key, the permission it needs, `stat` card or `wide` panel), its title under `dashboard.widgets`, and its render in the dashboard page; fetch its data only when it's visible. Users' saved layouts pick up new widgets by themselves.
   - The page title lives in the header (`AppHeader`, an `h1` from the nav). Pages start at `h2`.
   - Tooth chart: tile odontogram (`features/chart/components/tooth-chart.tsx`) with condition colours from `TILE_STYLES`.

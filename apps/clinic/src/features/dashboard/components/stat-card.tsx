@@ -6,7 +6,7 @@ import type { ReactNode } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
-/** Stat tile in the clinic's design: label + coloured icon, big value, small note. */
+/** Stat tile: label + coloured octagonal icon tile, the value in Kufi figures, a small note. */
 export function StatCard({
   title,
   value,
@@ -32,12 +32,12 @@ export function StatCard({
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-0">
         <p className="text-sm font-medium text-slate-600">{title}</p>
-        <span className={cn("flex size-9 items-center justify-center rounded-xl", iconClassName)}>
+        <span className={cn("tk-chamfer flex size-9 items-center justify-center", iconClassName)}>
           <Icon className="size-4" aria-hidden />
         </span>
       </CardHeader>
       <CardContent className="space-y-1">
-        <div className="text-2xl font-bold text-slate-900">{value}</div>
+        <div className="tk-stat">{value}</div>
         {note && <p className="text-xs text-slate-500">{note}</p>}
       </CardContent>
     </Card>

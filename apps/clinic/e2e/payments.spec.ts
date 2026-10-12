@@ -113,7 +113,8 @@ test("partial payments, overpayment as credit, refund, and a voided payment", as
   // Invoiced 1,250,000 − received 40,000 + refunded 5,000.
   await expect(summary(page, "balance")).toHaveText(/1,215,000/)
   await page.goto(firstInvoice)
-  await expect(page.getByText("مسددة جزئياً")).toBeVisible()
+  // Visible only: while the page streams in (loading.tsx), a hidden copy can exist for a moment.
+  await expect(page.getByText("مسددة جزئياً").filter({ visible: true })).toBeVisible()
 
   // Every money row is audited.
   const audit = await query<{ entity: string; count: string }>(

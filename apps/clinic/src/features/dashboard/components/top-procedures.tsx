@@ -25,7 +25,7 @@ export function TopProcedures({ rows }: { rows: ReturnType<typeof topProcedures>
           </div>
           <div className="h-2 rounded-full bg-slate-100" aria-hidden>
             <div
-              className="h-2 rounded-full bg-blue-600"
+              className="bg-steel-600 h-2 rounded-full"
               style={{ width: `${Math.max(2, Math.round(row.share * 100))}%` }}
               title={format.number(row.count)}
             />

@@ -12,7 +12,7 @@ import {
 } from "../quote"
 
 const SELECT =
-  "border-input h-9 rounded-md border bg-white px-2 text-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+  "border-input h-9 rounded-md border bg-white px-2 text-sm focus-visible:ring-2 focus-visible:ring-steel-600 focus-visible:outline-none"
 
 /**
  * What to print, chosen on screen (never printed). A plain GET form: the choice lives in

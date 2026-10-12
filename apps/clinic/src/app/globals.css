@@ -9,7 +9,23 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-display);
+  --font-display: var(--font-display);
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-steel: var(--brand-steel);
+  --color-brand-charcoal: var(--brand-charcoal);
+  --color-steel-50: var(--steel-50);
+  --color-steel-100: var(--steel-100);
+  --color-steel-200: var(--steel-200);
+  --color-steel-300: var(--steel-300);
+  --color-steel-400: var(--steel-400);
+  --color-steel-500: var(--steel-500);
+  --color-steel-600: var(--steel-600);
+  --color-steel-700: var(--steel-700);
+  --color-steel-800: var(--steel-800);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,41 +64,86 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Neutrals: graphite with a steel bias, replacing Tailwind's slate. */
+@theme {
+  --color-slate-50: oklch(97.2% 0.004 240);
+  --color-slate-100: oklch(95.6% 0.006 240);
+  --color-slate-200: oklch(91.4% 0.009 240);
+  --color-slate-300: oklch(85.5% 0.012 240);
+  --color-slate-400: oklch(70% 0.016 242);
+  --color-slate-500: oklch(54.5% 0.019 244);
+  --color-slate-600: oklch(45.5% 0.019 245);
+  --color-slate-700: oklch(37.5% 0.018 246);
+  --color-slate-800: oklch(29% 0.016 247);
+  --color-slate-900: oklch(22.5% 0.014 248);
+}
+
+/* The "Kufic & Steel" theme of the Al-Tamkeen design system
+   (https://claude.ai/artifact/6T3XZWg16ihhaGixFom9zN): square Kufic geometry, 45-degree
+   chamfers, the cyan > steel > charcoal of the logo. */
 :root {
-  /* Clinic palette (from the April design): slate neutrals, blue-600 primary.
-     Values are Tailwind's slate/blue scale. */
-  --background: oklch(0.984 0.003 247.858); /* slate-50 */
-  --foreground: oklch(0.208 0.042 265.755); /* slate-900 */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.755);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.755);
-  --primary: oklch(0.546 0.245 262.881); /* blue-600 */
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.968 0.007 247.896); /* slate-100 */
-  --secondary-foreground: oklch(0.279 0.041 260.031); /* slate-800 */
-  --muted: oklch(0.968 0.007 247.896); /* slate-100 */
-  --muted-foreground: oklch(0.554 0.046 257.417); /* slate-500 */
-  --accent: oklch(0.97 0.014 254.604); /* blue-50 */
-  --accent-foreground: oklch(0.488 0.243 264.376); /* blue-700 */
+  /* brand: the logo's colours */
+  --brand-cyan: #22aae1;
+  --brand-steel: #5d7b8f;
+  --brand-charcoal: #231f20;
+
+  /* steel: the product's own hue, from the middle of the logo gradient */
+  --steel-50: oklch(97.2% 0.01 228);
+  --steel-100: oklch(94% 0.02 228);
+  --steel-200: oklch(88% 0.035 230);
+  --steel-300: oklch(79% 0.05 231);
+  --steel-400: oklch(67% 0.065 233);
+  --steel-500: oklch(56% 0.07 235);
+  --steel-600: oklch(46% 0.065 237);
+  --steel-700: oklch(37% 0.055 239);
+  --steel-800: oklch(30% 0.045 241);
+
+  /* ink: the dark of the sidebar, a cool charcoal */
+  --ink: oklch(21.5% 0.016 245);
+  --ink-2: oklch(27.5% 0.02 243);
+  --ink-3: oklch(33% 0.022 242);
+
+  --background: oklch(97.2% 0.004 240);
+  --foreground: oklch(22.5% 0.014 248);
+  --card: oklch(100% 0 0);
+  --card-foreground: oklch(22.5% 0.014 248);
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(22.5% 0.014 248);
+  --primary: var(--steel-700);
+  --primary-foreground: oklch(100% 0 0);
+  --secondary: oklch(95.6% 0.006 240);
+  --secondary-foreground: oklch(29% 0.016 247);
+  --muted: oklch(95.6% 0.006 240);
+  --muted-foreground: oklch(54.5% 0.019 244);
+  --accent: var(--steel-50);
+  --accent-foreground: var(--steel-700);
   --destructive: oklch(0.577 0.245 27.325); /* red-600 */
-  --border: oklch(0.929 0.013 255.508); /* slate-200 */
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.809 0.105 251.813); /* blue-300 */
-  --chart-1: oklch(0.546 0.245 262.881);
+  --border: oklch(91.4% 0.009 240);
+  --input: oklch(87.5% 0.011 240);
+  --ring: oklch(70% 0.12 230);
+  --chart-1: var(--steel-600);
   --chart-2: oklch(0.627 0.194 149.214);
   --chart-3: oklch(0.558 0.288 302.321);
   --chart-4: oklch(0.705 0.213 47.604);
   --chart-5: oklch(0.645 0.246 16.439);
-  --radius: 0.75rem;
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.372 0.044 257.287); /* slate-700 */
-  --sidebar-primary: oklch(0.546 0.245 262.881); /* blue-600 */
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.932 0.032 255.585); /* blue-100: active item */
-  --sidebar-accent-foreground: oklch(0.488 0.243 264.376); /* blue-700 */
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.809 0.105 251.813);
+
+  --sidebar: var(--ink);
+  --sidebar-foreground: oklch(86% 0.01 240);
+  --sidebar-primary: var(--brand-cyan);
+  --sidebar-primary-foreground: var(--ink);
+  --sidebar-accent: var(--ink-2);
+  --sidebar-accent-foreground: oklch(100% 0 0);
+  --sidebar-border: oklch(30% 0.018 243);
+  --sidebar-ring: var(--brand-cyan);
+
+  /* shape: crisper corners; the 45-degree cut is the brand's signature */
+  --radius: 0.45rem;
+  --chamfer: 7px;
+  --bevel-s: 6px;
+  --bevel-m: 10px;
+  --bevel-l: 18px;
+  --octagon: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%);
+  --brand-gradient: linear-gradient(90deg, #22a9e0, #5894b8 25%, #5d7b8f 50%, #4f5a63 75%, #231f20);
 }
 
 .dark {
@@ -132,6 +193,1147 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ─── Kufic & Steel components ─────────────────────────────────────────────────
+   Copied from the design system (bundle.css). Unlayered, so they win over Tailwind's
+   utilities. Components are restyled through their data-slot attributes. */
+/* ---- type ---------------------------------------------------------------- */
+.font-heading,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0;
+}
+[data-slot="card-title"] {
+  font-family: var(--font-display);
+}
+h1.font-display {
+  font-weight: 600;
+}
+
+/* ---- depth: steel-tinted, softer ---------------------------------------- */
+.shadow-sm {
+  --tw-shadow:
+    0 1px 2px 0 var(--tw-shadow-color, oklch(30% 0.04 240 / 0.06)),
+    0 3px 10px -4px var(--tw-shadow-color, oklch(30% 0.04 240 / 0.1));
+}
+.shadow-md {
+  --tw-shadow:
+    0 2px 4px -1px var(--tw-shadow-color, oklch(30% 0.04 240 / 0.08)),
+    0 10px 24px -8px var(--tw-shadow-color, oklch(30% 0.04 240 / 0.16));
+}
+.shadow-lg {
+  --tw-shadow:
+    0 4px 8px -2px var(--tw-shadow-color, oklch(20% 0.04 240 / 0.1)),
+    0 18px 40px -12px var(--tw-shadow-color, oklch(20% 0.04 240 / 0.22));
+}
+
+/* ---- the chamfer: the logo's 45-degree cut on two corners --------------- */
+.tk-chamfer {
+  clip-path: polygon(
+    var(--chamfer) 0,
+    100% 0,
+    100% calc(100% - var(--chamfer)),
+    calc(100% - var(--chamfer)) 100%,
+    0 100%,
+    0 var(--chamfer)
+  );
+}
+.tk-tile {
+  box-sizing: content-box;
+  padding: 6px;
+  background: var(--steel-50);
+  color: var(--steel-600);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+
+/* ---- Panel: Kufi title, ledger double rule under the header ------------- */
+.tk-panel-head {
+  border-bottom-color: var(--color-slate-200) !important;
+  box-shadow:
+    0 2px 0 var(--card),
+    0 3px 0 var(--color-slate-200);
+}
+.tk-panel-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--color-slate-800);
+}
+
+/* ---- StatCard ------------------------------------------------------------ */
+.tk-stat {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.75rem;
+  line-height: 2.25rem;
+  color: var(--color-slate-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- PillNav: the active tab in steel ink -------------------------------- */
+.tk-pill-on {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* ---- AppHeader: double rule like the panels ------------------------------ */
+.tk-header {
+  border-bottom-color: var(--color-slate-200) !important;
+  box-shadow:
+    0 2px 0 var(--card),
+    0 3px 0 var(--color-slate-200) !important;
+}
+
+/* ---- Sidebar: ink, the cyan logo colourway ------------------------------- */
+[data-slot="sidebar-inner"],
+[data-sidebar="sidebar"] {
+  --border: oklch(100% 0 0 / 0.08);
+  --muted: var(--ink-2);
+  --muted-foreground: oklch(72% 0.014 240);
+  --secondary: var(--ink-3);
+  --secondary-foreground: oklch(88% 0.01 240);
+  --foreground: oklch(96% 0.004 240);
+  --accent: var(--ink-2);
+  --accent-foreground: oklch(100% 0 0);
+  --color-slate-900: oklch(96% 0.004 240);
+}
+[data-sidebar="header"] {
+  border-bottom-color: transparent !important;
+  background-image: linear-gradient(
+    to left,
+    var(--brand-cyan),
+    var(--brand-steel) 40%,
+    transparent 85%
+  );
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: bottom;
+}
+[dir="ltr"] [data-sidebar="header"] {
+  background-image: linear-gradient(
+    to right,
+    var(--brand-cyan),
+    var(--brand-steel) 40%,
+    transparent 85%
+  );
+}
+[data-sidebar="menu-button"][data-active="true"] {
+  box-shadow: inset -2px 0 0 var(--brand-cyan);
+  clip-path: polygon(var(--chamfer) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer));
+}
+[dir="ltr"] [data-sidebar="menu-button"][data-active="true"] {
+  box-shadow: inset 2px 0 0 var(--brand-cyan);
+  clip-path: polygon(0 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, 0 100%);
+}
+[data-sidebar="menu-button"][data-active="true"] svg {
+  color: var(--brand-cyan);
+}
+[data-sidebar="group-label"] {
+  color: oklch(62% 0.02 238);
+}
+.tk-side-tile {
+  display: flex;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink-2);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.tk-side-logo {
+  height: 13px !important;
+  width: auto !important;
+}
+.tk-side-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: oklch(97% 0.004 240);
+}
+
+/* ---- LoadingLogo: the logo comes alive. The alif rises, the top marks drop and bounce, the top bar slides in,
+   the main stroke writes right to left, the dots pop in; then every piece lifts away and the loop restarts. */
+.tk-ld {
+  overflow: visible;
+}
+.tk-ld-ghost {
+  fill: var(--color-slate-200);
+  opacity: 0.55;
+}
+.tk-ld-p {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation-duration: 3.6s;
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+}
+.tk-ld-p0 {
+  transform-origin: 50% 100%;
+}
+.tk-ld-p0 {
+  animation-name: tk-ld-0;
+}
+@keyframes tk-ld-0 {
+  0% {
+    transform: scaleY(0);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  0% {
+    transform: scaleY(0);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  9% {
+    transform: scaleY(1.1);
+    opacity: 1;
+  }
+  13% {
+    transform: scaleY(0.97);
+  }
+  16% {
+    transform: none;
+  }
+  74.0% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  83.0% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tk-ld-p1 {
+  animation-name: tk-ld-1;
+}
+@keyframes tk-ld-1 {
+  0% {
+    transform: translateY(-70px);
+    opacity: 0;
+  }
+  6% {
+    transform: translateY(-70px);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  14% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  17% {
+    transform: translateY(-14px);
+  }
+  20% {
+    transform: none;
+  }
+  22% {
+    transform: translateY(-3px);
+  }
+  23.5% {
+    transform: none;
+  }
+  75.6% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  84.6% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tk-ld-p2 {
+  animation-name: tk-ld-2;
+}
+@keyframes tk-ld-2 {
+  0% {
+    transform: translateY(-70px);
+    opacity: 0;
+  }
+  9% {
+    transform: translateY(-70px);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  17% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  20% {
+    transform: translateY(-14px);
+  }
+  23% {
+    transform: none;
+  }
+  25% {
+    transform: translateY(-3px);
+  }
+  26.5% {
+    transform: none;
+  }
+  77.2% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  86.2% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tk-ld-p3 {
+  animation-name: tk-ld-3;
+}
+@keyframes tk-ld-3 {
+  0% {
+    transform: translateX(90px);
+    opacity: 0;
+  }
+  12% {
+    transform: translateX(90px);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  20% {
+    transform: translateX(-6px);
+    opacity: 1;
+  }
+  24% {
+    transform: none;
+  }
+  78.8% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  87.8% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tk-ld-p4 {
+  animation-name: tk-ld-4;
+}
+@keyframes tk-ld-4 {
+  0% {
+    clip-path: inset(0 0 0 100%);
+    transform: none;
+    opacity: 1;
+  }
+  16% {
+    clip-path: inset(0 0 0 100%);
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1);
+  }
+  44% {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+    opacity: 1;
+  }
+  80.4% {
+    transform: none;
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  89.4% {
+    transform: translateY(-34px);
+    opacity: 0;
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+    clip-path: inset(0 0 0 0);
+  }
+}
+.tk-ld-p5 {
+  animation-name: tk-ld-5;
+}
+@keyframes tk-ld-5 {
+  0% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+  }
+  42% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  48% {
+    transform: scale(1.3) rotate(6deg);
+    opacity: 1;
+  }
+  52% {
+    transform: scale(0.92);
+  }
+  55% {
+    transform: none;
+  }
+  82.0% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  91.0% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tk-ld-p6 {
+  animation-name: tk-ld-6;
+}
+@keyframes tk-ld-6 {
+  0% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+  }
+  46% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  52% {
+    transform: scale(1.3) rotate(6deg);
+    opacity: 1;
+  }
+  56% {
+    transform: scale(0.92);
+  }
+  59% {
+    transform: none;
+  }
+  83.6% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  92.6% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tk-ld-p7 {
+  animation-name: tk-ld-7;
+}
+@keyframes tk-ld-7 {
+  0% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+  }
+  49% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  55% {
+    transform: scale(1.3) rotate(6deg);
+    opacity: 1;
+  }
+  59% {
+    transform: scale(0.92);
+  }
+  62% {
+    transform: none;
+  }
+  85.2% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  94.2% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tk-ld-p8 {
+  animation-name: tk-ld-8;
+}
+@keyframes tk-ld-8 {
+  0% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+  }
+  52% {
+    transform: scale(0) rotate(-35deg);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  58% {
+    transform: scale(1.3) rotate(6deg);
+    opacity: 1;
+  }
+  62% {
+    transform: scale(0.92);
+  }
+  65% {
+    transform: none;
+  }
+  86.8% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0);
+  }
+  95.8% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-ld-p {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+    clip-path: none !important;
+  }
+}
+
+/* ==========================================================================
+   Kufic components (2026-10-08)
+   Every control is cut like the logo: two opposite corners bevelled at 45
+   degrees (top-start, bottom-end), the others nearly square. Small square
+   things become octagons and diamonds, the shapes of Kufic and of Islamic
+   geometry. Browsers without `corner-shape` show the same corners rounded.
+   ========================================================================== */
+
+/* the cut, at three sizes */
+:is([data-slot="button"], .group\/button),
+[data-slot="input"],
+[data-slot="textarea"],
+[data-slot="select-trigger"],
+[data-slot="alert"],
+[data-slot="tabs-list"],
+.tk-pilltray,
+[data-slot="popover-content"],
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"] {
+  corner-shape: bevel;
+  border-start-start-radius: var(--bevel-m) !important;
+  border-end-end-radius: var(--bevel-m) !important;
+  border-start-end-radius: 2px !important;
+  border-end-start-radius: 2px !important;
+}
+[data-slot="badge"],
+[data-slot="tabs-trigger"],
+.tk-pill,
+[data-slot="tooltip-content"],
+[data-slot="skeleton"],
+[data-slot="dropdown-menu-item"],
+[data-slot="select-item"],
+[data-slot="dropdown-menu-sub-trigger"] {
+  corner-shape: bevel;
+  border-start-start-radius: var(--bevel-s) !important;
+  border-end-end-radius: var(--bevel-s) !important;
+  border-start-end-radius: 1px !important;
+  border-end-start-radius: 1px !important;
+}
+[data-slot="card"],
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"] {
+  corner-shape: bevel;
+  border-start-start-radius: var(--bevel-l) !important;
+  border-end-end-radius: var(--bevel-l) !important;
+  border-start-end-radius: 3px !important;
+  border-end-start-radius: 3px !important;
+}
+
+/* one focus treatment everywhere: a cyan outline that follows the cut */
+:is([data-slot="button"], .group\/button):focus-visible,
+[data-slot="tabs-trigger"]:focus-visible,
+.tk-pill:focus-visible,
+[data-slot="checkbox"]:focus-visible,
+[data-slot="radio-group-item"]:focus-visible,
+[data-slot="switch"]:focus-visible {
+  outline: 2px solid var(--brand-cyan) !important;
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+/* ---- Button ------------------------------------------------------------- */
+:is([data-slot="button"], .group\/button) {
+  border-start-start-radius: 8px !important;
+  border-end-end-radius: 8px !important;
+  font-weight: 600;
+  gap: 0.5rem;
+  transition:
+    background 0.18s,
+    box-shadow 0.18s,
+    color 0.18s,
+    border-color 0.18s,
+    transform 0.08s;
+}
+:is([data-slot="button"], .group\/button)[data-size="default"] {
+  height: 2.25rem;
+  padding-inline: 0.9rem;
+}
+:is([data-slot="button"], .group\/button)[data-size="sm"] {
+  height: 2rem;
+  padding-inline: 0.7rem;
+}
+:is([data-slot="button"], .group\/button)[data-size="xs"] {
+  height: 1.6rem;
+  padding-inline: 0.5rem;
+}
+:is([data-slot="button"], .group\/button)[data-size="lg"] {
+  height: 2.75rem;
+  padding-inline: 1.25rem;
+  font-size: 0.95rem;
+}
+:is([data-slot="button"], .group\/button)[data-size="icon"] {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+:is([data-slot="button"], .group\/button)[data-size="icon-sm"] {
+  width: 2rem;
+  height: 2rem;
+}
+:is([data-slot="button"], .group\/button)[data-size="icon-lg"] {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+:is([data-slot="button"], .group\/button)[data-variant="default"] {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--steel-600), var(--steel-800));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.18),
+    inset 0 -2px 0 oklch(0% 0 0 / 0.22),
+    0 1px 2px oklch(20% 0.04 240 / 0.25),
+    0 4px 12px -6px oklch(37% 0.055 239 / 0.6);
+}
+:is([data-slot="button"], .group\/button)[data-variant="default"]:hover {
+  background: linear-gradient(180deg, var(--steel-500), var(--steel-700));
+}
+:is([data-slot="button"], .group\/button)[data-variant="default"]:active {
+  box-shadow: inset 0 2px 4px oklch(0% 0 0 / 0.3);
+  transform: translateY(1px);
+}
+:is([data-slot="button"], .group\/button)[data-variant="outline"] {
+  background: var(--card);
+  color: var(--color-slate-800);
+  border: 1px solid var(--input);
+  box-shadow:
+    inset 0 -2px 0 var(--color-slate-100),
+    0 1px 1px oklch(20% 0.04 240 / 0.05);
+}
+:is([data-slot="button"], .group\/button)[data-variant="outline"]:hover {
+  border-color: var(--steel-400);
+  background: var(--steel-50);
+  color: var(--steel-800);
+}
+:is([data-slot="button"], .group\/button)[data-variant="secondary"] {
+  background: var(--color-slate-100);
+  color: var(--color-slate-800);
+  border: 1px solid var(--color-slate-200);
+}
+:is([data-slot="button"], .group\/button)[data-variant="secondary"]:hover {
+  background: var(--color-slate-200);
+}
+:is([data-slot="button"], .group\/button)[data-variant="ghost"] {
+  color: var(--color-slate-700);
+}
+:is([data-slot="button"], .group\/button)[data-variant="ghost"]:hover {
+  background: var(--steel-50);
+  color: var(--steel-800);
+}
+:is([data-slot="button"], .group\/button)[data-variant="destructive"] {
+  background: var(--color-red-50);
+  color: var(--color-red-700);
+  border: 1px solid var(--color-red-200);
+}
+:is([data-slot="button"], .group\/button)[data-variant="destructive"]:hover {
+  background: var(--color-red-100);
+  border-color: var(--color-red-300);
+}
+:is([data-slot="button"], .group\/button)[data-variant="link"] {
+  color: var(--steel-600);
+  text-decoration-color: var(--brand-cyan);
+  text-decoration-thickness: 2px;
+}
+:is([data-slot="button"], .group\/button):disabled {
+  opacity: 0.45;
+}
+
+/* ---- Fields: ledger inputs, the line you write on is heavier ------------ */
+[data-slot="input"],
+[data-slot="select-trigger"] {
+  min-height: 2.25rem;
+}
+[data-slot="input"],
+[data-slot="textarea"],
+[data-slot="select-trigger"] {
+  background: var(--card) !important;
+  border: 1px solid var(--input) !important;
+  border-bottom: 2px solid var(--color-slate-400) !important;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+[data-slot="select-trigger"] {
+  height: 2.25rem !important;
+}
+[data-slot="input"]:hover,
+[data-slot="textarea"]:hover,
+[data-slot="select-trigger"]:hover {
+  border-color: var(--steel-300) !important;
+  border-bottom-color: var(--steel-500) !important;
+}
+[data-slot="input"]:focus-visible,
+[data-slot="textarea"]:focus-visible,
+[data-slot="select-trigger"]:focus-visible,
+[data-slot="select-trigger"][data-state="open"] {
+  border-color: var(--steel-400) !important;
+  border-bottom-color: var(--brand-cyan) !important;
+  box-shadow: 0 0 0 3px oklch(70% 0.12 230 / 0.18) !important;
+}
+[data-slot="input"]::placeholder,
+[data-slot="textarea"]::placeholder {
+  color: var(--color-slate-400);
+}
+[data-slot="input"][aria-invalid="true"],
+[data-slot="textarea"][aria-invalid="true"] {
+  border-bottom-color: var(--color-red-500) !important;
+}
+[data-slot="label"],
+[data-slot="field-label"] {
+  font-weight: 600;
+  color: var(--color-slate-700);
+}
+
+/* ---- Checkbox: a small octagon; Radio: a diamond ------------------------ */
+[data-slot="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  border: 1.5px solid var(--color-slate-400) !important;
+  background: var(--card);
+  corner-shape: bevel;
+  border-radius: 5px !important;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+[data-slot="checkbox"]:is([data-state="checked"], [data-checked]:not([data-checked="false"])) {
+  background: linear-gradient(180deg, var(--steel-600), var(--steel-800)) !important;
+  border-color: var(--steel-700) !important;
+}
+[data-slot="radio-group-item"] {
+  width: 15px !important;
+  height: 15px !important;
+  margin: 2px;
+  border: 1.5px solid var(--color-slate-400) !important;
+  background: var(--card);
+  border-radius: 2px !important;
+  transform: rotate(45deg);
+}
+[data-slot="radio-group-item"]:is(
+  [data-state="checked"],
+  [data-checked]:not([data-checked="false"])
+) {
+  background: var(--steel-700) !important;
+  border-color: var(--steel-700) !important;
+}
+[data-slot="radio-group-indicator"] span {
+  border-radius: 1px !important;
+  width: 6px !important;
+  height: 6px !important;
+}
+[data-slot="radio-group-indicator"] {
+  transform: none;
+}
+
+/* ---- Switch: a hexagonal track with an octagonal thumb ------------------ */
+[data-slot="switch"] {
+  corner-shape: bevel;
+  border-radius: 999px !important;
+  background: var(--color-slate-300);
+  border: 0 !important;
+  padding-inline: 3px;
+  box-shadow: inset 0 1px 2px oklch(20% 0.04 240 / 0.2);
+}
+[data-slot="switch"][data-size="default"] {
+  width: 2.6rem !important;
+  height: 1.35rem !important;
+}
+[data-slot="switch"]:is([data-state="checked"], [data-checked]:not([data-checked="false"])) {
+  background: linear-gradient(90deg, var(--steel-500), var(--steel-700)) !important;
+}
+[data-slot="switch-thumb"] {
+  corner-shape: bevel;
+  border-radius: 5px !important;
+  background: #fff !important;
+  box-shadow: 0 1px 3px oklch(20% 0.04 240 / 0.35);
+}
+
+/* ---- Badge: a cut tag, not a pill --------------------------------------- */
+[data-slot="badge"] {
+  height: 1.4rem;
+  padding-inline: 0.55rem;
+  font-weight: 600;
+  font-size: 0.72rem;
+  border: 1px solid transparent;
+}
+[data-slot="badge"][data-variant="default"] {
+  background: var(--steel-700);
+  color: #fff;
+}
+[data-slot="badge"][data-variant="secondary"] {
+  background: var(--color-slate-100);
+  color: var(--color-slate-700);
+  border-color: var(--color-slate-200);
+}
+[data-slot="badge"][data-variant="outline"] {
+  background: var(--card);
+  color: var(--color-slate-700);
+  border-color: var(--color-slate-300);
+}
+[data-slot="badge"][data-variant="destructive"] {
+  background: var(--color-red-50);
+  color: var(--color-red-700);
+  border-color: var(--color-red-200);
+}
+
+/* ---- Card: the Kufic corner. A cyan stroke runs parallel to the cut ----- */
+[data-slot="card"] {
+  position: relative;
+}
+[data-slot="card"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    to bottom left,
+    transparent 19px,
+    var(--brand-cyan) 19px 21.5px,
+    transparent 21.5px
+  );
+}
+[dir="ltr"] [data-slot="card"]::before,
+[data-slot="card"]:dir(ltr)::before {
+  background: linear-gradient(
+    to bottom right,
+    transparent 19px,
+    var(--brand-cyan) 19px 21.5px,
+    transparent 21.5px
+  );
+}
+[data-slot="card-footer"] {
+  background: var(--color-slate-50);
+  border-top: 1px solid var(--color-slate-200);
+}
+
+/* ---- Table: ledger header with a double rule, quiet rows ---------------- */
+[data-slot="table-header"] [data-slot="table-row"] {
+  background: var(--color-slate-50);
+  border-bottom: 3px double var(--color-slate-300) !important;
+}
+[data-slot="table-header"] [data-slot="table-row"]:hover {
+  background: var(--color-slate-50);
+}
+[data-slot="table-head"] {
+  height: 2.6rem;
+  padding-inline: 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-slate-500);
+}
+[data-slot="table-cell"] {
+  padding: 0.7rem 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+[data-slot="table-body"] [data-slot="table-row"] {
+  border-bottom: 1px solid var(--color-slate-100);
+}
+[data-slot="table-body"] [data-slot="table-row"]:last-child {
+  border-bottom: 0;
+}
+[data-slot="table-body"] [data-slot="table-row"]:hover {
+  background: var(--steel-50);
+}
+[data-slot="table-body"] [data-slot="table-row"]:hover > [data-slot="table-cell"]:first-child {
+  box-shadow: inset -3px 0 0 var(--steel-500);
+}
+[dir="ltr"]
+  [data-slot="table-body"]
+  [data-slot="table-row"]:hover
+  > [data-slot="table-cell"]:first-child {
+  box-shadow: inset 3px 0 0 var(--steel-500);
+}
+
+/* ---- Tabs and PillNav: a cut tray, the active tab lifted with a cyan line */
+[data-slot="tabs-list"] {
+  background: var(--color-slate-100) !important;
+  padding: 3px !important;
+  height: auto !important;
+  border: 1px solid var(--color-slate-200);
+}
+[data-slot="tabs-trigger"] {
+  padding: 0.4rem 0.9rem !important;
+  font-weight: 600;
+  color: var(--color-slate-500);
+}
+[data-slot="tabs-trigger"]:hover {
+  color: var(--color-slate-800);
+}
+[data-slot="tabs-trigger"][data-state="active"] {
+  background: var(--card) !important;
+  color: var(--steel-800) !important;
+  box-shadow:
+    inset 0 -2px 0 var(--brand-cyan),
+    0 1px 3px oklch(20% 0.04 240 / 0.12) !important;
+}
+.tk-pilltray {
+  background: var(--card);
+  border: 1px solid var(--color-slate-200);
+  box-shadow: 0 1px 2px oklch(20% 0.04 240 / 0.05);
+}
+.tk-pill {
+  font-weight: 600;
+}
+.tk-pill-on {
+  background: linear-gradient(180deg, var(--steel-600), var(--steel-800)) !important;
+  color: #fff !important;
+  box-shadow:
+    inset 0 -2px 0 var(--brand-cyan),
+    0 2px 8px -3px oklch(37% 0.055 239 / 0.6) !important;
+}
+
+/* ---- Avatar: an octagon -------------------------------------------------- */
+[data-slot="avatar"],
+[data-slot="avatar"]::after,
+[data-slot="avatar-fallback"],
+[data-slot="avatar-image"] {
+  border-radius: 0 !important;
+  clip-path: var(--octagon);
+}
+[data-slot="avatar"]::after {
+  display: none;
+}
+[data-slot="avatar-fallback"] {
+  background: var(--steel-100);
+  color: var(--steel-700);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+[data-sidebar="sidebar"] [data-slot="avatar-fallback"] {
+  background: var(--ink-3);
+  color: var(--brand-cyan);
+}
+[data-sidebar="sidebar"] [data-slot="badge"][data-variant="secondary"] {
+  background: var(--ink-3);
+  color: oklch(80% 0.012 240);
+  border-color: transparent;
+}
+
+/* ---- Separator: a rule with a diamond at its centre --------------------- */
+[data-slot="separator"]:is([data-orientation="horizontal"], [data-horizontal]) {
+  position: relative;
+  height: 1px !important;
+  overflow: visible;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-slate-300) 12%,
+    var(--color-slate-300) 44%,
+    transparent 44% 56%,
+    var(--color-slate-300) 56%,
+    var(--color-slate-300) 88%,
+    transparent
+  ) !important;
+}
+[data-slot="separator"]:is([data-orientation="horizontal"], [data-horizontal])::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--steel-400);
+}
+
+/* ---- Overlays: menus, popovers, tooltips, dialogs ----------------------- */
+[data-slot="popover-content"],
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"] {
+  border: 1px solid var(--color-slate-200);
+  --tw-ring-shadow: 0 0 #0000;
+  box-shadow:
+    0 2px 4px -1px oklch(30% 0.04 240 / 0.08),
+    0 14px 30px -10px oklch(30% 0.04 240 / 0.25) !important;
+}
+[data-slot="dropdown-menu-item"],
+[data-slot="select-item"],
+[data-slot="dropdown-menu-sub-trigger"] {
+  padding-block: 0.4rem !important;
+}
+[data-slot="dropdown-menu-item"]:focus,
+[data-slot="select-item"]:focus,
+[data-slot="select-item"][data-highlighted],
+[data-slot="dropdown-menu-item"][data-highlighted] {
+  background: var(--steel-50) !important;
+  color: var(--steel-800) !important;
+  box-shadow: inset -2px 0 0 var(--brand-cyan);
+}
+[data-slot="tooltip-content"] {
+  --foreground: var(--ink);
+  --background: oklch(100% 0 0);
+  background: var(--ink) !important;
+  color: #fff !important;
+  border-top: 2px solid var(--brand-cyan);
+  padding: 0.45rem 0.7rem !important;
+  font-size: 0.75rem;
+  box-shadow: 0 8px 20px -8px oklch(15% 0.04 240 / 0.5);
+}
+[data-slot="dialog-overlay"],
+[data-slot="alert-dialog-overlay"],
+[data-slot="sheet-overlay"] {
+  background: oklch(21.5% 0.016 245 / 0.45) !important;
+  backdrop-filter: blur(3px);
+}
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"] {
+  background:
+    var(--brand-gradient) top/100% 3px no-repeat,
+    var(--popover) !important;
+  --tw-ring-shadow: 0 0 #0000;
+  border: 1px solid var(--color-slate-200);
+  box-shadow: 0 30px 60px -20px oklch(15% 0.04 240 / 0.45) !important;
+  padding: 1.4rem !important;
+}
+[data-slot="dialog-title"],
+[data-slot="alert-dialog-title"],
+[data-slot="sheet-title"],
+[data-slot="popover-title"] {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+[data-slot="sheet-content"] {
+  background:
+    var(--brand-gradient) top/100% 3px no-repeat,
+    var(--popover) !important;
+}
+
+/* ---- Alert --------------------------------------------------------------- */
+[data-slot="alert"] {
+  padding: 0.75rem 0.9rem !important;
+  border: 1px solid var(--color-slate-200);
+  background: var(--card);
+  box-shadow: inset -3px 0 0 var(--steel-500);
+}
+[dir="ltr"] [data-slot="alert"] {
+  box-shadow: inset 3px 0 0 var(--steel-500);
+}
+[data-slot="alert-title"] {
+  font-weight: 700;
+}
+[data-slot="alert"][class*="text-destructive"] {
+  border-color: var(--color-red-200);
+  background: var(--color-red-50);
+  box-shadow: inset -3px 0 0 var(--color-red-500);
+}
+
+/* ---- Skeleton: a steel sheen passing right to left ---------------------- */
+[data-slot="skeleton"] {
+  animation: tk-sheen 1.6s ease-in-out infinite !important;
+  background: linear-gradient(
+      90deg,
+      var(--color-slate-100) 30%,
+      var(--steel-100) 50%,
+      var(--color-slate-100) 70%
+    )
+    0 0/300% 100% !important;
+}
+@keyframes tk-sheen {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}
+
+/* ---- Toasts -------------------------------------------------------------- */
+[data-sonner-toast] {
+  corner-shape: bevel;
+  --border-radius: 0;
+  border-start-start-radius: var(--bevel-m) !important;
+  border-end-end-radius: var(--bevel-m) !important;
+  font-family: var(--font-sans);
+}
+
+/* ---- Octagonal tiles (icon tiles, stat tiles, the sidebar logo tile) ---- */
+.tk-tile,
+.tk-chamfer,
+.tk-side-tile {
+  clip-path: var(--octagon) !important;
+}
+.tk-tile {
+  padding: 7px;
+}
+
+/* ---- Sidebar: a faint square-Kufic lattice rising from the bottom ------- */
+[data-slot="sidebar-inner"] {
+  background-color: var(--ink) !important;
+  background-image:
+    linear-gradient(to top, transparent, var(--ink) 40%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M0 6h30v30H12V18h12' fill='none' stroke='%23ffffff' stroke-opacity='.035' stroke-width='4' stroke-linejoin='bevel'/%3E%3Cpath d='M48 42H18' fill='none' stroke='%23ffffff' stroke-opacity='.035' stroke-width='4'/%3E%3C/svg%3E");
+  background-size:
+    auto,
+    48px 48px;
+  background-position:
+    0 0,
+    0 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="skeleton"] {
+    animation: none !important;
   }
 }
 

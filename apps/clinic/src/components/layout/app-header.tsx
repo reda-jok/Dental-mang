@@ -33,7 +33,7 @@ function sectionFor(pathname: string): NavItem["key"] {
   return match?.key ?? "dashboard"
 }
 
-/** Top bar in the clinic's original style: page title, search and quick actions. */
+/** Top bar: the page title in Kufi, search and quick actions, a ledger rule underneath. */
 export function AppHeader({ search, actions }: Props) {
   const t = useTranslations()
   const pathname = usePathname()
@@ -71,12 +71,12 @@ export function AppHeader({ search, actions }: Props) {
   }
 
   return (
-    <header className="sticky top-0 z-20 border-b bg-white px-4 py-3 shadow-sm md:px-6 md:py-4">
+    <header className="tk-header sticky top-0 z-20 border-b bg-white px-4 py-3 md:px-6 md:py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <SidebarTrigger label={t("nav.toggleSidebar")} />
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-slate-900 md:text-2xl">
+            <h1 className="font-display truncate text-xl text-slate-900 md:text-2xl">
               {t(`nav.${section}`)}
             </h1>
             <p className="hidden text-sm text-slate-500 sm:block">{t("header.subtitle")}</p>

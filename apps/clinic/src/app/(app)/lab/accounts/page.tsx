@@ -106,7 +106,7 @@ export default async function LabAccountsPage() {
                     <TableCell className="ps-6">
                       <Link
                         href={`/lab/accounts/${lab.id}`}
-                        className="font-medium text-blue-700 hover:underline"
+                        className="text-steel-700 font-medium hover:underline"
                       >
                         {lab.name}
                       </Link>

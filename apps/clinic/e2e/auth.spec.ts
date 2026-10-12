@@ -6,6 +6,8 @@ test("rejects a wrong password", async ({ page }) => {
   await login(page, OWNER.username, "wrong-password")
   await expect(page.getByText("اسم المستخدم أو كلمة المرور غير صحيحة.")).toBeVisible()
   await expect(page).toHaveURL(/\/login$/)
+  // The Al-Tamkeen logo heads the login page.
+  await expect(page.getByRole("img", { name: "التمكين" })).toBeVisible()
 })
 
 test("owner logs in, sees the clinic and every module, then logs out", async ({

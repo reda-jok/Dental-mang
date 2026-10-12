@@ -52,11 +52,11 @@ export function MethodPicker<M extends PaymentMethod>({
             className={cn(
               "flex flex-col items-center gap-1 rounded-xl border p-3 text-center transition-colors",
               value === method
-                ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                ? "border-steel-500 bg-steel-50 ring-steel-500 ring-1"
                 : "border-slate-200 hover:bg-slate-50",
             )}
           >
-            <Icon className="size-5 text-blue-600" aria-hidden />
+            <Icon className="text-steel-600 size-5" aria-hidden />
             <span className="text-sm font-medium">
               {label ? label(method) : t(`methods.${base}`)}
             </span>
