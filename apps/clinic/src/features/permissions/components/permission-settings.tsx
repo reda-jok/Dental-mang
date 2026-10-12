@@ -60,7 +60,7 @@ export function PermissionSettings({ settings }: { settings: PermissionSetting[]
           <section key={group} aria-labelledby={`permissions-${group}`} className="space-y-3">
             <h3
               id={`permissions-${group}`}
-              className="flex items-center gap-2 font-semibold text-foreground"
+              className="text-foreground flex items-center gap-2 font-semibold"
             >
               <Icon className="text-primary size-4" aria-hidden />
               {t(`groups.${group}`)}
@@ -76,18 +76,18 @@ export function PermissionSettings({ settings }: { settings: PermissionSetting[]
                       aria-labelledby={titleId}
                       className="min-w-0 rounded-xl border p-4"
                     >
-                      <h4 id={titleId} className="font-semibold text-foreground">
+                      <h4 id={titleId} className="text-foreground font-semibold">
                         {title(permission)}
                       </h4>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="text-muted-foreground mt-1 text-sm">
                         {t(`items.${itemKey(permission)}.description`)}
                       </p>
                       {requires.length > 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="text-muted-foreground mt-1 text-xs">
                           {t("requires", { names: format.list(requires.map(title)) })}
                         </p>
                       )}
-                      <ul className="mt-4 divide-y divide-border">
+                      <ul className="divide-border mt-4 divide-y">
                         <li className="flex items-center justify-between gap-3 py-2.5">
                           <span className="text-sm font-medium">{tr("owner")}</span>
                           <span className="flex items-center gap-1">
@@ -144,7 +144,10 @@ function RoleSwitch({
 
   return (
     <li className="flex items-center justify-between gap-3 py-2.5">
-      <Label htmlFor={id} className={blocked ? "text-sm text-muted-foreground" : "text-sm font-medium"}>
+      <Label
+        htmlFor={id}
+        className={blocked ? "text-muted-foreground text-sm" : "text-sm font-medium"}
+      >
         {tr(role)}
       </Label>
       <Switch id={id} checked={checked} disabled={pending || blocked} onCheckedChange={toggle} />
