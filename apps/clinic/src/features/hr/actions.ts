@@ -13,7 +13,7 @@ export const setDentistPayAction = defineAction({
   permission: "hr:pay",
   handler: async (input, { user }) => {
     await setDentistPay(user, input)
-    revalidatePath("/hr")
+    revalidatePath("/hr/commission")
     return null
   },
 })

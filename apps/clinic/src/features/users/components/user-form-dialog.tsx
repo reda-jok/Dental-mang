@@ -3,12 +3,19 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useTranslations } from "next-intl"
 import { useTransition } from "react"
-import { Controller, useForm } from "react-hook-form"
+import {
+  Controller,
+  useForm,
+  useWatch,
+  type FieldErrors,
+  type UseFormRegisterReturn,
+} from "react-hook-form"
 import { toast } from "sonner"
 
 import { TextField } from "@/components/form-field"
 import { InfoHint } from "@/components/info-hint"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -115,9 +123,19 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
   const form = useForm<CreateUserInput>({
     resolver: zodResolver(createUserSchema),
     mode: "onTouched",
-    defaultValues: { name: "", username: "", role: "reception", password: "", confirmPassword: "" },
+    // Hidden sign-in fields drop out, so an employee who doesn't sign in sends none.
+    shouldUnregister: true,
+    defaultValues: {
+      canSignIn: true,
+      name: "",
+      username: "",
+      role: "reception",
+      password: "",
+      confirmPassword: "",
+    },
   })
-  const { errors } = form.formState
+  const errors: FieldErrors<Extract<CreateUserInput, { canSignIn: true }>> = form.formState.errors
+  const canSignIn = useWatch({ control: form.control, name: "canSignIn" })
 
   const onInvalid = useInvalidHandler()
   const onSubmit = form.handleSubmit(
@@ -140,15 +158,6 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
           error={errors.name?.message}
           {...form.register("name")}
         />
-        <TextField
-          id="username"
-          label={t("username")}
-          info={t("usernameHint")}
-          dir="ltr"
-          autoComplete="off"
-          error={errors.username?.message}
-          {...form.register("username")}
-        />
         <Controller
           control={form.control}
           name="role"
@@ -161,25 +170,35 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
             />
           )}
         />
-        <TextField
-          id="password"
-          type="password"
-          dir="ltr"
-          autoComplete="new-password"
-          label={t("password")}
-          description={t("passwordHint")}
-          error={errors.password?.message}
-          {...form.register("password")}
+        <Controller
+          control={form.control}
+          name="canSignIn"
+          render={({ field }) => (
+            <Field className="bg-muted/50 rounded-lg border p-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="canSignIn"
+                  checked={field.value}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
+                />
+                <div className="grid gap-1">
+                  <Label htmlFor="canSignIn">{t("canSignIn")}</Label>
+                  <FieldDescription>{t("canSignInHint")}</FieldDescription>
+                </div>
+              </div>
+            </Field>
+          )}
         />
-        <TextField
-          id="confirmPassword"
-          type="password"
-          dir="ltr"
-          autoComplete="new-password"
-          label={t("confirmPassword")}
-          error={errors.confirmPassword?.message}
-          {...form.register("confirmPassword")}
-        />
+        {canSignIn && (
+          <SignInFields
+            errors={errors}
+            fields={{
+              username: form.register("username"),
+              password: form.register("password"),
+              confirmPassword: form.register("confirmPassword"),
+            }}
+          />
+        )}
         <DialogFooter>
           <Button type="submit" disabled={pending}>
             {pending ? tc("saving") : t("add")}
@@ -187,6 +206,51 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
         </DialogFooter>
       </FieldGroup>
     </form>
+  )
+}
+
+type SignInFields = { username: string; password: string; confirmPassword: string }
+
+/** Username and password, for adding someone who signs in or letting them sign in later. */
+export function SignInFields({
+  errors,
+  fields,
+}: {
+  errors: FieldErrors<SignInFields>
+  fields: Record<keyof SignInFields, UseFormRegisterReturn>
+}) {
+  const t = useTranslations("users")
+  return (
+    <>
+      <TextField
+        id="username"
+        label={t("username")}
+        info={t("usernameHint")}
+        dir="ltr"
+        autoComplete="off"
+        error={errors.username?.message}
+        {...fields.username}
+      />
+      <TextField
+        id="password"
+        type="password"
+        dir="ltr"
+        autoComplete="new-password"
+        label={t("password")}
+        description={t("passwordHint")}
+        error={errors.password?.message}
+        {...fields.password}
+      />
+      <TextField
+        id="confirmPassword"
+        type="password"
+        dir="ltr"
+        autoComplete="new-password"
+        label={t("confirmPassword")}
+        error={errors.confirmPassword?.message}
+        {...fields.confirmPassword}
+      />
+    </>
   )
 }
 
@@ -229,14 +293,16 @@ function EditForm({
   return (
     <form onSubmit={onSubmit} noValidate>
       <FieldGroup>
-        <TextField
-          id="username"
-          label={t("username")}
-          value={user.username}
-          dir="ltr"
-          disabled
-          readOnly
-        />
+        {user.username && (
+          <TextField
+            id="username"
+            label={t("username")}
+            value={user.username}
+            dir="ltr"
+            disabled
+            readOnly
+          />
+        )}
         <TextField
           id="name"
           label={t("name")}

@@ -26,7 +26,7 @@ const money = (amount: string) => <Amount value={formatMoney(amount, "IQD")} />
 export default async function DentistCommissionPage({
   params,
   searchParams,
-}: PageProps<"/hr/[dentistId]">) {
+}: PageProps<"/hr/commission/[dentistId]">) {
   await requirePagePermission("hr:self")
   const { dentistId } = await params
   if (!z.uuid().safeParse(dentistId).success) notFound()
@@ -46,7 +46,7 @@ export default async function DentistCommissionPage({
             <PayLabel pay={data.pay} />
           </p>
         </div>
-        <MonthNav path={`/hr/${data.dentist.id}`} month={month} />
+        <MonthNav path={`/hr/commission/${data.dentist.id}`} month={month} />
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -148,7 +148,10 @@ export default async function DentistCommissionPage({
           </ul>
         )}
       </Panel>
-      <Link href={`/hr?month=${month}` as Route} className="text-primary text-sm hover:underline">
+      <Link
+        href={`/hr/commission?month=${month}` as Route}
+        className="text-primary text-sm hover:underline"
+      >
         {t("backToReport")}
       </Link>
     </div>

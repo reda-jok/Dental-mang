@@ -7,8 +7,10 @@ import { authorize } from "@/server/session"
 export type StaffRow = {
   id: string
   name: string
+  /** Empty for an employee who doesn't sign in. */
   username: string
   role: RoleName
+  canSignIn: boolean
   active: boolean
   lastLoginAt: Date | null
 }
@@ -25,6 +27,7 @@ export async function listStaff(): Promise<StaffRow[]> {
       role: true,
       banned: true,
       sessions: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+      accounts: { where: { providerId: "credential" }, take: 1, select: { id: true } },
     },
   })
 
@@ -33,6 +36,7 @@ export async function listStaff(): Promise<StaffRow[]> {
     name: u.name,
     username: u.username ?? "",
     role: isRoleName(u.role) ? u.role : "reception",
+    canSignIn: u.accounts.length > 0,
     active: !u.banned,
     lastLoginAt: u.sessions[0]?.createdAt ?? null,
   }))

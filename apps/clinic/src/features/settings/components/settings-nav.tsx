@@ -7,19 +7,12 @@ import {
   PillIcon,
   ShieldCheckIcon,
   SwatchBookIcon,
-  UsersIcon,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { PillNav, type PillNavItem } from "@/components/pill-nav"
 
-export function SettingsNav({
-  showUsers,
-  showPermissions,
-}: {
-  showUsers: boolean
-  showPermissions: boolean
-}) {
+export function SettingsNav({ showPermissions }: { showPermissions: boolean }) {
   const t = useTranslations("settings")
   const ta = useTranslations("appointments.settings")
   const tp = useTranslations("permissions")
@@ -41,9 +34,6 @@ export function SettingsNav({
     },
     { key: "schedule", label: ta("tab"), icon: CalendarClockIcon, href: "/settings/schedule" },
     { key: "medications", label: tm("tab"), icon: PillIcon, href: "/settings/medications" },
-    ...(showUsers
-      ? [{ key: "users", label: t("usersTab"), icon: UsersIcon, href: "/settings/users" }]
-      : []),
     ...(showPermissions
       ? [
           {

@@ -185,6 +185,23 @@ async function topUps() {
   await seedAppointmentReminders()
   await seedDentistPay()
   await seedToothConditions()
+  await seedStaffWithoutSignIn()
+}
+
+/**
+ * An employee who doesn't use the system (2026-10-12): listed under الموظفون with a name
+ * and role only, no username or password, so the "can sign in" choice shows in the demo.
+ */
+async function seedStaffWithoutSignIn() {
+  if (await db.user.findFirst({ where: { accounts: { none: {} } }, select: { id: true } })) return
+  await db.user.create({
+    data: {
+      name: "نور الهدى الساعدي",
+      email: `${crypto.randomUUID()}@staff.clinic.local`,
+      emailVerified: true,
+      role: "assistant",
+    },
+  })
 }
 
 /**

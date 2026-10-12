@@ -31,15 +31,15 @@ test("first run: set up the clinic and owner account", async ({ page }) => {
 
 test("create a receptionist for permission tests", async ({ page }) => {
   await loginAsOwner(page)
-  await page.goto("/settings/users")
-  await page.getByRole("button", { name: "إضافة مستخدم" }).click()
+  await page.goto("/hr")
+  await page.getByRole("button", { name: "إضافة موظف" }).click()
   const dialog = page.getByRole("dialog")
   await dialog.getByLabel("الاسم").fill(RECEPTION.name)
   await dialog.getByLabel("اسم المستخدم").fill(RECEPTION.username)
   await dialog.getByLabel("كلمة المرور", { exact: true }).fill(RECEPTION.password)
   await dialog.getByLabel("تأكيد كلمة المرور").fill(RECEPTION.password)
-  await dialog.getByRole("button", { name: "إضافة مستخدم" }).click()
-  await expect(page.getByText("تمت إضافة المستخدم")).toBeVisible()
+  await dialog.getByRole("button", { name: "إضافة موظف" }).click()
+  await expect(page.getByText("تمت إضافة الموظف")).toBeVisible()
 })
 
 test("load the starter catalog and price two procedures", async ({ page }) => {

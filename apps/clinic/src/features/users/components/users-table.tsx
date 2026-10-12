@@ -1,6 +1,13 @@
 "use client"
 
-import { KeyRoundIcon, PencilIcon, PlusIcon, UserCheckIcon, UserXIcon } from "lucide-react"
+import {
+  KeyRoundIcon,
+  LogInIcon,
+  PencilIcon,
+  PlusIcon,
+  UserCheckIcon,
+  UserXIcon,
+} from "lucide-react"
 import { useFormatter, useTranslations } from "next-intl"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -39,6 +46,7 @@ type Row = {
   name: string
   username: string
   role: RoleName
+  canSignIn: boolean
   active: boolean
   lastLoginAt: Date | null
 }
@@ -105,8 +113,12 @@ export function UsersTable({ rows, actor }: { rows: Row[]; actor: Actor }) {
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell className="hidden sm:table-cell" dir="ltr">
-                  <span className="block text-end">{row.username}</span>
+                <TableCell className="hidden sm:table-cell">
+                  {row.canSignIn ? (
+                    <bdi dir="ltr">{row.username}</bdi>
+                  ) : (
+                    <span className="text-muted-foreground">{t("users.noSignIn")}</span>
+                  )}
                 </TableCell>
                 <TableCell>{t(`roles.${row.role}`)}</TableCell>
                 <TableCell>
@@ -115,9 +127,14 @@ export function UsersTable({ rows, actor }: { rows: Row[]; actor: Actor }) {
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  {row.lastLoginAt
-                    ? format.dateTime(row.lastLoginAt, { dateStyle: "medium", timeStyle: "short" })
-                    : t("common.never")}
+                  {!row.canSignIn
+                    ? "—"
+                    : row.lastLoginAt
+                      ? format.dateTime(row.lastLoginAt, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : t("common.never")}
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
@@ -129,11 +146,11 @@ export function UsersTable({ rows, actor }: { rows: Row[]; actor: Actor }) {
                       <PencilIcon />
                     </IconButton>
                     <IconButton
-                      label={t("users.resetPasswordTip")}
+                      label={t(row.canSignIn ? "users.resetPasswordTip" : "users.allowSignInTip")}
                       disabledReason={denial(row, { kind: "resetPassword" })}
                       onClick={() => setResetting(row)}
                     >
-                      <KeyRoundIcon />
+                      {row.canSignIn ? <KeyRoundIcon /> : <LogInIcon />}
                     </IconButton>
                     {row.active ? (
                       <IconButton

@@ -21,16 +21,19 @@ const withPasswordChecks = <S extends z.ZodType<PasswordFields>>(
       message: "passwordContainsUsername",
     })
 
-export const createUserSchema = withPasswordChecks(
-  z.strictObject({
-    name: text(2, 100),
-    username,
-    role,
-    password,
-    confirmPassword: z.string(),
-  }),
-  (v) => v.username,
-)
+const signIn = { username, password, confirmPassword: z.string() }
+
+/**
+ * An employee. `canSignIn: false` = someone who doesn't use the system (e.g. a dentist
+ * who never logs in but still has appointments and commission): no username or password.
+ */
+export const createUserSchema = z.discriminatedUnion("canSignIn", [
+  withPasswordChecks(
+    z.strictObject({ canSignIn: z.literal(true), name: text(2, 100), role, ...signIn }),
+    (v) => v.username,
+  ),
+  z.strictObject({ canSignIn: z.literal(false), name: text(2, 100), role }),
+])
 
 export const updateUserSchema = z.strictObject({
   id: uuid,
@@ -51,6 +54,13 @@ export const resetPasswordSchema = withPasswordChecks(
   }),
 )
 
+/** Lets an employee who couldn't sign in use the system from now on. */
+export const allowSignInSchema = withPasswordChecks(
+  z.strictObject({ id: uuid, ...signIn }),
+  (v) => v.username,
+)
+
 export type CreateUserInput = z.input<typeof createUserSchema>
 export type UpdateUserInput = z.input<typeof updateUserSchema>
 export type ResetPasswordInput = z.input<typeof resetPasswordSchema>
+export type AllowSignInInput = z.input<typeof allowSignInSchema>

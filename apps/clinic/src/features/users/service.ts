@@ -11,6 +11,7 @@ import type { CurrentUser } from "@/server/session"
 
 import { checkUserChange, type Target, type UserChange } from "./policy"
 import type {
+  allowSignInSchema,
   createUserSchema,
   resetPasswordSchema,
   setUserActiveSchema,
@@ -39,25 +40,30 @@ async function enforcePolicy(
   if (denial) throw new AppError("forbidden", denial)
 }
 
+async function assertUsernameFree(tx: Db, username: string) {
+  const taken = await tx.user.findUnique({ where: { username }, select: { id: true } })
+  if (taken) throw new AppError("conflict", "usernameTaken", { username: ["usernameTaken"] })
+}
+
+/**
+ * Adds an employee. One who signs in gets a username and password (Better Auth hashes it
+ * and creates the credential account); one who doesn't gets neither, so can't sign in.
+ */
 export async function createStaff(actor: CurrentUser, input: z.output<typeof createUserSchema>) {
   const role = input.role as RoleName
   await enforcePolicy(db, actor, null, { kind: "create", role })
+  if (input.canSignIn) await assertUsernameFree(db, input.username)
 
-  const taken = await db.user.findUnique({
-    where: { username: input.username },
-    select: { id: true },
-  })
-  if (taken) throw new AppError("conflict", "usernameTaken", { username: ["usernameTaken"] })
-
-  // Better Auth hashes the password and creates the credential account.
   const { user } = await auth.api.createUser({
-    body: {
-      name: input.name,
-      email: placeholderEmail(input.username),
-      password: input.password,
-      role,
-      data: { username: input.username, displayUsername: input.username },
-    },
+    body: input.canSignIn
+      ? {
+          name: input.name,
+          email: placeholderEmail(input.username),
+          password: input.password,
+          role,
+          data: { username: input.username, displayUsername: input.username },
+        }
+      : { name: input.name, email: placeholderEmail(crypto.randomUUID()), role },
   })
 
   await recordAudit(db, {
@@ -65,9 +71,49 @@ export async function createStaff(actor: CurrentUser, input: z.output<typeof cre
     action: "create",
     entity: "user",
     entityId: user.id,
-    after: { name: input.name, username: input.username, role },
+    after: {
+      name: input.name,
+      username: input.canSignIn ? input.username : null,
+      role,
+      canSignIn: input.canSignIn,
+    },
   })
   return { id: user.id }
+}
+
+/** Gives an employee who couldn't sign in a username and password. */
+export async function allowStaffSignIn(
+  actor: CurrentUser,
+  input: z.output<typeof allowSignInSchema>,
+) {
+  const hash = await (await auth.$context).password.hash(input.password)
+
+  await db.$transaction(async (tx) => {
+    const target = await loadTarget(tx, input.id)
+    await enforcePolicy(tx, actor, target, { kind: "resetPassword" })
+    const existing = await tx.account.findFirst({
+      where: { userId: input.id, providerId: "credential" },
+      select: { id: true },
+    })
+    if (existing) throw new AppError("conflict", "alreadyCanSignIn")
+    await assertUsernameFree(tx, input.username)
+
+    await tx.user.update({
+      where: { id: input.id },
+      data: { username: input.username, displayUsername: input.username },
+    })
+    await tx.account.create({
+      data: { accountId: input.id, providerId: "credential", userId: input.id, password: hash },
+    })
+    await recordAudit(tx, {
+      userId: actor.id,
+      action: "update",
+      entity: "user",
+      entityId: input.id,
+      before: { canSignIn: false },
+      after: { canSignIn: true, username: input.username },
+    })
+  })
 }
 
 export async function updateStaff(actor: CurrentUser, input: z.output<typeof updateUserSchema>) {

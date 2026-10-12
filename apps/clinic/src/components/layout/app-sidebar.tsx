@@ -50,7 +50,8 @@ export function AppSidebar({ clinicName, user }: Props) {
       <SidebarContent>
         {navGroups.map((group) => {
           const items = group.items.filter(
-            (item) => !item.permission || hasPermission(user, item.permission),
+            (item) =>
+              !item.permission || [item.permission].flat().some((p) => hasPermission(user, p)),
           )
           if (items.length === 0) return null
           return (

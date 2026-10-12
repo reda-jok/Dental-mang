@@ -14,8 +14,8 @@ async function addDentist(
   page: Page,
   dentist: { name: string; username: string; password: string },
 ) {
-  await page.goto("/settings/users")
-  await page.getByRole("button", { name: "إضافة مستخدم" }).click()
+  await page.goto("/hr")
+  await page.getByRole("button", { name: "إضافة موظف" }).click()
   const dialog = page.getByRole("dialog")
   await dialog.getByLabel("الاسم").fill(dentist.name)
   await dialog.getByLabel("اسم المستخدم").fill(dentist.username)
@@ -23,8 +23,8 @@ async function addDentist(
   await page.getByRole("option", { name: "طبيب أسنان" }).click()
   await dialog.getByLabel("كلمة المرور", { exact: true }).fill(dentist.password)
   await dialog.getByLabel("تأكيد كلمة المرور").fill(dentist.password)
-  await dialog.getByRole("button", { name: "إضافة مستخدم" }).click()
-  await expect(page.getByText("تمت إضافة المستخدم")).toBeVisible()
+  await dialog.getByRole("button", { name: "إضافة موظف" }).click()
+  await expect(page.getByText("تمت إضافة الموظف")).toBeVisible()
 }
 
 test("a dentist's commission follows what patients pay for their work", async ({
@@ -40,7 +40,8 @@ test("a dentist's commission follows what patients pay for their work", async ({
   await addDentist(page, dentist)
 
   // Pay isn't set yet; the owner sets 30% commission from this month.
-  await page.goto("/hr")
+  await page.getByRole("link", { name: "العمولات" }).click()
+  await expect(page).toHaveURL(/\/hr\/commission$/)
   const row = page.locator("[data-testid=commission] tbody tr").filter({ hasText: dentist.name })
   await expect(row).toContainText("لم تُحدَّد طريقة الدفع")
   await row.getByRole("button", { name: `طريقة دفع ${dentist.name}` }).click()
@@ -77,7 +78,7 @@ test("a dentist's commission follows what patients pay for their work", async ({
   await expect(page.getByText(/تم تسجيل الدفعة/).first()).toBeVisible()
 
   // 30% of the 200,000 collected.
-  await page.goto("/hr")
+  await page.goto("/hr/commission")
   await expect(row).toContainText("200,000")
   await expect(row.getByTestId("commission-amount")).toHaveText(/60,000/)
   await row.getByRole("link", { name: dentist.name }).click()
@@ -92,7 +93,10 @@ test("a dentist's commission follows what patients pay for their work", async ({
   await expect(page).toHaveURL(/\/dashboard$/)
   // The sidebar is folded away on a phone.
   if (desktop) await expect(page.getByRole("link", { name: "الموظفون" })).toBeVisible()
+  // الموظفون takes a dentist straight to their commission (they can't list staff).
   await page.goto("/hr")
+  await expect(page).toHaveURL(/\/hr\/commission$/)
+  await expect(page.getByRole("link", { name: "العمولات" })).toHaveCount(0)
   await expect(page.locator("[data-testid=commission] tbody tr")).toHaveCount(1)
   await expect(page.getByTestId("commission-amount")).toHaveText(/60,000/)
   await expect(page.getByRole("button", { name: /طريقة دفع/ })).toHaveCount(0)

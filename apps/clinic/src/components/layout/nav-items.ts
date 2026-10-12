@@ -19,8 +19,8 @@ export type NavItem = {
   key: keyof (typeof messages)["nav"]
   href: string
   icon: LucideIcon
-  /** Shown only to users with this permission. */
-  permission?: Permission
+  /** Shown only to users with this permission (or any of these). */
+  permission?: Permission | Permission[]
   /** False until the module is built; rendered as "coming soon". */
   ready: boolean
 }
@@ -71,8 +71,14 @@ export const navGroups: { key: NavItem["key"]; items: NavItem[] }[] = [
         permission: "accounting:read",
         ready: false,
       },
-      // Dentists see their own pay here; the owner and accountant see everyone's.
-      { key: "hr", href: "/hr", icon: UserCogIcon, permission: "hr:self", ready: true },
+      // Staff and their pay: whoever manages staff, and dentists for their own commission.
+      {
+        key: "hr",
+        href: "/hr",
+        icon: UserCogIcon,
+        permission: ["user:list", "hr:self"],
+        ready: true,
+      },
       {
         key: "inventory",
         href: "/inventory",
