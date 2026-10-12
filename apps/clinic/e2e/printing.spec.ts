@@ -75,6 +75,10 @@ test("print a payment receipt, an invoice and a plan quote", async ({ page }, te
 
   // The plan quote (A4), from the plans tab.
   await page.goto(`${patientUrl}/plans`)
+  // The plan shows what's paid (the 50,000 above) and what's left for the patient.
+  await expect(page.getByTestId("left-to-pay").filter({ visible: true }).first()).toContainText(
+    "1,200,000",
+  )
   const [quote] = await Promise.all([
     page.waitForEvent("popup"),
     page.getByRole("link", { name: "طباعة عرض السعر" }).click(),

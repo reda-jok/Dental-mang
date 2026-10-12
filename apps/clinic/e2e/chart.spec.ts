@@ -82,26 +82,30 @@ test("chart → plan → done: caries becomes a filling and the plan completes",
   await tooth(page, 36).click()
   await expect(page.getByText(/أُضيف زرعة سنية.* على السن 36 إلى الخطة/)).toBeVisible()
 
-  // Plans tab: both items and the plan total.
+  // Plans tab: the phase as a step, both treatments, the totals and the progress.
   await page.goto(`${patientUrl}/plans`)
-  const plan = page.locator("[data-plan]").first()
+  const plan = page.locator("[data-plan]").filter({ visible: true }).first()
   await expect(plan).toContainText("مقترحة")
-  await expect(plan.getByRole("row", { name: /حشوة تجميلية/ })).toContainText("MO")
+  await expect(plan.locator("[data-item^='حشوة تجميلية']")).toContainText("MO")
   await expect(plan).toContainText("25,000")
   await expect(plan).toContainText("1,200,000")
   await expect(plan).toContainText("1,225,000")
+  await expect(plan.getByTestId("plan-progress")).toContainText("0 من 2")
+  // The plan's teeth on the small chart, with their phase.
+  await expect(plan.getByTestId("plan-mini-chart").locator("[data-phase]")).toHaveCount(2)
+  // No visit booked yet: the plans say so, with the booking button.
+  await expect(page.getByTestId("next-visit")).toContainText("لا يوجد موعد قادم")
 
-  // Done: the filling replaces the caries on the chart.
-  await plan.getByRole("combobox", { name: /حشوة تجميلية/ }).click()
-  await page.getByRole("option", { name: "منجز" }).click()
-  await expect(page.getByText("تم تحديث الحالة").first()).toBeVisible()
+  // Done with one tap: the filling replaces the caries on the chart.
+  await plan.getByRole("button", { name: /تم: حشوة تجميلية/ }).click()
+  await expect(page.getByText("تم تسجيل العلاج كمنجز").first()).toBeVisible()
+  await expect(plan.getByTestId("plan-progress")).toContainText("1 من 2")
   await page.goto(`${patientUrl}/chart`)
   await expect(tooth(page, 16)).toHaveAttribute("data-condition", "filling")
 
   // Finishing the last item completes the plan automatically.
   await page.goto(`${patientUrl}/plans`)
-  await plan.getByRole("combobox", { name: /زرعة سنية/ }).click()
-  await page.getByRole("option", { name: "منجز" }).click()
+  await plan.getByRole("button", { name: /تم: زرعة سنية/ }).click()
   await expect(plan).toContainText("مكتملة")
   await page.goto(`${patientUrl}/chart`)
   await expect(tooth(page, 36)).toHaveAttribute("data-condition", "implant")
