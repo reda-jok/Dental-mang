@@ -45,6 +45,7 @@ Next.js 16 has breaking changes: before writing Next.js code, read the relevant 
 
 - The browser can only reach the auth endpoints in `BROWSER_ALLOWED_PATHS` (`src/server/auth.ts`). Anything else (`/admin/*`) is server-only, behind our own policy.
 - Rules about who may change what (like `features/users/policy.ts`) are pure functions with unit tests. The UI uses the same function to explain disabled actions.
+- An employee may have no sign-in (added without "يدخل إلى النظام"): a `user` row with no username and no credential account. Never assume a staff member has a `username` or a session. Staff are managed in الموظفون (`/hr`), not Settings.
 - Pages use `requirePagePermission()` (redirects to login, or returns 404 without the permission). Data and services use `authorize()`.
 - The CSP is set per request in `proxy.ts` (nonce). No inline scripts and no external origins.
 - Sensitive actions (role change, disable, password reset) sign the user out everywhere.
