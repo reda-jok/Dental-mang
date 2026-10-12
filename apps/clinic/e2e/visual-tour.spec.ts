@@ -68,9 +68,19 @@ test("visual tour", async ({ page }, testInfo) => {
     await shot("calendar-day-popup")
     await page.keyboard.press("Escape")
   }
-  await page.getByRole("button", { name: "موعد جديد" }).click()
-  await shot("booking-dialog")
-  await page.keyboard.press("Escape")
+  // Bookings start from the patient (their page or plan).
+  if (charted) {
+    await page.goto(charted)
+    await page.getByRole("button", { name: "حجز موعد" }).click()
+    await page
+      .getByRole("dialog")
+      .getByText("سبب الزيارة")
+      .or(page.getByTestId("plan-items"))
+      .first()
+      .waitFor()
+    await shot("booking-dialog")
+    await page.keyboard.press("Escape")
+  }
 
   await visit(page, "/billing", "billing")
   const [invoice] = await query<{ id: string }>(

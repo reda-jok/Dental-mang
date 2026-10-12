@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatLocalPhone } from "@/lib/validation"
 import { reminderMessage } from "@/lib/whatsapp"
 
-import { formatTime } from "../../appointments/display"
+import { formatTime, visitPurpose } from "../../appointments/display"
 import { useBooking } from "../../appointments/components/booking-provider"
 import type { ReminderRow } from "../data"
 import { useLogReminder } from "./use-log-reminder"
@@ -19,6 +19,8 @@ import { useLogReminder } from "./use-log-reminder"
 /** One row per waiting appointment, with a button that opens the WhatsApp reminder. */
 export function ReminderList({ rows }: { rows: ReminderRow[] }) {
   const t = useTranslations("reminders")
+  const ta = useTranslations("appointments")
+  const purpose = (row: ReminderRow) => visitPurpose(row, (r) => ta(`reasons.${r}`))
   const format = useFormatter()
   const { openWhatsApp, config } = useBooking()
   const { log, pending } = useLogReminder()
@@ -34,7 +36,7 @@ export function ReminderList({ rows }: { rows: ReminderRow[] }) {
         patientName: row.patient.fullName,
         startsAt: row.startsAt,
         dentistName: row.dentistName,
-        procedureName: row.procedureName,
+        procedureName: purpose(row),
         timeZone: config.timeZone,
       }),
       onSent: () => log(row.id),
@@ -62,7 +64,7 @@ export function ReminderList({ rows }: { rows: ReminderRow[] }) {
                 </span>
               </p>
               <p className="text-xs text-slate-500">
-                {[row.procedureName, row.dentistName].filter(Boolean).join(" · ") || "—"}
+                {[purpose(row), row.dentistName].filter(Boolean).join(" · ") || "—"}
                 {row.patient.phone && (
                   <span className="ms-2 whitespace-nowrap">
                     <bdi>{formatLocalPhone(row.patient.phone)}</bdi>

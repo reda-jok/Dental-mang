@@ -20,7 +20,6 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   // Quick actions in the header, only for users who can use them.
   const actions = [
     ...(hasPermission(user, "patient:write") ? (["newPatient"] as const) : []),
-    ...(hasPermission(user, "appointment:write") ? (["newAppointment"] as const) : []),
     ...(hasPermission(user, "settings:write") ? (["newProcedure"] as const) : []),
   ]
 

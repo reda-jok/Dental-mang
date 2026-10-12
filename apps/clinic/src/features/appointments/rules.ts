@@ -125,3 +125,38 @@ export function monthGrid(isoDate: string): string[] {
   const start = weekOf(first)[0]!
   return Array.from({ length: 42 }, (_, i) => addDays(start, i))
 }
+
+export type VisitOutcome = "done" | "continued" | "not_done"
+
+/** A plan treatment the booking form offers, in the order it lists them. */
+export type BookableItem = { id: string; planId: string; phase: number; bookedAhead: boolean }
+
+/**
+ * The treatments the booking form ticks for the next visit: the earliest unfinished phase
+ * of the plan (the given one, else the first listed), leaving out treatments already booked
+ * on a later visit.
+ */
+export function nextVisitItems(items: BookableItem[], planId?: string): string[] {
+  const free = items.filter((i) => !i.bookedAhead)
+  const plan = planId ?? free[0]?.planId
+  const inPlan = free.filter((i) => i.planId === plan)
+  if (inPlan.length === 0) return []
+  const phase = Math.min(...inPlan.map((i) => i.phase))
+  return inPlan.filter((i) => i.phase === phase).map((i) => i.id)
+}
+
+/**
+ * Why a visit can't be finished yet (a key under "errors"), or null. Every treatment booked
+ * for the visit and still open needs an outcome, and something must have been done, unless
+ * the dentist says it was a check-up or consultation with no treatment.
+ */
+export function finishProblem(input: {
+  open: string[]
+  outcomes: Record<string, VisitOutcome>
+  doneToday: number
+  noTreatment: boolean
+}): "outcomeRequired" | "nothingRecorded" | null {
+  if (input.open.some((id) => !input.outcomes[id])) return "outcomeRequired"
+  const worked = input.doneToday > 0 || Object.values(input.outcomes).some((o) => o !== "not_done")
+  return worked || input.noTreatment ? null : "nothingRecorded"
+}

@@ -6,6 +6,7 @@ import {
   isPlanOpen,
   planItemTargets,
   shouldCompletePlan,
+  visitsLeft,
 } from "./rules"
 
 describe("planItemTargets", () => {
@@ -64,5 +65,23 @@ describe("status rules", () => {
     expect(shouldCompletePlan([{ status: "done" }, { status: "planned" }])).toBe(false)
     expect(shouldCompletePlan([{ status: "cancelled" }])).toBe(false)
     expect(shouldCompletePlan([])).toBe(false)
+  })
+})
+
+describe("visitsLeft", () => {
+  const rootCanal = { status: "planned" as const, visitsMin: 2, visitsMax: 3, visitsSoFar: 0 }
+
+  it("counts down the catalog's visits as the treatment is worked on", () => {
+    expect(visitsLeft(rootCanal)).toEqual([2, 3])
+    expect(visitsLeft({ ...rootCanal, status: "in_progress", visitsSoFar: 1 })).toEqual([1, 2])
+  })
+
+  it("keeps at least one visit while the treatment is open", () => {
+    expect(visitsLeft({ ...rootCanal, status: "in_progress", visitsSoFar: 4 })).toEqual([1, 1])
+  })
+
+  it("needs none once done or cancelled", () => {
+    expect(visitsLeft({ ...rootCanal, status: "done", visitsSoFar: 2 })).toEqual([0, 0])
+    expect(visitsLeft({ ...rootCanal, status: "cancelled" })).toEqual([0, 0])
   })
 })

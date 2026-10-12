@@ -27,6 +27,7 @@ export default async function PatientAppointmentsPage({
   const upcoming = all.filter((a) => a.upcoming).reverse()
   const past = all.filter((a) => !a.upcoming)
   const canWrite = hasPermission(user, "appointment:write")
+  const canFinish = canWrite && hasPermission(user, "clinical:write")
 
   const list = (items: typeof all) =>
     items.length === 0 ? (
@@ -36,7 +37,12 @@ export default async function PatientAppointmentsPage({
         {items.map((a) => (
           <div key={a.id} className="space-y-1">
             <p className="text-xs font-medium text-slate-500">{a.date}</p>
-            <AppointmentCard appointment={a} canWrite={canWrite} />
+            <AppointmentCard
+              appointment={a}
+              canWrite={canWrite}
+              canFinish={canFinish}
+              where="patient"
+            />
           </div>
         ))}
       </div>

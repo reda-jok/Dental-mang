@@ -17,17 +17,31 @@ export const duration = z.coerce
   .min(5, "invalidDuration")
   .max(480, "invalidDuration")
 
-export const bookAppointmentSchema = z.strictObject({
-  patientId: uuid,
-  date: isoDate,
-  time,
-  durationMinutes: duration,
-  dentistId: optionalId,
-  roomId: optionalId,
-  procedureId: optionalId,
-  priority: z.enum(["normal", "urgent"]).default("normal"),
-  notes: optionalMultiline(500),
-})
+export const VISIT_REASONS = ["checkup", "consultation", "emergency", "other"] as const
+export const VISIT_OUTCOMES = ["done", "continued", "not_done"] as const
+
+/** A visit is for plan treatments, or (with none ticked) for a reason. */
+export const bookAppointmentSchema = z
+  .strictObject({
+    patientId: uuid,
+    date: isoDate,
+    time,
+    durationMinutes: duration,
+    dentistId: optionalId,
+    roomId: optionalId,
+    itemIds: z.array(uuid).max(32).default([]),
+    reason: z
+      .union([z.enum(VISIT_REASONS), z.literal("")])
+      .optional()
+      .transform((v) => v || null),
+    priority: z.enum(["normal", "urgent"]).default("normal"),
+    notes: optionalMultiline(500),
+  })
+  .refine((v) => v.itemIds.length > 0 || v.reason, {
+    path: ["reason"],
+    message: "reasonRequired",
+  })
+  .transform((v) => ({ ...v, reason: v.itemIds.length > 0 ? null : v.reason }))
 
 export const APPOINTMENT_STATUSES = [
   "pending",
@@ -37,18 +51,26 @@ export const APPOINTMENT_STATUSES = [
   "no_show",
 ] as const
 
-export const setStatusSchema = z.strictObject({ id: uuid, status: z.enum(APPOINTMENT_STATUSES) })
+/** Finishing goes through finishVisitSchema, which records what was done. */
+export const setStatusSchema = z.strictObject({
+  id: uuid,
+  status: z.enum(APPOINTMENT_STATUSES).exclude(["completed"]),
+})
+
+export const finishVisitSchema = z.strictObject({
+  id: uuid,
+  outcomes: z.array(z.strictObject({ itemId: uuid, outcome: z.enum(VISIT_OUTCOMES) })).max(64),
+  noTreatment: z.boolean(),
+})
+
+export const appointmentIdSchema = z.strictObject({ id: uuid })
+export const bookingItemsSchema = z.strictObject({ patientId: uuid })
 
 export const availabilitySchema = z.strictObject({
   date: isoDate,
   durationMinutes: duration,
   dentistId: optionalId,
   roomId: optionalId,
-})
-
-export const bookingPatientSearchSchema = z.strictObject({
-  q: z.string().max(100),
-  date: isoDate.optional(),
 })
 
 export const restDaySchema = z.strictObject({

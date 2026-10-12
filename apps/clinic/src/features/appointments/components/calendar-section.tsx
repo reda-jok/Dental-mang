@@ -211,7 +211,6 @@ export function CalendarSection({
       <DayViewDialog
         date={selected}
         onClose={() => setSelected(null)}
-        today={today}
         appointments={selected ? (byDay.get(selected) ?? []) : []}
         holiday={holidays.find((h) => h.date === selected) ?? null}
         weeklyOff={selected ? isRestDay(selected, new Set(), weeklyOffDays) : false}

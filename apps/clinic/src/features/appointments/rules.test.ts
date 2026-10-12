@@ -5,11 +5,13 @@ import { minutesInZone, zonedInstant } from "@/lib/dates"
 import {
   availabilityFor,
   canChangeStatus,
+  finishProblem,
   generateSlots,
   hhmmToMinutes,
   isRestDay,
   minutesToHhmm,
   monthGrid,
+  nextVisitItems,
   slotAvailability,
   weekOf,
 } from "./rules"
@@ -133,5 +135,47 @@ describe("availabilityFor", () => {
       "16:30",
       "17:30",
     ])
+  })
+})
+
+describe("the next visit's treatments", () => {
+  const item = (id: string, planId: string, phase: number, bookedAhead = false) => ({
+    id,
+    planId,
+    phase,
+    bookedAhead,
+  })
+
+  it("ticks the earliest unfinished phase of the first plan", () => {
+    const items = [item("a", "p1", 2), item("b", "p1", 2), item("c", "p1", 3), item("d", "p2", 1)]
+    expect(nextVisitItems(items)).toEqual(["a", "b"])
+    expect(nextVisitItems(items, "p2")).toEqual(["d"])
+  })
+
+  it("leaves out treatments already booked on a later visit", () => {
+    expect(nextVisitItems([item("a", "p1", 1, true), item("b", "p1", 2)])).toEqual(["b"])
+    expect(nextVisitItems([item("a", "p1", 1, true)])).toEqual([])
+    expect(nextVisitItems([])).toEqual([])
+  })
+})
+
+describe("finishing a visit", () => {
+  const base = { open: ["a", "b"], outcomes: {}, doneToday: 0, noTreatment: false }
+
+  it("needs an outcome for every open treatment booked for the visit", () => {
+    expect(finishProblem({ ...base, outcomes: { a: "done" } })).toBe("outcomeRequired")
+    expect(finishProblem({ ...base, outcomes: { a: "done", b: "not_done" } })).toBeNull()
+  })
+
+  it("refuses a visit where nothing was done, unless it was only a check-up", () => {
+    const nothing = { ...base, outcomes: { a: "not_done", b: "not_done" } } as const
+    expect(finishProblem(nothing)).toBe("nothingRecorded")
+    expect(finishProblem({ ...nothing, noTreatment: true })).toBeNull()
+    expect(finishProblem({ ...base, open: [] })).toBe("nothingRecorded")
+  })
+
+  it("counts work in progress and treatments already marked done today", () => {
+    expect(finishProblem({ ...base, outcomes: { a: "continued", b: "not_done" } })).toBeNull()
+    expect(finishProblem({ ...base, open: [], doneToday: 1 })).toBeNull()
   })
 })

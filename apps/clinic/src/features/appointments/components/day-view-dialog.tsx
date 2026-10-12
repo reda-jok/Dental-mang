@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarPlusIcon, CoffeeIcon, ExternalLinkIcon } from "lucide-react"
+import { CoffeeIcon, ExternalLinkIcon } from "lucide-react"
 import type { Route } from "next"
 import { useFormatter, useTranslations } from "next-intl"
 import Link from "next/link"
@@ -27,13 +27,11 @@ import { cn } from "@/lib/utils"
 
 import { setRestDayAction } from "../actions"
 import type { AppointmentView } from "../data"
-import { formatTime, STATUS_CHIP } from "../display"
-import { useBooking } from "./booking-provider"
+import { formatTime, STATUS_CHIP, visitPurpose } from "../display"
 
 type Props = {
   date: string | null
   onClose: () => void
-  today: string
   appointments: AppointmentView[]
   holiday: { date: string; reason: string | null } | null
   weeklyOff: boolean
@@ -44,7 +42,6 @@ type Props = {
 export function DayViewDialog({
   date,
   onClose,
-  today,
   appointments,
   holiday,
   weeklyOff,
@@ -54,7 +51,6 @@ export function DayViewDialog({
   const format = useFormatter()
   const router = useRouter()
   const handleError = useActionErrorHandler()
-  const { openBooking } = useBooking()
   const [pending, startTransition] = useTransition()
 
   const closed = !!holiday || weeklyOff
@@ -136,9 +132,9 @@ export function DayViewDialog({
                     </Badge>
                   </div>
                   <div className="truncate text-sm">{a.patient.fullName}</div>
-                  {a.procedure && (
-                    <div className="truncate text-sm opacity-80">{a.procedure.name}</div>
-                  )}
+                  <div className="truncate text-sm opacity-80">
+                    {visitPurpose(a, (r) => t(`reasons.${r}`))}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -152,17 +148,6 @@ export function DayViewDialog({
                 <ExternalLinkIcon />
                 {t("openDay")}
               </Link>
-            </Button>
-          )}
-          {openBooking && date && !closed && date >= today && (
-            <Button
-              onClick={() => {
-                onClose()
-                openBooking({ date })
-              }}
-            >
-              <CalendarPlusIcon />
-              {t("newAppointment")}
             </Button>
           )}
         </DialogFooter>
