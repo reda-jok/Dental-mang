@@ -1,9 +1,10 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
+import { XIcon } from "lucide-react"
 import { useFormatter, useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -18,15 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -39,20 +32,20 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { parseIsoDate, todayIso, zonedInstant } from "@/lib/dates"
 import { useActionErrorHandler, useInvalidHandler, useValidationMessage } from "@/lib/form"
-import { formatLocalPhone } from "@/lib/validation"
+import { cn } from "@/lib/utils"
 import { scheduledMessage } from "@/lib/whatsapp"
+
+import { formatLocalPhone } from "@/lib/validation"
+import { availabilityAction, bookAppointmentAction, searchBookingPatientsAction } from "../actions"
+import type { BookingOptions, ScheduleConfig } from "../data"
+import { formatTime } from "../display"
+import { DayBar } from "./day-bar"
+import { hhmmToMinutes } from "../rules"
+import { bookAppointmentSchema, type BookAppointmentInput } from "../schemas"
 import type { WhatsAppDraft } from "@/components/whatsapp-dialog"
 
-import { availabilityAction, bookAppointmentAction, bookingItemsAction } from "../actions"
-import type { BookingItem, BookingOptions, ScheduleConfig } from "../data"
-import { formatTime, itemLabel } from "../display"
-import { hhmmToMinutes, nextVisitItems } from "../rules"
-import { bookAppointmentSchema, VISIT_REASONS, type BookAppointmentInput } from "../schemas"
-import { DayBar } from "./day-bar"
-
 export type BookingPatient = { id: string; fullName: string; phone: string | null }
-/** Bookings start from a patient (their page or plan); `planId` ticks that plan's next phase. */
-export type BookingPrefill = { patient: BookingPatient; planId?: string }
+export type BookingPrefill = { date?: string; time?: string; patient?: BookingPatient }
 
 const NONE = "_none"
 
@@ -66,7 +59,7 @@ type Availability = {
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  prefill: BookingPrefill | null
+  prefill: BookingPrefill
   options: BookingOptions
   config: ScheduleConfig
   onBooked: (draft: WhatsAppDraft | null) => void
@@ -74,17 +67,27 @@ type Props = {
 
 export function BookingDialog({ open, onOpenChange, prefill, options, config, onBooked }: Props) {
   const t = useTranslations("appointments.form")
+  const format = useFormatter()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>
-            {prefill ? t("description", { name: prefill.patient.fullName }) : null}
+            {prefill.date
+              ? t("descriptionDate", {
+                  date: format.dateTime(parseIsoDate(prefill.date)!, {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    timeZone: "UTC",
+                  }),
+                })
+              : t("description")}
           </DialogDescription>
         </DialogHeader>
         {/* Remount per open so every booking starts fresh. */}
-        {open && prefill && (
+        {open && (
           <BookingForm prefill={prefill} options={options} config={config} onBooked={onBooked} />
         )}
       </DialogContent>
@@ -92,12 +95,7 @@ export function BookingDialog({ open, onOpenChange, prefill, options, config, on
   )
 }
 
-function BookingForm({
-  prefill,
-  options,
-  config,
-  onBooked,
-}: Omit<Props, "open" | "onOpenChange"> & { prefill: BookingPrefill }) {
+function BookingForm({ prefill, options, config, onBooked }: Omit<Props, "open" | "onOpenChange">) {
   const t = useTranslations("appointments")
   const tf = useTranslations("appointments.form")
   const tc = useTranslations("common")
@@ -107,8 +105,7 @@ function BookingForm({
   const onInvalid = useInvalidHandler()
   const [pending, startTransition] = useTransition()
 
-  const patient = prefill.patient
-  const [items, setItems] = useState<BookingItem[] | null>(null)
+  const [patient, setPatient] = useState<BookingPatient | null>(prefill.patient ?? null)
   const [sendWhatsApp, setSendWhatsApp] = useState(true)
   // The last availability answer and the request it answers. "Checking" is derived:
   // the current request differs from the one answered.
@@ -119,49 +116,22 @@ function BookingForm({
     resolver: zodResolver(bookAppointmentSchema as never) as never,
     mode: "onTouched",
     defaultValues: {
-      patientId: patient.id,
-      date: "",
-      time: "",
+      patientId: prefill.patient?.id ?? "",
+      date: prefill.date ?? "",
+      time: prefill.time ?? "",
       durationMinutes: config.slotMinutes,
       dentistId: options.dentists.length === 1 ? options.dentists[0]!.id : "",
       roomId: options.rooms.length === 1 ? options.rooms[0]!.id : "",
-      itemIds: [],
-      reason: "",
+      procedureId: "",
       priority: "normal",
       notes: "",
     },
   })
   const { errors } = form.formState
-  const [date, durationMinutes, dentistId, roomId, time, itemIds = []] = useWatch({
+  const [date, durationMinutes, dentistId, roomId, time] = useWatch({
     control: form.control,
-    name: ["date", "durationMinutes", "dentistId", "roomId", "time", "itemIds"],
+    name: ["date", "durationMinutes", "dentistId", "roomId", "time"],
   })
-
-  // Chair time for the ticked treatments, until the user sets the duration themselves.
-  const pickItems = (ids: string[], list = items ?? []) => {
-    form.setValue("itemIds", ids)
-    if (ids.length > 0) form.setValue("reason", "")
-    if (durationTouched) return
-    const minutes = list
-      .filter((i) => ids.includes(i.id))
-      .reduce((sum, i) => sum + (i.durationMinutes ?? 0), 0)
-    form.setValue("durationMinutes", Math.min(480, minutes || config.slotMinutes))
-  }
-
-  // The patient's unfinished plan treatments; the next phase comes ticked.
-  useEffect(() => {
-    let cancelled = false
-    void bookingItemsAction({ patientId: patient.id }).then((result) => {
-      if (cancelled || !result.ok) return
-      setItems(result.data)
-      pickItems(nextVisitItems(result.data, prefill.planId), result.data)
-    })
-    return () => {
-      cancelled = true
-    }
-    // Once per booking (the form remounts each time it opens).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Free/taken slots for the chosen day, dentist, room and duration.
   const validDate = !!date && parseIsoDate(String(date)) !== null
@@ -193,6 +163,11 @@ function BookingForm({
       form.setValue("time", "")
   }, [availability, form])
 
+  const selectPatient = (p: BookingPatient | null) => {
+    setPatient(p)
+    form.setValue("patientId", p?.id ?? "", { shouldValidate: !!p })
+  }
+
   const onSubmit = form.handleSubmit(
     () =>
       startTransition(async () => {
@@ -203,7 +178,7 @@ function BookingForm({
         router.refresh()
 
         let draft: WhatsAppDraft | null = null
-        if (sendWhatsApp && patient.phone) {
+        if (sendWhatsApp && patient?.phone) {
           const startsAt = zonedInstant(
             String(values.date),
             hhmmToMinutes(values.time)!,
@@ -218,11 +193,7 @@ function BookingForm({
               patientName: patient.fullName,
               startsAt,
               dentistName: options.dentists.find((d) => d.id === values.dentistId)?.name,
-              procedureName:
-                (items ?? [])
-                  .filter((i) => values.itemIds?.includes(i.id))
-                  .map(itemLabel)
-                  .join("، ") || (values.reason ? t(`reasons.${values.reason}`) : null),
+              procedureName: options.procedures.find((p) => p.id === values.procedureId)?.name,
               timeZone: config.timeZone,
             }),
           }
@@ -233,10 +204,10 @@ function BookingForm({
   )
 
   const select = (
-    name: "reason" | "dentistId" | "roomId" | "priority",
+    name: "procedureId" | "dentistId" | "roomId" | "priority",
     label: string,
     placeholder: string,
-    choices: { value: string; label: string }[],
+    items: { value: string; label: string }[],
     optional = true,
   ) => (
     <Controller
@@ -246,18 +217,23 @@ function BookingForm({
         <Field data-invalid={!!errors[name]}>
           <FieldLabel htmlFor={name}>{label}</FieldLabel>
           <Select
-            // A required choice starts empty ("" shows the placeholder).
-            value={field.value ? String(field.value) : optional ? NONE : ""}
-            onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
+            value={field.value ? String(field.value) : NONE}
+            onValueChange={(v) => {
+              field.onChange(v === NONE ? "" : v)
+              if (name === "procedureId" && !durationTouched) {
+                const minutes = options.procedures.find((p) => p.id === v)?.durationMinutes
+                if (minutes) form.setValue("durationMinutes", minutes)
+              }
+            }}
           >
             <SelectTrigger id={name} aria-invalid={!!errors[name]}>
               <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>
               {optional && <SelectItem value={NONE}>{placeholder}</SelectItem>}
-              {choices.map((choice) => (
-                <SelectItem key={choice.value} value={choice.value}>
-                  {choice.label}
+              {items.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -270,29 +246,10 @@ function BookingForm({
 
   const closed = availability?.restDay
   const freeSlots = availability?.slots.filter((s) => !s.taken) ?? []
-  const patientBooked = availability?.bookedPatientIds.includes(patient.id)
 
   return (
     <form onSubmit={onSubmit} noValidate>
       <FieldGroup className="gap-5">
-        <PlanItemsPicker
-          items={items}
-          selected={itemIds}
-          onChange={(ids) => pickItems(ids)}
-          error={vm(errors.itemIds?.message)}
-        />
-        {items !== null && itemIds.length === 0 && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {select(
-              "reason",
-              tf(items.length > 0 ? "reasonOutsidePlan" : "reason"),
-              tf("reasonPlaceholder"),
-              VISIT_REASONS.map((r) => ({ value: r, label: t(`reasons.${r}`) })),
-              false,
-            )}
-          </div>
-        )}
-
         <div className="grid gap-4 sm:grid-cols-2">
           <Field data-invalid={!!errors.date}>
             <FieldLabel htmlFor="date">{tf("date")}</FieldLabel>
@@ -305,9 +262,6 @@ function BookingForm({
             />
             {closed && (
               <FieldDescription className="text-red-600">{tf("closedDay")}</FieldDescription>
-            )}
-            {!closed && patientBooked && (
-              <FieldDescription className="text-red-600">{tf("patientBooked")}</FieldDescription>
             )}
             <FieldError>{vm(errors.date?.message)}</FieldError>
           </Field>
@@ -365,7 +319,21 @@ function BookingForm({
           />
         )}
 
+        <PatientPicker
+          date={date ? String(date) : ""}
+          patient={patient}
+          bookedIds={availability?.bookedPatientIds ?? []}
+          onSelect={selectPatient}
+          error={vm(errors.patientId?.message)}
+        />
+
         <div className="grid gap-4 sm:grid-cols-2">
+          {select(
+            "procedureId",
+            tf("procedure"),
+            tf("procedurePlaceholder"),
+            options.procedures.map((p) => ({ value: p.id, label: p.name })),
+          )}
           {select(
             "dentistId",
             tf("dentist"),
@@ -419,24 +387,20 @@ function BookingForm({
         <div className="flex items-center gap-2 rounded-lg bg-green-50 p-4">
           <Checkbox
             id="sendWhatsApp"
-            checked={sendWhatsApp && !!patient.phone}
-            disabled={!patient.phone}
+            checked={sendWhatsApp && !!patient?.phone}
+            disabled={!patient?.phone}
             onCheckedChange={(c) => setSendWhatsApp(c === true)}
           />
           <Label htmlFor="sendWhatsApp" className="text-sm font-medium">
             {tf("sendWhatsApp")}
           </Label>
-          {patient.phone ? (
-            <span className="text-xs text-slate-600" dir="ltr">
-              {formatLocalPhone(patient.phone)}
-            </span>
-          ) : (
-            <span className="text-xs text-slate-600">{tf("noPhone")}</span>
-          )}
+          <span className="text-xs text-slate-600" dir="ltr">
+            {patient?.phone ? formatLocalPhone(patient.phone) : patient ? tf("noPhone") : ""}
+          </span>
         </div>
 
         <DialogFooter>
-          <Button type="submit" disabled={pending || !!closed || items === null}>
+          <Button type="submit" disabled={pending || !!closed}>
             {pending ? tc("saving") : tf("submit")}
           </Button>
         </DialogFooter>
@@ -445,93 +409,117 @@ function BookingForm({
   )
 }
 
-/**
- * The plan treatments this visit is for, by plan and phase. Each shows which visit it would
- * be (from the catalog's visit range) and whether a later visit is already booked for it.
- */
-function PlanItemsPicker({
-  items,
-  selected,
-  onChange,
+/** Patient search; patients already booked on the chosen day are shown red and can't be picked. */
+function PatientPicker({
+  date,
+  patient,
+  bookedIds,
+  onSelect,
   error,
 }: {
-  items: BookingItem[] | null
-  selected: string[]
-  onChange: (ids: string[]) => void
+  date: string
+  patient: BookingPatient | null
+  bookedIds: string[]
+  onSelect: (p: BookingPatient | null) => void
   error?: string
 }) {
   const tf = useTranslations("appointments.form")
-  const format = useFormatter()
-  if (items === null) return <p className="text-muted-foreground text-sm">{tf("loadingItems")}</p>
-  if (items.length === 0) return null
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState<
+    (BookingPatient & { code: string; hasAppointment: boolean })[]
+  >([])
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const groups = [...new Set(items.map((i) => `${i.planId}|${i.phase}`))]
-  const toggle = (id: string, on: boolean) =>
-    onChange(on ? [...selected, id] : selected.filter((s) => s !== id))
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const search = (q: string) => {
+    setQuery(q)
+    clearTimeout(timer.current)
+    if (!q.trim()) return setResults([])
+    timer.current = setTimeout(async () => {
+      const result = await searchBookingPatientsAction({ q, date: date || undefined })
+      if (result.ok) setResults(result.data)
+    }, 250)
+  }
+
+  const booked = new Set(bookedIds)
+
   return (
-    <FieldSet data-testid="plan-items">
-      <FieldLegend variant="label">{tf("items")}</FieldLegend>
-      <FieldDescription>{tf("itemsHint")}</FieldDescription>
-      <div className="space-y-3">
-        {groups.map((key) => {
-          const list = items.filter((i) => `${i.planId}|${i.phase}` === key)
-          const first = list[0]!
-          return (
-            <div key={key} className="rounded-xl border">
-              <p className="text-muted-foreground border-b px-3 py-1.5 text-xs font-medium">
-                {tf("itemsGroup", { plan: first.planTitle, phase: String(first.phase) })}
-              </p>
-              <ul className="divide-y">
-                {list.map((item) => (
-                  <li key={item.id}>
-                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm">
-                      <Checkbox
-                        checked={selected.includes(item.id)}
-                        onCheckedChange={(c) => toggle(item.id, c === true)}
-                        aria-label={itemLabel(item)}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="font-medium">{item.name}</span>
-                        {item.tooth !== null && (
-                          <span className="ms-1">
-                            <bdi className="font-mono">
-                              {item.tooth}
-                              {item.surfaces.join("")}
-                            </bdi>
-                          </span>
+    <Field data-invalid={!!error} className="relative">
+      <FieldLabel htmlFor="patientSearch">{tf("patient")}</FieldLabel>
+      {patient ? (
+        <div className="flex items-center gap-2 rounded-lg border bg-white p-2">
+          <span className="flex-1 font-medium">{patient.fullName}</span>
+          {booked.has(patient.id) && (
+            <span className="text-xs text-red-600">{tf("patientBooked")}</span>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={tf("clearPatient")}
+            onClick={() => onSelect(null)}
+          >
+            <XIcon className="text-red-500" />
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Input
+            id="patientSearch"
+            autoComplete="off"
+            placeholder={date ? tf("patientSearch") : tf("patientDateFirst")}
+            value={query}
+            disabled={!date}
+            onChange={(e) => search(e.target.value)}
+          />
+          {query.trim() !== "" && (
+            <ul
+              role="listbox"
+              className="absolute inset-x-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border bg-white p-1 shadow-lg"
+            >
+              {results.length === 0 ? (
+                <li className="p-2 text-xs text-slate-500">{tf("noPatients")}</li>
+              ) : (
+                results.map((p) => {
+                  const taken = p.hasAppointment || booked.has(p.id)
+                  return (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={false}
+                        aria-disabled={taken}
+                        disabled={taken}
+                        onClick={() => {
+                          onSelect(p)
+                          setQuery("")
+                          setResults([])
+                        }}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2 rounded p-2 text-start text-sm",
+                          taken
+                            ? "cursor-not-allowed bg-red-100 text-red-800"
+                            : "hover:bg-slate-100",
                         )}
-                        {item.visitsMax > 1 && (
-                          <span className="text-muted-foreground block text-xs">
-                            {tf("visitNumber", {
-                              n: String(item.visitsSoFar + 1),
-                              range:
-                                item.visitsMin === item.visitsMax
-                                  ? String(item.visitsMax)
-                                  : `${item.visitsMin}–${item.visitsMax}`,
-                            })}
-                          </span>
-                        )}
-                      </span>
-                      {item.bookedOn && (
-                        <span className="shrink-0 text-xs text-amber-700">
-                          {tf("bookedOn", {
-                            date: format.dateTime(parseIsoDate(item.bookedOn)!, {
-                              day: "numeric",
-                              month: "short",
-                              timeZone: "UTC",
-                            }),
-                          })}
+                      >
+                        <span>
+                          {p.fullName}
+                          {taken && <span className="ms-2 text-xs">({tf("patientBooked")})</span>}
                         </span>
-                      )}
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )
-        })}
-      </div>
+                        <span className="text-xs text-slate-500" dir="ltr">
+                          {p.phone ? formatLocalPhone(p.phone) : p.code}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })
+              )}
+            </ul>
+          )}
+        </>
+      )}
       <FieldError>{error}</FieldError>
-    </FieldSet>
+    </Field>
   )
 }

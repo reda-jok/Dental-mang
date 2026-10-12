@@ -2,7 +2,7 @@ import "server-only"
 
 import { connection } from "next/server"
 
-import type { Prisma } from "@/generated/prisma/client"
+import { searchTokens } from "@/lib/arabic"
 import {
   addDays,
   isoDateInZone,
@@ -21,7 +21,6 @@ import {
   generateSlots,
   isRestDay,
   minutesToHhmm,
-  type AppointmentStatus,
 } from "./rules"
 
 const tz = () => env.CLINIC_TIMEZONE
@@ -61,71 +60,25 @@ const appointmentSelect = {
   dentist: { select: { id: true, name: true } },
   room: { select: { id: true, name: true } },
   procedure: { select: { id: true, name: true } },
-  reason: true,
-  items: {
-    orderBy: { planItem: { phase: "asc" } },
-    select: { planItem: { select: { tooth: true, procedure: { select: { name: true } } } } },
-  },
 } as const
 
-type AppointmentRow = Prisma.AppointmentGetPayload<{ select: typeof appointmentSelect }>
-
-const toView = ({ items, ...a }: AppointmentRow) => ({
-  ...a,
-  items: items.map((i) => ({ name: i.planItem.procedure.name, tooth: i.planItem.tooth })),
-  date: isoDateInZone(a.startsAt, tz()),
-  time: minutesToHhmm(minutesInZone(a.startsAt, tz())),
-  durationMinutes: Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000),
-})
-
-/** Statuses after which the card says whether the patient has another visit booked. */
-const OVER: AppointmentStatus[] = ["completed", "cancelled", "no_show"]
-
-/**
- * Appointments whose day (clinic time) is in [fromIso, toIso]. A visit that is over carries
- * the patient's next booked visit (or null), so the calendar shows who still needs one.
- */
+/** Appointments whose day (clinic time) is in [fromIso, toIso]. */
 export async function listAppointments(fromIso: string, toIso: string) {
   await authorize("appointment:read")
-  const rows = (
-    await db.appointment.findMany({
-      where: {
-        startsAt: {
-          gte: startOfDayUtc(fromIso, tz()),
-          lt: startOfDayUtc(addDays(toIso, 1), tz()),
-        },
-        patient: { deletedAt: null },
-      },
-      orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
-      select: appointmentSelect,
-    })
-  ).map(toView)
-
-  const over = rows.filter((a) => OVER.includes(a.status))
-  const upcoming = over.length
-    ? await db.appointment.findMany({
-        where: {
-          patientId: { in: [...new Set(over.map((a) => a.patient.id))] },
-          status: "pending",
-          startsAt: { gt: over[0]!.startsAt },
-        },
-        orderBy: { startsAt: "asc" },
-        select: { patientId: true, startsAt: true },
-      })
-    : []
-  return rows.map((a) => {
-    if (!OVER.includes(a.status)) return { ...a, next: undefined }
-    const next = upcoming.find((u) => u.patientId === a.patient.id && u.startsAt > a.startsAt)
-    return {
-      ...a,
-      next: next
-        ? {
-            date: isoDateInZone(next.startsAt, tz()),
-            time: minutesToHhmm(minutesInZone(next.startsAt, tz())),
-          }
-        : null,
-    }
+  const rows = await db.appointment.findMany({
+    where: {
+      startsAt: { gte: startOfDayUtc(fromIso, tz()), lt: startOfDayUtc(addDays(toIso, 1), tz()) },
+      patient: { deletedAt: null },
+    },
+    orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+    select: appointmentSelect,
   })
+  return rows.map((a) => ({
+    ...a,
+    date: isoDateInZone(a.startsAt, tz()),
+    time: minutesToHhmm(minutesInZone(a.startsAt, tz())),
+    durationMinutes: Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000),
+  }))
 }
 
 export type AppointmentView = Awaited<ReturnType<typeof listAppointments>>[number]
@@ -142,27 +95,12 @@ export async function listPatientAppointments(patientId: string) {
     select: appointmentSelect,
   })
   return rows.map((a) => ({
-    ...toView(a),
-    next: undefined,
+    ...a,
     upcoming: a.endsAt.getTime() >= now && (a.status === "pending" || a.status === "in_progress"),
+    date: isoDateInZone(a.startsAt, tz()),
+    time: minutesToHhmm(minutesInZone(a.startsAt, tz())),
+    durationMinutes: Math.round((a.endsAt.getTime() - a.startsAt.getTime()) / 60_000),
   }))
-}
-
-/** The patient's visit today that is waiting or under way, for Start / Finish on the patient page. */
-export async function getTodayVisit(patientId: string) {
-  await authorize("appointment:read")
-  await connection()
-  const today = isoDateInZone(new Date(), tz())
-  const row = await db.appointment.findFirst({
-    where: {
-      patientId,
-      status: { in: ["pending", "in_progress"] },
-      startsAt: { gte: startOfDayUtc(today, tz()), lt: startOfDayUtc(addDays(today, 1), tz()) },
-    },
-    orderBy: { startsAt: "asc" },
-    select: appointmentSelect,
-  })
-  return row ? { ...toView(row), next: undefined } : null
 }
 
 /** One-off rest days in [fromIso, toIso]. */
@@ -175,10 +113,10 @@ export async function listHolidays(fromIso: string, toIso: string) {
   return rows.map((h) => ({ date: toIsoDate(h.date), reason: h.reason }))
 }
 
-/** What the booking form offers: dentists and rooms. */
+/** What the booking form offers: dentists, rooms and the procedure catalog. */
 export async function getBookingOptions() {
   await authorize("appointment:write")
-  const [dentists, rooms] = await Promise.all([
+  const [dentists, rooms, procedures] = await Promise.all([
     db.user.findMany({
       where: { role: { in: ["dentist", "owner"] }, OR: [{ banned: false }, { banned: null }] },
       orderBy: { name: "asc" },
@@ -189,134 +127,14 @@ export async function getBookingOptions() {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true },
     }),
+    db.procedure.findMany({
+      where: { archivedAt: null },
+      orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
+      select: { id: true, name: true, durationMinutes: true },
+    }),
   ])
-  return { dentists, rooms }
+  return { dentists, rooms, procedures }
 }
-
-/** Visits a treatment has had: those where it was done or worked on. */
-const visitsSoFar = (visits: { outcome: string | null }[]) =>
-  visits.filter((v) => v.outcome === "done" || v.outcome === "continued").length
-
-/**
- * The patient's unfinished treatments in open plans (accepted plans first), for the booking
- * form: how many visits each has had, and the date of a later visit already booked for it.
- */
-export async function getBookingItems(patientId: string) {
-  await authorize("appointment:write")
-  await connection()
-  const today = startOfDayUtc(isoDateInZone(new Date(), tz()), tz())
-  const plans = await db.treatmentPlan.findMany({
-    where: { patientId, status: { in: ["accepted", "proposed"] }, patient: { deletedAt: null } },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      title: true,
-      status: true,
-      items: {
-        where: { status: { in: ["planned", "in_progress"] } },
-        orderBy: [{ phase: "asc" }, { tooth: "asc" }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          phase: true,
-          tooth: true,
-          surfaces: true,
-          status: true,
-          procedure: {
-            select: { name: true, durationMinutes: true, visitsMin: true, visitsMax: true },
-          },
-          visits: {
-            select: { outcome: true, appointment: { select: { status: true, startsAt: true } } },
-          },
-        },
-      },
-    },
-  })
-  return plans
-    .sort((a, b) => Number(b.status === "accepted") - Number(a.status === "accepted"))
-    .flatMap((plan) =>
-      plan.items.map(({ procedure, visits, ...item }) => {
-        const ahead = visits
-          .filter((v) => v.appointment.status === "pending" && v.appointment.startsAt >= today)
-          .map((v) => v.appointment.startsAt)
-          .sort((a, b) => a.getTime() - b.getTime())[0]
-        return {
-          ...item,
-          planId: plan.id,
-          planTitle: plan.title,
-          name: procedure.name,
-          durationMinutes: procedure.durationMinutes,
-          visitsMin: procedure.visitsMin,
-          visitsMax: procedure.visitsMax,
-          visitsSoFar: visitsSoFar(visits),
-          bookedOn: ahead ? isoDateInZone(ahead, tz()) : null,
-          bookedAhead: !!ahead,
-        }
-      }),
-    )
-}
-
-export type BookingItem = Awaited<ReturnType<typeof getBookingItems>>[number]
-
-/**
- * Treatments that can be recorded when a visit is finished: the ones booked for it, the
- * patient's other open treatments, and any already marked done on the visit's day.
- */
-export function finishCandidates(
-  patientId: string,
-  booked: string[],
-  since: Date,
-): Prisma.TreatmentPlanItemWhereInput {
-  return {
-    OR: [
-      { id: { in: booked } },
-      {
-        status: { in: ["planned", "in_progress"] },
-        plan: { patientId, status: { in: ["proposed", "accepted"] } },
-      },
-      { status: "done", completedAt: { gte: since }, plan: { patientId } },
-    ],
-  }
-}
-
-/** What the finish dialog lists for a visit (see finishCandidates). */
-export async function getFinishOptions(appointmentId: string) {
-  await authorize("clinical:write")
-  const visit = await db.appointment.findUnique({
-    where: { id: appointmentId },
-    select: { patientId: true, startsAt: true, items: { select: { planItemId: true } } },
-  })
-  if (!visit) return null
-  const booked = visit.items.map((i) => i.planItemId)
-  const since = startOfDayUtc(isoDateInZone(visit.startsAt, tz()), tz())
-  const items = await db.treatmentPlanItem.findMany({
-    where: finishCandidates(visit.patientId, booked, since),
-    orderBy: [{ phase: "asc" }, { tooth: "asc" }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      tooth: true,
-      surfaces: true,
-      status: true,
-      completedAt: true,
-      plan: { select: { status: true } },
-      procedure: { select: { name: true, visitsMin: true, visitsMax: true } },
-      visits: { select: { outcome: true } },
-    },
-  })
-  return items.map(({ procedure, visits, plan, completedAt, ...item }) => ({
-    ...item,
-    name: procedure.name,
-    visitsMin: procedure.visitsMin,
-    visitsMax: procedure.visitsMax,
-    visitsSoFar: visitsSoFar(visits),
-    booked: booked.includes(item.id),
-    doneToday: item.status === "done" && !!completedAt && completedAt >= since,
-    open:
-      (item.status === "planned" || item.status === "in_progress") &&
-      (plan.status === "proposed" || plan.status === "accepted"),
-  }))
-}
-
-export type FinishOption = NonNullable<Awaited<ReturnType<typeof getFinishOptions>>>[number]
 
 export type BookingOptions = Awaited<ReturnType<typeof getBookingOptions>>
 
@@ -373,4 +191,27 @@ export async function getAvailability(input: {
     bookedCount: sameDay.length,
     bookedPatientIds: [...new Set(sameDay.map((a) => a.patientId))],
   }
+}
+
+export async function searchPatientsForBooking(q: string, date: string | undefined) {
+  await authorize("patient:read")
+  const tokens = searchTokens(q)
+  if (tokens.length === 0) return []
+  const patients = await db.patient.findMany({
+    where: { deletedAt: null, AND: tokens.map((t) => ({ searchText: { contains: t } })) },
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+    select: { id: true, fullName: true, code: true, phone: true },
+  })
+  if (!date) return patients.map((p) => ({ ...p, hasAppointment: false }))
+  const booked = await db.appointment.findMany({
+    where: {
+      patientId: { in: patients.map((p) => p.id) },
+      status: { in: BLOCKING_STATUSES },
+      startsAt: { gte: startOfDayUtc(date, tz()), lt: startOfDayUtc(addDays(date, 1), tz()) },
+    },
+    select: { patientId: true },
+  })
+  const bookedIds = new Set(booked.map((b) => b.patientId))
+  return patients.map((p) => ({ ...p, hasAppointment: bookedIds.has(p.id) }))
 }

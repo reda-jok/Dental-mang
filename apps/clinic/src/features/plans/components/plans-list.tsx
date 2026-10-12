@@ -3,7 +3,6 @@
 import {
   BanIcon,
   CalendarClockIcon,
-  CalendarPlusIcon,
   CheckCircle2Icon,
   CheckIcon,
   EllipsisVerticalIcon,
@@ -33,7 +32,7 @@ import { useActionErrorHandler } from "@/lib/form"
 import { formatMoney, fromMinor, subtractAmounts, toMinor } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
-import { useBooking } from "../../appointments/components/booking-provider"
+import { BookPatientButton } from "../../patients/components/book-patient-button"
 import { formatTime } from "../../appointments/display"
 import { PrintLink } from "../../printing/components/print-link"
 import { chartDentition } from "../../printing/quote"
@@ -99,7 +98,6 @@ export function PlansList({
 function NextVisitBar({ patient, visit }: { patient: Patient; visit: NextVisit | null }) {
   const t = useTranslations("plans")
   const format = useFormatter()
-  const { openBooking } = useBooking()
   return (
     <div
       className="bg-accent flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm"
@@ -123,19 +121,7 @@ function NextVisitBar({ patient, visit }: { patient: Patient; visit: NextVisit |
           <span className="text-muted-foreground">{t("noNextVisit")}</span>
         )}
       </span>
-      {!visit && openBooking && (
-        // The booking form ticks the plan's next unfinished phase.
-        <Button
-          onClick={() =>
-            openBooking({
-              patient: { id: patient.id, fullName: patient.fullName, phone: patient.phone },
-            })
-          }
-        >
-          <CalendarPlusIcon />
-          {t("bookNextVisit")}
-        </Button>
-      )}
+      {!visit && <BookPatientButton patient={patient} />}
     </div>
   )
 }
@@ -248,17 +234,6 @@ function PlanCard({
           >
             <div className="bg-primary h-full rounded-full" style={{ width: `${percent}%` }} />
           </div>
-          {open && plan.visitsLeft[1] > 0 && (
-            <p className="text-muted-foreground text-xs" data-testid="visits-left">
-              {t("visitsLeft", {
-                range:
-                  plan.visitsLeft[0] === plan.visitsLeft[1]
-                    ? String(plan.visitsLeft[1])
-                    : `${plan.visitsLeft[0]}–${plan.visitsLeft[1]}`,
-              })}{" "}
-              <InfoHint>{t("visitsLeftHint")}</InfoHint>
-            </p>
-          )}
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">

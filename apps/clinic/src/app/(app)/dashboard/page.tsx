@@ -22,7 +22,7 @@ import { Panel } from "@/components/panel"
 import { Badge } from "@/components/ui/badge"
 import { CalendarSection } from "@/features/appointments/components/calendar-section"
 import { getScheduleConfig, listAppointments, listHolidays } from "@/features/appointments/data"
-import { formatTime, STATUS_BADGE, visitPurpose } from "@/features/appointments/display"
+import { formatTime, STATUS_BADGE } from "@/features/appointments/display"
 import { calendarParams } from "@/features/appointments/params"
 import { monthGrid, weekOf } from "@/features/appointments/rules"
 import { CustomizeDashboard } from "@/features/dashboard/components/customize-dashboard"
@@ -301,7 +301,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{a.patient.fullName}</p>
                     <p className="text-xs text-slate-500">
-                      {visitPurpose(a, (r) => ta(`reasons.${r}`)) ?? "—"} · {formatTime(a.time)}
+                      {a.procedure?.name ?? "—"} · {formatTime(a.time)}
                     </p>
                   </div>
                   <Badge className={cn("shrink-0", STATUS_BADGE[a.status])}>

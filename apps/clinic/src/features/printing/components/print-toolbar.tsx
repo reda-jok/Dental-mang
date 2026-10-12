@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 
 /**
  * Print / close buttons above a printable page (not printed themselves). With
- * `autoPrint`, the print dialog opens as soon as the fonts have loaded.
+ * `autoPrint`, the print dialog opens as soon as the fonts and images have loaded.
  */
 export function PrintToolbar({ autoPrint, hint }: { autoPrint: boolean; hint: string }) {
   const t = useTranslations("print")
@@ -16,7 +16,16 @@ export function PrintToolbar({ autoPrint, hint }: { autoPrint: boolean; hint: st
   useEffect(() => {
     if (!autoPrint) return
     let cancelled = false
-    void document.fonts.ready.then(() => {
+    // The logo too: a printout without it would look like another clinic's.
+    const images = [...document.images].map((img) =>
+      img.complete
+        ? null
+        : new Promise((done) => {
+            img.addEventListener("load", done, { once: true })
+            img.addEventListener("error", done, { once: true })
+          }),
+    )
+    void Promise.all([document.fonts.ready, ...images]).then(() => {
       if (!cancelled) window.print()
     })
     return () => {

@@ -2,11 +2,9 @@
 
 import {
   BanIcon,
-  CalendarClockIcon,
   CalendarPlusIcon,
   CheckCircle2Icon,
   ClockIcon,
-  FolderOpenIcon,
   MapPinIcon,
   MessageCircleIcon,
   PlayIcon,
@@ -15,7 +13,7 @@ import {
   UserXIcon,
 } from "lucide-react"
 import type { Route } from "next"
-import { useFormatter, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import Link from "next/link"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -34,54 +32,56 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { parseIsoDate, zonedInstant } from "@/lib/dates"
+import { zonedInstant } from "@/lib/dates"
 import { useActionErrorHandler } from "@/lib/form"
 import { cn } from "@/lib/utils"
-import { reminderMessage } from "@/lib/whatsapp"
+import { completedMessage, reminderMessage } from "@/lib/whatsapp"
 
 import { useLogReminder } from "../../reminders/components/use-log-reminder"
 import { setAppointmentStatusAction } from "../actions"
 import type { AppointmentView } from "../data"
-import { formatTime, STATUS_BADGE, visitPurpose } from "../display"
-import { hhmmToMinutes } from "../rules"
+import { formatTime, STATUS_BADGE } from "../display"
+import { hhmmToMinutes, type AppointmentStatus } from "../rules"
 import { useBooking } from "./booking-provider"
-import { FinishVisitDialog } from "./finish-visit-dialog"
 
-/**
- * One appointment with its next actions. On the calendar reception reminds, marks a no-show
- * or cancels; starting and finishing the visit happen on the patient page (`where="patient"`),
- * where the dentist records the work.
- */
+/** One appointment, in the clinic's original scheduler card style, with its next actions. */
 export function AppointmentCard({
   appointment: a,
   canWrite,
-  canFinish = false,
-  where = "calendar",
 }: {
   appointment: AppointmentView
   canWrite: boolean
-  /** May record the work (clinical:write). */
-  canFinish?: boolean
-  where?: "calendar" | "patient"
 }) {
   const t = useTranslations("appointments")
   const tc = useTranslations("common")
-  const format = useFormatter()
   const handleError = useActionErrorHandler()
   const { openBooking, openWhatsApp, config } = useBooking()
   const { log: logReminder } = useLogReminder()
   const [pending, startTransition] = useTransition()
   const [confirmCancel, setConfirmCancel] = useState(false)
-  const [finishing, setFinishing] = useState(false)
-  const onPatientPage = where === "patient"
-  const purpose = visitPurpose(a, (r) => t(`reasons.${r}`))
 
-  const setStatus = (status: "in_progress" | "cancelled" | "no_show") =>
+  const setStatus = (status: AppointmentStatus) =>
     startTransition(async () => {
       const result = await setAppointmentStatusAction({ id: a.id, status })
       if (!result.ok) return handleError(result)
       toast.success(t("statusChanged"))
       setConfirmCancel(false)
+      if (status === "completed" && a.patient.phone) {
+        // Offer the "treatment completed" message right away.
+        openWhatsApp({
+          kind: "completed",
+          phone: a.patient.phone,
+          patientName: a.patient.fullName,
+          message: completedMessage({
+            clinicName: config.clinicName,
+            patientName: a.patient.fullName,
+            startsAt: a.startsAt,
+            dentistName: a.dentist?.name,
+            procedureName: a.procedure?.name,
+            timeZone: config.timeZone,
+          }),
+        })
+      }
     })
 
   const remind = () =>
@@ -95,7 +95,7 @@ export function AppointmentCard({
         patientName: a.patient.fullName,
         startsAt: zonedInstant(a.date, hhmmToMinutes(a.time)!, config.timeZone),
         dentistName: a.dentist?.name,
-        procedureName: purpose,
+        procedureName: a.procedure?.name,
         timeZone: config.timeZone,
       }),
       // Logged so the daily reminder list shows the patient as reminded.
@@ -134,16 +134,13 @@ export function AppointmentCard({
   return (
     <article
       data-appointment={a.id}
-      data-status={a.status}
       className={cn(
         "rounded-lg border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md",
-        a.status === "completed" && "border-emerald-300 bg-emerald-50",
         (a.status === "cancelled" || a.status === "no_show") && "opacity-70",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        {/* At least 16rem wide: on a phone the buttons wrap below instead of squeezing it. */}
-        <div className="min-w-0 flex-1 basis-64 space-y-2">
+        <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-2">
               <ClockIcon className="size-4 text-slate-400" aria-hidden />
@@ -168,7 +165,7 @@ export function AppointmentCard({
                   {a.patient.fullName}
                 </Link>
               </div>
-              <p className="ms-6 text-sm text-slate-500">{purpose ?? "—"}</p>
+              <p className="ms-6 text-sm text-slate-500">{a.procedure?.name ?? "—"}</p>
             </div>
             <div>
               <div className="mb-1 flex items-center gap-2 text-sm">
@@ -178,63 +175,24 @@ export function AppointmentCard({
               {a.notes && <p className="ms-6 text-sm text-slate-500">{a.notes}</p>}
             </div>
           </div>
-          {/* After the visit: is the next one booked? */}
-          {a.next !== undefined && (
-            <p
-              className={cn(
-                "flex items-center gap-2 text-sm",
-                a.next ? "text-slate-600" : "text-amber-700",
-              )}
-              data-testid="next-appointment"
-            >
-              <CalendarClockIcon className="size-4" aria-hidden />
-              {a.next
-                ? t("nextOn", {
-                    date: format.dateTime(parseIsoDate(a.next.date)!, {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                      timeZone: "UTC",
-                    }),
-                    time: formatTime(a.next.time),
-                  })
-                : t("noNext")}
-            </p>
-          )}
         </div>
 
         {canWrite && (
           <div className="flex flex-wrap items-center gap-2">
-            {onPatientPage &&
-              a.status === "pending" &&
+            {a.status === "pending" &&
               textButton(t("start"), t("startTip"), <PlayIcon />, () => setStatus("in_progress"))}
-            {onPatientPage && a.status === "in_progress" && (
-              <IconButton
-                label={t("completeTip")}
-                disabledReason={canFinish ? null : t("finishNoPermission")}
-                variant="outline"
-                size="sm"
-                onClick={() => setFinishing(true)}
-                className="border-green-500 text-green-700 hover:bg-green-50"
-              >
-                <CheckCircle2Icon />
-                {t("complete")}
-              </IconButton>
-            )}
-            {!onPatientPage && (a.status === "pending" || a.status === "in_progress") && (
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/patients/${a.patient.id}/appointments` as Route}>
-                  <FolderOpenIcon />
-                  {t("openPatient")}
-                </Link>
-              </Button>
-            )}
-            {onPatientPage &&
-              a.status === "completed" &&
+            {a.status === "in_progress" &&
+              textButton(
+                t("complete"),
+                t("completeTip"),
+                <CheckCircle2Icon />,
+                () => setStatus("completed"),
+                "border-green-500 text-green-700 hover:bg-green-50",
+              )}
+            {a.status === "completed" &&
               openBooking &&
               textButton(t("bookNext"), t("bookNextTip"), <CalendarPlusIcon />, bookAgain)}
-            {onPatientPage &&
-              (a.status === "no_show" || a.status === "cancelled") &&
+            {(a.status === "no_show" || a.status === "cancelled") &&
               openBooking &&
               textButton(t("reschedule"), t("rescheduleTip"), <RotateCcwIcon />, bookAgain)}
             {(a.status === "pending" || a.status === "in_progress") && a.patient.phone && (
@@ -293,7 +251,6 @@ export function AppointmentCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {canFinish && <FinishVisitDialog visit={a} open={finishing} onOpenChange={setFinishing} />}
     </article>
   )
 }

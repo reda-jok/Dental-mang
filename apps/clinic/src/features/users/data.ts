@@ -13,6 +13,10 @@ export type StaffRow = {
   canSignIn: boolean
   active: boolean
   lastLoginAt: Date | null
+  /** Printed on prescriptions. */
+  nameEn: string | null
+  speciality: string | null
+  specialityEn: string | null
 }
 
 export async function listStaff(): Promise<StaffRow[]> {
@@ -26,6 +30,9 @@ export async function listStaff(): Promise<StaffRow[]> {
       username: true,
       role: true,
       banned: true,
+      nameEn: true,
+      speciality: true,
+      specialityEn: true,
       sessions: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
       accounts: { where: { providerId: "credential" }, take: 1, select: { id: true } },
     },
@@ -39,5 +46,8 @@ export async function listStaff(): Promise<StaffRow[]> {
     canSignIn: u.accounts.length > 0,
     active: !u.banned,
     lastLoginAt: u.sessions[0]?.createdAt ?? null,
+    nameEn: u.nameEn,
+    speciality: u.speciality,
+    specialityEn: u.specialityEn,
   }))
 }

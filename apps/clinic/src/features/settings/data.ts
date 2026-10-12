@@ -30,8 +30,15 @@ export async function getClinicSettingsForEdit() {
       receiptFooter: true,
       invoiceDueDays: true,
       printPaper: true,
+      receiptPaper: true,
+      logoFile: true,
     },
   })
+}
+
+/** The logo's address; the file name in it makes a new logo bypass the browser cache. */
+export function logoUrl(logoFile: string | null) {
+  return logoFile ? `/api/clinic-logo?v=${logoFile.slice(0, 8)}` : null
 }
 
 /** The clinic's details printed on receipts and quotes. */
@@ -46,6 +53,8 @@ export const getLetterhead = cache(async () => {
       receiptFooter: true,
       timezone: true,
       printPaper: true,
+      receiptPaper: true,
+      logoFile: true,
     },
   })
   return {
@@ -55,6 +64,8 @@ export const getLetterhead = cache(async () => {
     footer: settings?.receiptFooter ?? null,
     timezone: settings?.timezone ?? "Asia/Baghdad",
     paper: settings?.printPaper ?? "A5",
+    receiptPaper: settings?.receiptPaper ?? "A5",
+    logoUrl: logoUrl(settings?.logoFile ?? null),
   }
 })
 

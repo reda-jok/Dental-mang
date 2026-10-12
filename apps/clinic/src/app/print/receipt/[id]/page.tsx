@@ -30,7 +30,10 @@ export default async function ReceiptPrintPage({
   if (!receipt) notFound()
   return (
     <>
-      <PrintToolbar autoPrint={print === "1"} hint={t("thermalHint")} />
+      <PrintToolbar
+        autoPrint={print === "1"}
+        hint={t(letterhead.receiptPaper === "thermal80" ? "thermalHint" : "a5ReceiptHint")}
+      />
       <Receipt receipt={receipt} letterhead={letterhead} />
     </>
   )

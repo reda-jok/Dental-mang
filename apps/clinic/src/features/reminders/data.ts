@@ -54,11 +54,6 @@ export async function getReminderDay(date: string) {
       patient: { select: { id: true, fullName: true, code: true, phone: true } },
       dentist: { select: { name: true } },
       procedure: { select: { name: true } },
-      reason: true,
-      items: {
-        orderBy: { planItem: { phase: "asc" } },
-        select: { planItem: { select: { tooth: true, procedure: { select: { name: true } } } } },
-      },
       reminders: {
         orderBy: { sentAt: "desc" },
         select: { sentAt: true, sentBy: { select: { name: true } } },
@@ -71,9 +66,7 @@ export async function getReminderDay(date: string) {
     time: minutesToHhmm(minutesInZone(a.startsAt, tz())),
     patient: a.patient,
     dentistName: a.dentist?.name ?? null,
-    procedure: a.procedure,
-    reason: a.reason,
-    items: a.items.map((i) => ({ name: i.planItem.procedure.name, tooth: i.planItem.tooth })),
+    procedureName: a.procedure?.name ?? null,
     sentCount: a.reminders.length,
     lastSentAt: a.reminders[0]?.sentAt ?? null,
     lastSentBy: a.reminders[0]?.sentBy?.name ?? null,

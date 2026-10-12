@@ -3,7 +3,7 @@ import "server-only"
 import type { z } from "zod"
 
 import { recordAudit } from "@/server/audit"
-import { db, type Db } from "@/server/db"
+import { db } from "@/server/db"
 import { AppError } from "@/server/errors"
 import type { CurrentUser } from "@/server/session"
 
@@ -97,68 +97,57 @@ export async function setItemStatus(
   actor: CurrentUser,
   input: z.output<typeof setItemStatusSchema>,
 ) {
-  return db.$transaction((tx) => changeItemStatus(tx, actor, input))
-}
+  return db.$transaction(async (tx) => {
+    const item = await tx.treatmentPlanItem.findUnique({
+      where: { id: input.itemId },
+      select: {
+        status: true,
+        planId: true,
+        invoiceId: true,
+        plan: { select: { status: true, patientId: true } },
+      },
+    })
+    if (!item) throw new AppError("not_found")
+    if (!isPlanOpen(item.plan.status)) throw new AppError("conflict", "planClosed")
+    if (!canChangeItemStatus(item.status, input.status))
+      throw new AppError("conflict", "statusChangeNotAllowed")
+    // A billed treatment stays on its invoice; void the invoice first to cancel it.
+    if (input.status === "cancelled" && item.invoiceId) throw new AppError("conflict", "itemBilled")
 
-/**
- * Moves a treatment to a new status (done: the chart shows the result, and the plan
- * completes itself when nothing is left). Runs inside the caller's transaction, so
- * finishing a visit marks its treatments done in the same transaction.
- */
-export async function changeItemStatus(
-  tx: Db,
-  actor: CurrentUser,
-  input: z.output<typeof setItemStatusSchema>,
-) {
-  const item = await tx.treatmentPlanItem.findUnique({
-    where: { id: input.itemId },
-    select: {
-      status: true,
-      planId: true,
-      invoiceId: true,
-      plan: { select: { status: true, patientId: true } },
-    },
-  })
-  if (!item) throw new AppError("not_found")
-  if (!isPlanOpen(item.plan.status)) throw new AppError("conflict", "planClosed")
-  if (!canChangeItemStatus(item.status, input.status))
-    throw new AppError("conflict", "statusChangeNotAllowed")
-  // A billed treatment stays on its invoice; void the invoice first to cancel it.
-  if (input.status === "cancelled" && item.invoiceId) throw new AppError("conflict", "itemBilled")
-
-  await tx.treatmentPlanItem.update({
-    where: { id: input.itemId },
-    data: {
-      status: input.status,
-      completedAt: input.status === "done" ? new Date() : null,
-      // Whoever marks the work done is recorded as the treating dentist (if a dentist).
-      ...(input.status === "done" && actor.role === "dentist" && { dentistId: actor.id }),
-    },
-  })
-  await recordAudit(tx, {
-    userId: actor.id,
-    action: "update",
-    entity: "treatment_plan_item",
-    entityId: input.itemId,
-    before: { status: item.status },
-    after: { status: input.status },
-  })
-
-  const siblings = await tx.treatmentPlanItem.findMany({
-    where: { planId: item.planId },
-    select: { status: true },
-  })
-  if (shouldCompletePlan(siblings)) {
-    await tx.treatmentPlan.update({ where: { id: item.planId }, data: { status: "completed" } })
+    await tx.treatmentPlanItem.update({
+      where: { id: input.itemId },
+      data: {
+        status: input.status,
+        completedAt: input.status === "done" ? new Date() : null,
+        // Whoever marks the work done is recorded as the treating dentist (if a dentist).
+        ...(input.status === "done" && actor.role === "dentist" && { dentistId: actor.id }),
+      },
+    })
     await recordAudit(tx, {
       userId: actor.id,
       action: "update",
-      entity: "treatment_plan",
-      entityId: item.planId,
-      after: { status: "completed", automatic: true },
+      entity: "treatment_plan_item",
+      entityId: input.itemId,
+      before: { status: item.status },
+      after: { status: input.status },
     })
-  }
-  return { patientId: item.plan.patientId }
+
+    const siblings = await tx.treatmentPlanItem.findMany({
+      where: { planId: item.planId },
+      select: { status: true },
+    })
+    if (shouldCompletePlan(siblings)) {
+      await tx.treatmentPlan.update({ where: { id: item.planId }, data: { status: "completed" } })
+      await recordAudit(tx, {
+        userId: actor.id,
+        action: "update",
+        entity: "treatment_plan",
+        entityId: item.planId,
+        after: { status: "completed", automatic: true },
+      })
+    }
+    return { patientId: item.plan.patientId }
+  })
 }
 
 export async function setPlanStatus(

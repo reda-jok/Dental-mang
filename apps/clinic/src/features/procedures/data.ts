@@ -13,8 +13,6 @@ const procedureSelect = {
   toothScope: true,
   chartResult: true,
   durationMinutes: true,
-  visitsMin: true,
-  visitsMax: true,
   requiresLab: true,
   patientNote: true,
 } as const

@@ -132,3 +132,21 @@ export function referralPdf(title: string) {
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
   return Buffer.from(body, "latin1")
 }
+
+/** The demo clinic's logo: a white tooth on a blue rounded square, on white. */
+export function clinicLogo() {
+  const size = 240
+  return png(size, size, 3, (px, py) => {
+    // -1…1 across the image.
+    const x = (px / size) * 2 - 1
+    const y = (py / size) * 2 - 1
+    const corner = Math.max(Math.abs(x) - 0.62, 0) ** 2 + Math.max(Math.abs(y) - 0.62, 0) ** 2
+    const inSquare = Math.abs(x) <= 0.9 && Math.abs(y) <= 0.9 && corner <= 0.28 ** 2
+    if (!inSquare) return [255, 255, 255]
+    // Crown: a wide oval; roots: two tapering legs below it.
+    const crown = (x / 0.5) ** 2 + ((y + 0.18) / 0.36) ** 2 <= 1 && y < 0.12
+    const leg = (cx: number) => y >= 0 && y <= 0.62 && Math.abs(x - cx) <= 0.13 * (1 - y / 0.8)
+    const tooth = crown || leg(-0.26) || leg(0.26)
+    return tooth ? [255, 255, 255] : [0, 119, 192]
+  })
+}

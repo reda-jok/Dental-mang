@@ -5,8 +5,6 @@ import { sumByCurrency, subtractAmounts, type Currency } from "@/lib/money"
 import { db } from "@/server/db"
 import { authorize } from "@/server/session"
 
-import { visitsLeft } from "./rules"
-
 export async function getPlans(patientId: string) {
   await authorize("clinical:read")
   const plans = await db.treatmentPlan.findMany({
@@ -33,23 +31,19 @@ export async function getPlans(patientId: string) {
           status: true,
           notes: true,
           completedAt: true,
-          procedure: { select: { name: true, visitsMin: true, visitsMax: true } },
+          procedure: { select: { name: true } },
           dentist: { select: { name: true } },
-          visits: { where: { outcome: { in: ["done", "continued"] } }, select: { outcome: true } },
         },
       },
     },
   })
 
   return plans.map(({ createdBy, items, ...plan }) => {
-    const rows = items.map(({ procedure, dentist, price, discount, visits, ...item }) => {
+    const rows = items.map(({ procedure, dentist, price, discount, ...item }) => {
       const net = subtractAmounts(price.toString(), discount.toString())
       return {
         ...item,
         procedureName: procedure.name,
-        visitsMin: procedure.visitsMin,
-        visitsMax: procedure.visitsMax,
-        visitsSoFar: visits.length,
         dentistName: dentist?.name ?? null,
         price: price.toString(),
         discount: discount.toString(),
@@ -58,13 +52,10 @@ export async function getPlans(patientId: string) {
       }
     })
     const active = rows.filter((r) => r.status !== "cancelled")
-    // A plain sum over treatments: several can share one visit, so it's an upper guess.
-    const left = rows.map(visitsLeft)
     return {
       ...plan,
       createdByName: createdBy?.name ?? null,
       items: rows,
-      visitsLeft: [left.reduce((n, l) => n + l[0], 0), left.reduce((n, l) => n + l[1], 0)],
       total: sumByCurrency(active.map((r) => ({ amount: r.net, currency: r.currency }))),
       done: sumByCurrency(
         active

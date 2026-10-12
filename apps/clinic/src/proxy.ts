@@ -63,7 +63,7 @@ export const config = {
       // Everything except static files and the upload endpoint (it does its own auth and
       // must not have its body buffered here). Link prefetches don't need a CSP.
       source:
-        "/((?!api/uploads|_next/static|_next/image|favicon.ico|.*\\.(?:png|svg|jpg|jpeg|ico|webp)$).*)",
+        "/((?!api/uploads|api/clinic-logo|_next/static|_next/image|favicon.ico|.*\\.(?:png|svg|jpg|jpeg|ico|webp)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

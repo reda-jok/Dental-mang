@@ -11,6 +11,7 @@ import {
   type UseFormRegisterReturn,
 } from "react-hook-form"
 import { toast } from "sonner"
+import type { z } from "zod"
 
 import { TextField } from "@/components/form-field"
 import { InfoHint } from "@/components/info-hint"
@@ -44,7 +45,15 @@ import {
   type UpdateUserInput,
 } from "../schemas"
 
-type EditTarget = { id: string; name: string; username: string; role: RoleName }
+type EditTarget = {
+  id: string
+  name: string
+  username: string
+  role: RoleName
+  nameEn: string | null
+  speciality: string | null
+  specialityEn: string | null
+}
 
 type Props = {
   open: boolean
@@ -120,7 +129,7 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
   const handleError = useActionErrorHandler()
   const [pending, startTransition] = useTransition()
 
-  const form = useForm<CreateUserInput>({
+  const form = useForm<CreateUserInput, unknown, z.output<typeof createUserSchema>>({
     resolver: zodResolver(createUserSchema),
     mode: "onTouched",
     // Hidden sign-in fields drop out, so an employee who doesn't sign in sends none.
@@ -128,6 +137,9 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
     defaultValues: {
       canSignIn: true,
       name: "",
+      nameEn: "",
+      speciality: "",
+      specialityEn: "",
       username: "",
       role: "reception",
       password: "",
@@ -138,10 +150,11 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
   const canSignIn = useWatch({ control: form.control, name: "canSignIn" })
 
   const onInvalid = useInvalidHandler()
+  // The server validates again, so send the raw form values (hidden ones are dropped).
   const onSubmit = form.handleSubmit(
-    (values) =>
+    () =>
       startTransition(async () => {
-        const result = await createUserAction(values)
+        const result = await createUserAction(form.getValues())
         if (!result.ok) return handleError(result, form.setError)
         toast.success(t("created"))
         onDone()
@@ -169,6 +182,14 @@ function CreateForm({ roles, onDone }: { roles: RoleName[]; onDone: () => void }
               error={errors.role?.message}
             />
           )}
+        />
+        <PrintedFields
+          errors={errors}
+          fields={{
+            nameEn: form.register("nameEn"),
+            speciality: form.register("speciality"),
+            specialityEn: form.register("specialityEn"),
+          }}
         />
         <Controller
           control={form.control}
@@ -271,18 +292,25 @@ function EditForm({
   // Keep the current role selectable even if this user couldn't assign it.
   const roleOptions = roles.includes(user.role) ? roles : [user.role, ...roles]
 
-  const form = useForm<UpdateUserInput>({
+  const form = useForm<UpdateUserInput, unknown, z.output<typeof updateUserSchema>>({
     resolver: zodResolver(updateUserSchema),
     mode: "onTouched",
-    defaultValues: { id: user.id, name: user.name, role: user.role },
+    defaultValues: {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      nameEn: user.nameEn ?? "",
+      speciality: user.speciality ?? "",
+      specialityEn: user.specialityEn ?? "",
+    },
   })
   const { errors, isDirty } = form.formState
 
   const onInvalid = useInvalidHandler()
   const onSubmit = form.handleSubmit(
-    (values) =>
+    () =>
       startTransition(async () => {
-        const result = await updateUserAction(values)
+        const result = await updateUserAction(form.getValues())
         if (!result.ok) return handleError(result, form.setError)
         toast.success(t("updated"))
         onDone()
@@ -321,6 +349,14 @@ function EditForm({
             />
           )}
         />
+        <PrintedFields
+          errors={errors}
+          fields={{
+            nameEn: form.register("nameEn"),
+            speciality: form.register("speciality"),
+            specialityEn: form.register("specialityEn"),
+          }}
+        />
         <DialogFooter>
           <Button type="submit" disabled={!isDirty || pending}>
             {pending ? tc("saving") : tc("save")}
@@ -328,5 +364,52 @@ function EditForm({
         </DialogFooter>
       </FieldGroup>
     </form>
+  )
+}
+
+type PrintedFields = { nameEn?: string; speciality?: string; specialityEn?: string }
+
+/** What prescriptions print under the dentist's name, in Arabic and English. */
+function PrintedFields({
+  errors,
+  fields,
+}: {
+  errors: FieldErrors<PrintedFields>
+  fields: Record<keyof PrintedFields, UseFormRegisterReturn>
+}) {
+  const t = useTranslations("users")
+  return (
+    <fieldset className="grid gap-3 rounded-lg border p-3">
+      <legend className="px-1 text-sm font-medium">{t("printedTitle")}</legend>
+      <p className="text-muted-foreground -mt-1 text-xs">{t("printedHint")}</p>
+      <TextField
+        id="speciality"
+        label={t("speciality")}
+        optional
+        placeholder={t("specialityPlaceholder")}
+        error={errors.speciality?.message}
+        {...fields.speciality}
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TextField
+          id="nameEn"
+          label={t("nameEn")}
+          optional
+          dir="ltr"
+          placeholder="Dr. Sara Al-Mousawi"
+          error={errors.nameEn?.message}
+          {...fields.nameEn}
+        />
+        <TextField
+          id="specialityEn"
+          label={t("specialityEn")}
+          optional
+          dir="ltr"
+          placeholder="Orthodontist"
+          error={errors.specialityEn?.message}
+          {...fields.specialityEn}
+        />
+      </div>
+    </fieldset>
   )
 }

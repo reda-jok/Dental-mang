@@ -100,6 +100,9 @@ export async function getPrescriptionForPrint(id: string) {
     where: { id, deletedAt: null, patient: { deletedAt: null } },
     select: {
       ...prescriptionSelect,
+      prescribedBy: {
+        select: { name: true, nameEn: true, speciality: true, specialityEn: true },
+      },
       patient: { select: { fullName: true, code: true, gender: true, birthDate: true } },
     },
   })
@@ -109,6 +112,13 @@ export async function getPrescriptionForPrint(id: string) {
     ...p,
     issuedOn: toIsoDate(issuedOn),
     prescribedByName: prescribedBy?.name ?? null,
+    /** The header of the prescription: the dentist in Arabic and in English. */
+    doctor: prescribedBy && {
+      name: prescribedBy.name,
+      nameEn: prescribedBy.nameEn,
+      speciality: prescribedBy.speciality,
+      specialityEn: prescribedBy.specialityEn,
+    },
     patient: { ...patient, birthDate: patient.birthDate ? toIsoDate(patient.birthDate) : null },
   }
 }

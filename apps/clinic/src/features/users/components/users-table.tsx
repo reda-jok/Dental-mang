@@ -49,6 +49,9 @@ type Row = {
   canSignIn: boolean
   active: boolean
   lastLoginAt: Date | null
+  nameEn: string | null
+  speciality: string | null
+  specialityEn: string | null
 }
 
 export function UsersTable({ rows, actor }: { rows: Row[]; actor: Actor }) {

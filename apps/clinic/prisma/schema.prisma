@@ -22,6 +22,10 @@ model User {
   username        String?   @unique
   displayUsername String?   @map("display_username")
   role            String?
+  /// For prescriptions: the name in English and the speciality in both languages.
+  nameEn          String?   @map("name_en")
+  speciality      String?
+  specialityEn    String?   @map("speciality_en")
   banned          Boolean?  @default(false)
   banReason       String?   @map("ban_reason")
   banExpires      DateTime? @map("ban_expires") @db.Timestamptz(3)
@@ -123,27 +127,31 @@ model Verification {
 
 // Exactly one row (id = 1). Creating it is also the "setup done" marker.
 model ClinicSettings {
-  id              Int        @id @default(1)
+  id              Int          @id @default(1)
   name            String
   phone           String?
   address         String?
-  currency        String     @default("IQD")
-  timezone        String     @default("Asia/Baghdad")
-  receiptFooter   String?    @map("receipt_footer")
+  currency        String       @default("IQD")
+  timezone        String       @default("Asia/Baghdad")
+  receiptFooter   String?      @map("receipt_footer")
   /// Working hours as minutes after midnight (clinic time). Default 15:30–22:00
   /// (evening clinics, as in the clinic's original booking form).
-  dayStartMinutes Int        @default(930) @map("day_start_minutes")
-  dayEndMinutes   Int        @default(1320) @map("day_end_minutes")
+  dayStartMinutes Int          @default(930) @map("day_start_minutes")
+  dayEndMinutes   Int          @default(1320) @map("day_end_minutes")
   /// Length of one booking slot in minutes.
-  slotMinutes     Int        @default(30) @map("slot_minutes")
+  slotMinutes     Int          @default(30) @map("slot_minutes")
   /// Weekly days off (0 = Sunday … 6 = Saturday). Default: Friday.
-  weeklyOffDays   Int[]      @default([5]) @map("weekly_off_days")
+  weeklyOffDays   Int[]        @default([5]) @map("weekly_off_days")
   /// Days a patient has to pay an invoice; sets each new invoice's default due date.
-  invoiceDueDays  Int        @default(30) @map("invoice_due_days")
-  /// Paper for prescriptions and treatment quotes (receipts are always 80 mm thermal).
-  printPaper      PrintPaper @default(A5) @map("print_paper")
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  invoiceDueDays  Int          @default(30) @map("invoice_due_days")
+  /// Paper for prescriptions and treatment quotes.
+  printPaper      PrintPaper   @default(A5) @map("print_paper")
+  /// Paper for payment receipts: A5, or an 80 mm receipt printer.
+  receiptPaper    ReceiptPaper @default(A5) @map("receipt_paper")
+  /// The clinic's logo on printouts: a stored upload's file name (UPLOAD_DIR).
+  logoFile        String?      @map("logo_file")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("clinic_settings")
 }
@@ -335,9 +343,6 @@ model Procedure {
   /// Condition drawn on the chart once this procedure is done (e.g. "filling", "missing").
   chartResult     String?    @map("chart_result")
   durationMinutes Int?       @map("duration_minutes")
-  /// How many visits the work usually takes (a filling 1, a root canal 2–3).
-  visitsMin       Int        @default(1) @map("visits_min")
-  visitsMax       Int        @default(1) @map("visits_max")
   requiresLab     Boolean    @default(false) @map("requires_lab")
   /// What the procedure is, in plain words for the patient (printed on the plan quote).
   patientNote     String?    @map("patient_note")
@@ -482,7 +487,6 @@ model TreatmentPlanItem {
   invoice      Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   invoiceLines InvoiceLine[]
   labCases     LabCase[]
-  visits       AppointmentItem[]
 
   @@index([planId])
   @@index([invoiceId])
@@ -517,29 +521,12 @@ enum AppointmentPriority {
   urgent
 }
 
-/// Why the patient comes when the visit isn't for plan treatments.
-enum VisitReason {
-  checkup
-  consultation
-  emergency
-  other
-}
-
-/// What happened to a plan treatment at a visit (set when the visit is finished).
-enum VisitOutcome {
-  done
-  continued // worked on, needs another visit
-  not_done
-}
-
 model Appointment {
   id          String              @id @default(uuid()) @db.Uuid
   patientId   String              @map("patient_id") @db.Uuid
   dentistId   String?             @map("dentist_id") @db.Uuid
   roomId      String?             @map("room_id") @db.Uuid
-  /// Bookings before 2026-10-12 named a catalog procedure; new ones link plan items or a reason.
   procedureId String?             @map("procedure_id") @db.Uuid
-  reason      VisitReason?
   startsAt    DateTime            @map("starts_at") @db.Timestamptz(3)
   endsAt      DateTime            @map("ends_at") @db.Timestamptz(3)
   status      AppointmentStatus   @default(pending)
@@ -557,26 +544,10 @@ model Appointment {
 
   clinicalNotes ClinicalNote[]
   reminders     AppointmentReminder[]
-  items         AppointmentItem[]
 
   @@index([startsAt])
   @@index([patientId, startsAt])
   @@map("appointment")
-}
-
-/// A plan treatment booked for (or done at) a visit. The outcome is set when the visit is
-/// finished; a treatment spans several visits until it is done.
-model AppointmentItem {
-  appointmentId String        @map("appointment_id") @db.Uuid
-  planItemId    String        @map("plan_item_id") @db.Uuid
-  outcome       VisitOutcome?
-
-  appointment Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  planItem    TreatmentPlanItem @relation(fields: [planItemId], references: [id], onDelete: Restrict)
-
-  @@id([appointmentId, planItemId])
-  @@index([planItemId])
-  @@map("appointment_item")
 }
 
 /// A WhatsApp reminder sent for an appointment (the message itself goes from the user's
@@ -1244,4 +1215,9 @@ model LabAdjustment {
 
   @@index([labId, madeOn])
   @@map("lab_adjustment")
+}
+
+enum ReceiptPaper {
+  A5
+  thermal80
 }

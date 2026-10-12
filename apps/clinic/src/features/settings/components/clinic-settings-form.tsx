@@ -22,7 +22,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { useActionErrorHandler, useValidationMessage, useInvalidHandler } from "@/lib/form"
 
 import { updateClinicSettingsAction } from "../actions"
-import { clinicSettingsSchema, PRINT_PAPERS, type ClinicSettingsInput } from "../schemas"
+import {
+  clinicSettingsSchema,
+  PRINT_PAPERS,
+  RECEIPT_PAPERS,
+  type ClinicSettingsInput,
+} from "../schemas"
 
 type Props = {
   initial: {
@@ -32,6 +37,7 @@ type Props = {
     receiptFooter: string | null
     invoiceDueDays: number
     printPaper: "A5" | "A4"
+    receiptPaper: "A5" | "thermal80"
   }
   canEdit: boolean
 }
@@ -53,6 +59,7 @@ export function ClinicSettingsForm({ initial, canEdit }: Props) {
       receiptFooter: initial.receiptFooter ?? "",
       invoiceDueDays: String(initial.invoiceDueDays),
       printPaper: initial.printPaper,
+      receiptPaper: initial.receiptPaper,
     },
   })
   const { errors, isDirty } = form.formState
@@ -156,6 +163,31 @@ export function ClinicSettingsForm({ initial, canEdit }: Props) {
                     {PRINT_PAPERS.map((paper) => (
                       <SelectItem key={paper} value={paper}>
                         {t(`papers.${paper}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Field>
+
+          <Field className="max-w-64">
+            <FieldLabel htmlFor="receiptPaper">
+              {t("receiptPaper")}
+              <InfoHint>{t("receiptPaperHint")}</InfoHint>
+            </FieldLabel>
+            <Controller
+              control={form.control}
+              name="receiptPaper"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id="receiptPaper">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RECEIPT_PAPERS.map((paper) => (
+                      <SelectItem key={paper} value={paper}>
+                        {t(`receiptPapers.${paper}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>

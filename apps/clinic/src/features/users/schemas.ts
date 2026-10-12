@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { ROLE_NAMES } from "@/lib/permissions"
-import { password, text, username, uuid } from "@/lib/validation"
+import { optionalText, password, text, username, uuid } from "@/lib/validation"
 
 const role = z.enum(ROLE_NAMES as [string, ...string[]], { error: "required" })
 
@@ -23,22 +23,36 @@ const withPasswordChecks = <S extends z.ZodType<PasswordFields>>(
 
 const signIn = { username, password, confirmPassword: z.string() }
 
+/** Printed on prescriptions: the name in English and the speciality in both languages. */
+const printed = {
+  nameEn: optionalText(100),
+  speciality: optionalText(100),
+  specialityEn: optionalText(100),
+}
+
 /**
  * An employee. `canSignIn: false` = someone who doesn't use the system (e.g. a dentist
  * who never logs in but still has appointments and commission): no username or password.
  */
 export const createUserSchema = z.discriminatedUnion("canSignIn", [
   withPasswordChecks(
-    z.strictObject({ canSignIn: z.literal(true), name: text(2, 100), role, ...signIn }),
+    z.strictObject({
+      canSignIn: z.literal(true),
+      name: text(2, 100),
+      role,
+      ...printed,
+      ...signIn,
+    }),
     (v) => v.username,
   ),
-  z.strictObject({ canSignIn: z.literal(false), name: text(2, 100), role }),
+  z.strictObject({ canSignIn: z.literal(false), name: text(2, 100), role, ...printed }),
 ])
 
 export const updateUserSchema = z.strictObject({
   id: uuid,
   name: text(2, 100),
   role,
+  ...printed,
 })
 
 export const setUserActiveSchema = z.strictObject({

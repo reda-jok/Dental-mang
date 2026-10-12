@@ -1,9 +1,6 @@
 // Display helpers shared by the calendar, scheduler and booking form.
 
 import type { AppointmentStatus } from "./rules"
-import type { VISIT_REASONS } from "./schemas"
-
-export type VisitReason = (typeof VISIT_REASONS)[number]
 
 /** Status colours from the clinic's original calendar and scheduler. */
 export const STATUS_CHIP: Record<AppointmentStatus, string> = {
@@ -31,23 +28,4 @@ export function formatTime(hhmm: string): string {
     hour12: true,
     timeZone: "UTC",
   }).format(new Date(Date.UTC(2000, 0, 1, h, m)))
-}
-
-/** "علاج عصب 26": the treatment and its tooth. */
-export function itemLabel(item: { name: string; tooth: number | null }): string {
-  return item.tooth === null ? item.name : `${item.name} ${item.tooth}`
-}
-
-/** What a visit is for: its plan treatments, else the reason, else (older bookings) the procedure. */
-export function visitPurpose(
-  a: {
-    items: { name: string; tooth: number | null }[]
-    reason: VisitReason | null
-    procedure: { name: string } | null
-  },
-  reasonLabel: (reason: VisitReason) => string,
-): string | null {
-  if (a.items.length > 0) return a.items.map(itemLabel).join("، ")
-  if (a.reason) return reasonLabel(a.reason)
-  return a.procedure?.name ?? null
 }

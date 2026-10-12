@@ -166,16 +166,6 @@ export function CatalogManager({
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {p.durationMinutes ?? "—"}
-                        {p.visitsMax > 1 && (
-                          <span className="text-muted-foreground block text-xs">
-                            {t("procedures.visitsRange", {
-                              range:
-                                p.visitsMin === p.visitsMax
-                                  ? String(p.visitsMax)
-                                  : `${p.visitsMin}–${p.visitsMax}`,
-                            })}
-                          </span>
-                        )}
                       </TableCell>
                       {canEdit && (
                         <TableCell>

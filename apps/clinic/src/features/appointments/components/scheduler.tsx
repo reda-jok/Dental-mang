@@ -1,20 +1,29 @@
 "use client"
 
-import { ChevronLeftIcon, ChevronRightIcon, CoffeeIcon } from "lucide-react"
+import {
+  CalendarPlusIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  CoffeeIcon,
+} from "lucide-react"
 import type { Route } from "next"
 import { useFormatter, useTranslations } from "next-intl"
 import { usePathname, useRouter } from "next/navigation"
 
 import { IconButton } from "@/components/icon-button"
 import { Panel } from "@/components/panel"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { addDays, parseIsoDate } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
 import type { AppointmentView } from "../data"
+import { formatTime, STATUS_BADGE } from "../display"
 import { isRestDay, weekOf } from "../rules"
 import { AppointmentCard } from "./appointment-card"
+import { useBooking } from "./booking-provider"
 
 type Props = {
   date: string
@@ -40,6 +49,7 @@ export function Scheduler({
   const format = useFormatter()
   const router = useRouter()
   const pathname = usePathname()
+  const { openBooking } = useBooking()
   const holidaySet = new Set(holidays.map((h) => h.date))
 
   const go = (next: { date?: string; view?: "day" | "week" }) =>
@@ -55,6 +65,7 @@ export function Scheduler({
 
   const dayAppointments = appointments.filter((a) => a.date === date)
   const restToday = view === "day" && isRestDay(date, holidaySet, weeklyOffDays)
+  const times = [...new Set(dayAppointments.map((a) => a.time))]
 
   return (
     <div className="space-y-6">
@@ -95,6 +106,15 @@ export function Scheduler({
                 {t(v)}
               </Button>
             ))}
+            {openBooking && !restToday && date >= today && (
+              <Button
+                size="sm"
+                onClick={() => openBooking({ date: view === "day" ? date : undefined })}
+              >
+                <CalendarPlusIcon />
+                {t("newAppointment")}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -147,17 +167,54 @@ export function Scheduler({
           </CardContent>
         </Card>
       ) : (
-        <Panel as="h3" title={t("dayAppointments", { count: String(dayAppointments.length) })}>
-          {dayAppointments.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-500">{t("noAppointments")}</p>
-          ) : (
-            <div className="space-y-4">
-              {dayAppointments.map((a) => (
-                <AppointmentCard key={a.id} appointment={a} canWrite={canWrite} />
-              ))}
-            </div>
-          )}
-        </Panel>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+          <Panel
+            as="h3"
+            icon={ClockIcon}
+            title={t("bookedTimes")}
+            className="lg:col-span-1"
+            contentClassName="p-3"
+          >
+            {times.length === 0 ? (
+              <p className="text-sm text-slate-400">{t("noAppointments")}</p>
+            ) : (
+              <ul className="space-y-2">
+                {times.map((time) => (
+                  <li key={time} className="rounded-lg border p-2 text-sm">
+                    <div className="font-medium">{formatTime(time)}</div>
+                    {dayAppointments
+                      .filter((a) => a.time === time)
+                      .map((a) => (
+                        <Badge
+                          key={a.id}
+                          className={cn("mt-1 block truncate text-xs", STATUS_BADGE[a.status])}
+                        >
+                          {a.patient.fullName}
+                          {a.procedure && ` — ${a.procedure.name}`}
+                        </Badge>
+                      ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel
+            as="h3"
+            title={t("dayAppointments", { count: String(dayAppointments.length) })}
+            className="lg:col-span-3"
+          >
+            {dayAppointments.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-500">{t("noAppointments")}</p>
+            ) : (
+              <div className="space-y-4">
+                {dayAppointments.map((a) => (
+                  <AppointmentCard key={a.id} appointment={a} canWrite={canWrite} />
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
       )}
     </div>
   )

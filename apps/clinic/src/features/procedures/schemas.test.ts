@@ -43,18 +43,3 @@ describe("createProcedureSchema", () => {
     expect(createProcedureSchema.safeParse(tooLong).success).toBe(false)
   })
 })
-
-describe("visits per procedure", () => {
-  it("defaults to one visit and reads Arabic digits", () => {
-    expect(createProcedureSchema.parse(valid)).toMatchObject({ visitsMin: 1, visitsMax: 1 })
-    expect(createProcedureSchema.parse({ ...valid, visitsMin: "٢", visitsMax: "3" })).toMatchObject(
-      { visitsMin: 2, visitsMax: 3 },
-    )
-  })
-
-  it("refuses zero visits and a range out of order", () => {
-    expect(createProcedureSchema.safeParse({ ...valid, visitsMin: "0" }).success).toBe(false)
-    const reversed = createProcedureSchema.safeParse({ ...valid, visitsMin: "3", visitsMax: "2" })
-    expect(reversed.error?.issues[0]).toMatchObject({ path: ["visitsMax"], message: "visitsOrder" })
-  })
-})

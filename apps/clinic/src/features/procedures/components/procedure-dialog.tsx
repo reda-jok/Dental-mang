@@ -17,14 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -110,8 +103,6 @@ function ProcedureForm({
       toothScope: procedure?.toothScope ?? "tooth",
       chartResult: (procedure?.chartResult ?? "") as ProcedureFormInput["chartResult"],
       durationMinutes: procedure?.durationMinutes ? String(procedure.durationMinutes) : "",
-      visitsMin: String(procedure?.visitsMin ?? 1),
-      visitsMax: String(procedure?.visitsMax ?? 1),
       requiresLab: procedure?.requiresLab ?? false,
       patientNote: procedure?.patientNote ?? "",
     },
@@ -220,31 +211,6 @@ function ProcedureForm({
           error={errors.durationMinutes?.message}
           {...form.register("durationMinutes")}
         />
-        <FieldSet>
-          <FieldLegend variant="label">
-            {t("procedures.visits")} <InfoHint>{t("procedures.visitsHint")}</InfoHint>
-          </FieldLegend>
-          <div className="flex gap-3">
-            <TextField
-              id="visitsMin"
-              inputMode="numeric"
-              dir="ltr"
-              className="max-w-24"
-              label={t("procedures.visitsMin")}
-              error={errors.visitsMin?.message}
-              {...form.register("visitsMin")}
-            />
-            <TextField
-              id="visitsMax"
-              inputMode="numeric"
-              dir="ltr"
-              className="max-w-24"
-              label={t("procedures.visitsMax")}
-              error={errors.visitsMax?.message}
-              {...form.register("visitsMax")}
-            />
-          </div>
-        </FieldSet>
         <Controller
           control={form.control}
           name="requiresLab"

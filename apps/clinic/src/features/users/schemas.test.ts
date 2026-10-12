@@ -19,9 +19,17 @@ describe("createUserSchema", () => {
     expect(createUserSchema.safeParse({ ...withSignIn, username: undefined }).success).toBe(false)
   })
 
-  it("takes only a name and role for someone who doesn't sign in", () => {
+  it("takes a name and role (and what prescriptions print) for someone who doesn't sign in", () => {
     const parsed = createUserSchema.parse({ canSignIn: false, name: "نور", role: "assistant" })
-    expect(parsed).toEqual({ canSignIn: false, name: "نور", role: "assistant" })
+    // The printed fields are optional and come back empty.
+    expect(parsed).toEqual({
+      canSignIn: false,
+      name: "نور",
+      role: "assistant",
+      nameEn: null,
+      speciality: null,
+      specialityEn: null,
+    })
     // No credentials can sneak in with an employee who doesn't sign in.
     const sneaky = { canSignIn: false, name: "نور", role: "assistant", password: "blue-river-77" }
     expect(createUserSchema.safeParse(sneaky).success).toBe(false)

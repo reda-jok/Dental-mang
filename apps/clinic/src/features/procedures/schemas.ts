@@ -9,15 +9,6 @@ export const TOOTH_SCOPES = ["none", "tooth", "surfaces"] as const
 
 export const categorySchema = z.strictObject({ name: text(2, 60) })
 
-/** Visits a procedure usually takes; blank means one. */
-const visits = z
-  .string()
-  .optional()
-  .transform((v) => (v ? toLatinDigits(v).trim() : "1"))
-  .pipe(z.string().regex(/^\d{1,2}$/, "invalidVisits"))
-  .transform(Number)
-  .refine((v) => v >= 1, "invalidVisits")
-
 const procedureFields = z.object({
   name: text(2, 100),
   categoryId: uuid,
@@ -33,22 +24,13 @@ const procedureFields = z.object({
     .pipe(z.union([z.literal(""), z.string().regex(/^\d{1,3}$/, "invalidDuration")]))
     .transform((v) => (v ? Number(v) : null))
     .refine((v) => v === null || (v >= 5 && v <= 600), "invalidDuration"),
-  visitsMin: visits,
-  visitsMax: visits,
   requiresLab: z.boolean(),
   patientNote: optionalText(200),
 })
 
-/**
- * The price is parsed with the currency's decimals, and the visit range is checked in
- * order, so both are checked on the whole object.
- */
+/** The price is parsed with the currency's decimals, so it's checked on the whole object. */
 function withPrice<T extends z.ZodType<z.output<typeof procedureFields>>>(schema: T) {
   return schema.transform((v, ctx) => {
-    if (v.visitsMax < v.visitsMin) {
-      ctx.addIssue({ code: "custom", path: ["visitsMax"], message: "visitsOrder" })
-      return z.NEVER
-    }
     if (!v.price.trim()) {
       ctx.addIssue({ code: "custom", path: ["price"], message: "required" })
       return z.NEVER

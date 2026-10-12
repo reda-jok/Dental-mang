@@ -9,7 +9,7 @@ import type { CurrentUser } from "@/server/session"
 
 import { usableCondition } from "../chart/service"
 import type { categorySchema, createProcedureSchema, updateProcedureSchema } from "./schemas"
-import { STARTER_CATALOG, STARTER_NOTES, STARTER_VISITS } from "./starter"
+import { STARTER_CATALOG, STARTER_NOTES } from "./starter"
 
 export async function createCategory(actor: CurrentUser, input: z.output<typeof categorySchema>) {
   const existing = await db.procedureCategory.findUnique({ where: { name: input.name } })
@@ -109,8 +109,6 @@ export async function loadStarterCatalog(actor: CurrentUser) {
         data: group.procedures.map((p) => ({
           ...p,
           patientNote: STARTER_NOTES[p.name] ?? null,
-          visitsMin: STARTER_VISITS[p.name]?.[0] ?? 1,
-          visitsMax: STARTER_VISITS[p.name]?.[1] ?? 1,
           categoryId: category.id,
           price: "0",
           currency: "IQD" as const,

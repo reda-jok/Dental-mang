@@ -4,8 +4,9 @@ import { notFound } from "next/navigation"
 import { Building2Icon } from "lucide-react"
 import { Panel } from "@/components/panel"
 
+import { ClinicLogoField } from "@/features/settings/components/clinic-logo-field"
 import { ClinicSettingsForm } from "@/features/settings/components/clinic-settings-form"
-import { getClinicSettingsForEdit } from "@/features/settings/data"
+import { getClinicSettingsForEdit, logoUrl } from "@/features/settings/data"
 import { hasPermission } from "@/lib/permissions"
 import { requireUser } from "@/server/session"
 
@@ -24,7 +25,13 @@ export default async function ClinicSettingsPage() {
 
   return (
     <Panel icon={Building2Icon} title={t("clinicTab")} description={t("clinicDescription")}>
-      <ClinicSettingsForm initial={settings} canEdit={hasPermission(user, "settings:write")} />
+      <div className="space-y-8">
+        <ClinicLogoField
+          logoUrl={logoUrl(settings.logoFile)}
+          canEdit={hasPermission(user, "settings:write")}
+        />
+        <ClinicSettingsForm initial={settings} canEdit={hasPermission(user, "settings:write")} />
+      </div>
     </Panel>
   )
 }

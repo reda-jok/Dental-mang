@@ -2,35 +2,16 @@ import "server-only"
 
 import type { z } from "zod"
 
-import {
-  addDays,
-  isoDateInZone,
-  parseIsoDate,
-  startOfDayUtc,
-  todayIso,
-  zonedInstant,
-} from "@/lib/dates"
-import { hasPermission } from "@/lib/permissions"
+import { addDays, parseIsoDate, startOfDayUtc, todayIso, zonedInstant } from "@/lib/dates"
 import { recordAudit } from "@/server/audit"
 import { db } from "@/server/db"
 import { env } from "@/server/env"
 import { AppError } from "@/server/errors"
 import type { CurrentUser } from "@/server/session"
 
-import { changeItemStatus } from "../plans/service"
-import { finishCandidates } from "./data"
-import {
-  BLOCKING_STATUSES,
-  canChangeStatus,
-  finishProblem,
-  hhmmToMinutes,
-  isRestDay,
-  overlaps,
-  type VisitOutcome,
-} from "./rules"
+import { BLOCKING_STATUSES, canChangeStatus, hhmmToMinutes, isRestDay, overlaps } from "./rules"
 import type {
   bookAppointmentSchema,
-  finishVisitSchema,
   restDaySchema,
   roomSchema,
   scheduleSettingsSchema,
@@ -105,20 +86,6 @@ export async function bookAppointment(
       )
       if (clash) throw new AppError("conflict", "slotTaken", { time: ["slotTaken"] })
 
-      // The treatments are this patient's, in a plan still open, and not finished yet.
-      const itemIds = [...new Set(input.itemIds)]
-      if (itemIds.length > 0) {
-        const open = await tx.treatmentPlanItem.count({
-          where: {
-            id: { in: itemIds },
-            status: { in: ["planned", "in_progress"] },
-            plan: { patientId: input.patientId, status: { in: ["proposed", "accepted"] } },
-          },
-        })
-        if (open !== itemIds.length)
-          throw new AppError("conflict", "itemsChanged", { itemIds: ["itemsChanged"] })
-      }
-
       if (input.dentistId) {
         const dentist = await tx.user.findFirst({
           where: {
@@ -137,8 +104,7 @@ export async function bookAppointment(
           patientId: input.patientId,
           dentistId: input.dentistId,
           roomId: input.roomId,
-          reason: input.reason,
-          items: { create: itemIds.map((planItemId) => ({ planItemId })) },
+          procedureId: input.procedureId,
           startsAt,
           endsAt,
           priority: input.priority,
@@ -187,88 +153,6 @@ export async function setAppointmentStatus(
       after: { status: input.status },
     })
     return { patientId: current.patientId }
-  })
-}
-
-/**
- * Finishes a visit with what was done: each treatment booked for it is done, needs another
- * visit, or wasn't done today; other open treatments of the plan can be recorded too. The
- * treatments change in the same transaction (chart, plan completion), and every treatment
- * worked on is linked to the visit, so the plan can count its visits.
- */
-export async function finishVisit(actor: CurrentUser, input: z.output<typeof finishVisitSchema>) {
-  // The dentist records the work; reception can't finish a visit.
-  if (!hasPermission(actor, "clinical:write")) throw new AppError("forbidden")
-  return db.$transaction(async (tx) => {
-    const visit = await tx.appointment.findUnique({
-      where: { id: input.id },
-      select: {
-        status: true,
-        patientId: true,
-        startsAt: true,
-        items: { select: { planItemId: true } },
-      },
-    })
-    if (!visit) throw new AppError("not_found")
-    if (!canChangeStatus(visit.status, "completed"))
-      throw new AppError("conflict", "statusChangeNotAllowed")
-
-    const booked = visit.items.map((i) => i.planItemId)
-    const since = startOfDayUtc(isoDateInZone(visit.startsAt, tz()), tz())
-    const items = await tx.treatmentPlanItem.findMany({
-      where: finishCandidates(visit.patientId, booked, since),
-      select: { id: true, status: true, completedAt: true, plan: { select: { status: true } } },
-    })
-    const isOpen = (id: string) =>
-      items.some(
-        (i) =>
-          i.id === id &&
-          (i.status === "planned" || i.status === "in_progress") &&
-          (i.plan.status === "proposed" || i.plan.status === "accepted"),
-      )
-    const doneToday = items.filter((i) => i.status === "done" && i.completedAt! >= since)
-    const outcomes: Record<string, VisitOutcome> = Object.fromEntries(
-      input.outcomes.map((o) => [o.itemId, o.outcome]),
-    )
-    if (input.outcomes.some((o) => !isOpen(o.itemId)))
-      throw new AppError("conflict", "itemsChanged")
-    const problem = finishProblem({
-      open: booked.filter(isOpen),
-      outcomes,
-      doneToday: doneToday.length,
-      noTreatment: input.noTreatment,
-    })
-    if (problem) throw new AppError("validation", problem)
-
-    // One query at a time: a transaction runs on a single connection.
-    const link = (planItemId: string, outcome: VisitOutcome) =>
-      tx.appointmentItem.upsert({
-        where: { appointmentId_planItemId: { appointmentId: input.id, planItemId } },
-        create: { appointmentId: input.id, planItemId, outcome },
-        update: { outcome },
-      })
-    for (const [itemId, outcome] of Object.entries(outcomes)) {
-      if (outcome === "done") await changeItemStatus(tx, actor, { itemId, status: "done" })
-      if (outcome === "continued" && items.find((i) => i.id === itemId)!.status === "planned")
-        await changeItemStatus(tx, actor, { itemId, status: "in_progress" })
-      if (outcome !== "not_done" || booked.includes(itemId)) await link(itemId, outcome)
-    }
-    // Work already marked done on the plan today belongs to this visit too.
-    for (const item of doneToday) if (!outcomes[item.id]) await link(item.id, "done")
-    // Booked treatments cancelled (or finished earlier) in the meantime weren't done today.
-    for (const id of booked)
-      if (!outcomes[id] && !doneToday.some((i) => i.id === id)) await link(id, "not_done")
-
-    await tx.appointment.update({ where: { id: input.id }, data: { status: "completed" } })
-    await recordAudit(tx, {
-      userId: actor.id,
-      action: "update",
-      entity: "appointment",
-      entityId: input.id,
-      before: { status: visit.status },
-      after: { status: "completed", outcomes, noTreatment: input.noTreatment },
-    })
-    return { patientId: visit.patientId }
   })
 }
 

@@ -65,6 +65,12 @@ export async function createStaff(actor: CurrentUser, input: z.output<typeof cre
         }
       : { name: input.name, email: placeholderEmail(crypto.randomUUID()), role },
   })
+  const printed = {
+    nameEn: input.nameEn,
+    speciality: input.speciality,
+    specialityEn: input.specialityEn,
+  }
+  await db.user.update({ where: { id: user.id }, data: printed })
 
   await recordAudit(db, {
     userId: actor.id,
@@ -76,6 +82,7 @@ export async function createStaff(actor: CurrentUser, input: z.output<typeof cre
       username: input.canSignIn ? input.username : null,
       role,
       canSignIn: input.canSignIn,
+      ...printed,
     },
   })
   return { id: user.id }
@@ -122,7 +129,12 @@ export async function updateStaff(actor: CurrentUser, input: z.output<typeof upd
     const target = await loadTarget(tx, input.id)
     await enforcePolicy(tx, actor, target, { kind: "edit", role })
 
-    await tx.user.update({ where: { id: input.id }, data: { name: input.name, role } })
+    const printed = {
+      nameEn: input.nameEn,
+      speciality: input.speciality,
+      specialityEn: input.specialityEn,
+    }
+    await tx.user.update({ where: { id: input.id }, data: { name: input.name, role, ...printed } })
     if (role !== target.role) {
       // New permissions take effect immediately: sign the user out everywhere.
       await tx.session.deleteMany({ where: { userId: input.id } })
@@ -133,7 +145,7 @@ export async function updateStaff(actor: CurrentUser, input: z.output<typeof upd
       entity: "user",
       entityId: input.id,
       before: { name: target.name, role: target.role },
-      after: { name: input.name, role },
+      after: { name: input.name, role, ...printed },
     })
   })
 }
