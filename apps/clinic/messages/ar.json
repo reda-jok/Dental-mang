@@ -401,6 +401,10 @@
         "write": {
           "title": "تعديل الإعدادات",
           "description": "تعديل بيانات العيادة وقائمة العلاجات وأسعارها والأدوية وأوقات الدوام وأيام العطل والغرف وحالات الأسنان."
+        },
+        "activity": {
+          "title": "سجل النشاط",
+          "description": "رؤية من فعل ماذا ومتى: الفواتير والدفعات والإلغاءات، والملفات والمواعيد، ومحاولات الدخول، وتغييرات الإعدادات."
         }
       }
     }
@@ -1917,6 +1921,89 @@
       "db2777": "وردي",
       "4b5563": "رمادي داكن",
       "6b7280": "رمادي"
+    }
+  },
+  "activity": {
+    "tab": "سجل النشاط",
+    "title": "سجل النشاط",
+    "description": "من فعل ماذا ومتى، الأحدث أولاً. يُسجَّل تلقائياً مع كل عملية في النظام.",
+    "count": "{total, plural, =0 {لا يوجد نشاط} one {نشاط واحد} two {نشاطان} few {# نشاطات} many {# نشاطاً} other {# نشاط}}",
+    "person": "الموظف",
+    "allPeople": "كل الموظفين",
+    "area": "النوع",
+    "areas": {
+      "all": "كل الأنواع",
+      "money": "المال",
+      "patients": "المرضى والعلاج",
+      "appointments": "المواعيد",
+      "lab": "المختبرات",
+      "staff": "الموظفون والدخول",
+      "settings": "الإعدادات",
+      "sensitive": "الإلغاء والحذف والدخول الفاشل"
+    },
+    "day": "اليوم",
+    "clear": "مسح التصفية",
+    "empty": "لا يوجد نشاط بعد",
+    "emptyFiltered": "لا يوجد نشاط يطابق التصفية",
+    "line": "{action} {entity}",
+    "someone": "غير معروف",
+    "reason": "السبب: {reason}",
+    "difference": "الفرق: <ltr>{amount}</ltr>",
+    "username": "اسم المستخدم المُدخل: {username}",
+    "ip": "من العنوان {ip}",
+    "actions": {
+      "create": "إضافة",
+      "update": "تعديل",
+      "delete": "حذف",
+      "restore": "استعادة",
+      "void": "إلغاء"
+    },
+    "standalone": {
+      "login": "تسجيل دخول",
+      "login_failed": "محاولة دخول فاشلة",
+      "setup": "إعداد النظام لأول مرة",
+      "disable": "إيقاف حساب",
+      "enable": "تفعيل حساب",
+      "password_reset": "تغيير كلمة مرور"
+    },
+    "entities": {
+      "other": "عنصر",
+      "invoice": "فاتورة",
+      "payment": "دفعة",
+      "refund": "مبلغ مُرجَع",
+      "cash_close": "إغلاق الصندوق",
+      "payment_reminder": "تذكير بالدفع",
+      "lab_payment": "دفعة لمختبر",
+      "lab_adjustment": "تسوية حساب مختبر",
+      "patient": "ملف مريض",
+      "medical_history": "تاريخ مرضي",
+      "attachment": "مرفق",
+      "clinical_note": "ملاحظة سريرية",
+      "prescription": "وصفة طبية",
+      "tooth_finding": "حالة سن",
+      "treatment_plan": "خطة علاج",
+      "treatment_plan_item": "بند في خطة علاج",
+      "appointment": "موعد",
+      "appointment_reminder": "تذكير بموعد",
+      "lab": "مختبر",
+      "lab_case": "طلب مختبر",
+      "session": "جلسة دخول",
+      "user": "موظف",
+      "role_permission": "صلاحيات دور",
+      "dentist_pay": "أجر طبيب",
+      "clinic": "بيانات العيادة",
+      "clinic_settings": "إعدادات العيادة",
+      "schedule_settings": "أوقات الدوام",
+      "clinic_holiday": "عطلة",
+      "room": "غرفة",
+      "procedure": "علاج في القائمة",
+      "procedure_catalog": "قائمة العلاجات",
+      "procedure_category": "فئة علاجات",
+      "medication": "دواء",
+      "medication_catalog": "قائمة الأدوية",
+      "tooth_condition": "حالة أسنان",
+      "dashboard_layout": "ترتيب اللوحة",
+      "dashboard_layout_default": "ترتيب اللوحة الافتراضي"
     }
   }
 }

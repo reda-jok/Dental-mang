@@ -26,8 +26,11 @@ export const statements = {
    */
   hr: ["read", "write", "commission", "self", "pay"],
   inventory: ["read", "write"],
-  /** "permissions": edit the adjustable permissions below (owner only). */
-  settings: ["read", "write", "permissions"],
+  /**
+   * "permissions": edit the adjustable permissions below (owner only);
+   * "activity": the activity history (who did what, from the audit log).
+   */
+  settings: ["read", "write", "permissions", "activity"],
 } as const
 
 export const ac = createAccessControl(statements)
@@ -41,7 +44,7 @@ const everything = {
   accounting: ["read", "write"],
   hr: ["read", "write", "commission", "self", "pay"],
   inventory: ["read", "write"],
-  settings: ["read", "write", "permissions"],
+  settings: ["read", "write", "permissions", "activity"],
 } as const
 
 // Defaults. For adjustable permissions these are only the starting point.
@@ -128,6 +131,8 @@ export const ADJUSTABLE_PERMISSIONS = [
   { permission: "hr:pay", requires: ["hr:commission"] },
   { permission: "settings:read", requires: [] },
   { permission: "settings:write", requires: ["settings:read"] },
+  // The history names patients.
+  { permission: "settings:activity", requires: ["settings:read", "patient:read"] },
 ] as const satisfies readonly { permission: Permission; requires: readonly Permission[] }[]
 
 export type AdjustablePermission = (typeof ADJUSTABLE_PERMISSIONS)[number]["permission"]
