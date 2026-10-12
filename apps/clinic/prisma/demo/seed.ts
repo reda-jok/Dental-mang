@@ -71,12 +71,18 @@ import { db } from "@/server/db"
 import { detectFileType, saveUpload } from "@/server/storage"
 import type { CurrentUser } from "@/server/session"
 
-/** A staff member acting through the real services, with their role's default permissions. */
-function asActor(
-  user: { id: string; name: string; username: string | null },
-  role: RoleName,
-): CurrentUser {
-  return { ...user, role, permissions: permissionsFor(role, []) }
+type Actor = { id: string; name: string; username: string | null }
+
+/**
+ * A staff member acting through the real services, with the clinic's permissions for their
+ * role (the owner's Settings → Permissions changes included), as when they sign in.
+ */
+async function asActor(user: Actor, role: RoleName): Promise<CurrentUser> {
+  const overrides = await db.rolePermission.findMany({
+    where: { role },
+    select: { role: true, permission: true, granted: true },
+  })
+  return { ...user, role, permissions: permissionsFor(role, overrides) }
 }
 
 import {
@@ -302,7 +308,7 @@ async function seedAppointmentReminders() {
     select: { id: true, name: true, username: true },
   })
   if (!reem) return
-  const actor = asActor(reem, "reception")
+  const actor = await asActor(reem, "reception")
   const settings = await db.clinicSettings.findUnique({
     where: { id: 1 },
     select: { weeklyOffDays: true },
@@ -499,7 +505,7 @@ async function seedClinicalNotes() {
     const body = pick(
       template?.notes ?? ["مراجعة ومتابعة. المريض بحالة جيدة، لا شكوى جديدة."],
     ).replaceAll("{teeth}", teeth.length ? `السن ${[...new Set(teeth)].join(" و")}` : "السن المعني")
-    const actor = asActor(
+    const actor = await asActor(
       { id: visit.dentist_id, name: visit.dentist_name, username: null },
       "dentist",
     )
@@ -636,7 +642,7 @@ async function seedLabCases() {
     const dentistId = item.dentistId ?? item.plan.createdById
     const user = dentistId ? users.get(dentistId) : null
     if (!user) continue
-    const actor = asActor(user, "dentist")
+    const actor = await asActor(user, "dentist")
     const planDay = toDay(item.createdAt)
     const cost = String(LAB_WORK[work]!.cost)
     let sentOn: string
@@ -715,7 +721,7 @@ async function seedLabMoney() {
     select: { id: true, name: true, username: true },
   })
   if (!accountant) return
-  const actor = asActor(accountant, "accountant")
+  const actor = await asActor(accountant, "accountant")
 
   const unbilled = await db.labCase.findMany({
     where: { billedOn: null, receivedOn: { not: null }, cost: { gt: 0 } },
@@ -929,7 +935,7 @@ async function seedPrescriptions() {
         : []),
     ]
     await createPrescription(
-      asActor({ id: visit.dentist_id, name: visit.dentist_name, username: null }, "dentist"),
+      await asActor({ id: visit.dentist_id, name: visit.dentist_name, username: null }, "dentist"),
       createPrescriptionSchema.parse({
         patientId: visit.patient_id,
         items,
@@ -997,7 +1003,8 @@ async function seedHistory({ patients: patientCount, mode }: { patients: number;
     })
     return user
   }
-  const staff = {} as Record<(typeof STAFF)[number]["username"], CurrentUser>
+  const members: { username: (typeof STAFF)[number]["username"]; role: RoleName; user: Actor }[] =
+    []
   for (const member of STAFF) {
     // An existing owner (the clinic's own account) plays the owner.
     const existing =
@@ -1009,8 +1016,21 @@ async function seedHistory({ patients: patientCount, mode }: { patients: number;
           })
         : null
     const user = existing ?? (await createUser(member))
-    staff[member.username] = asActor(user, member.role)
+    members.push({ username: member.username, role: member.role, user })
   }
+  // The owner lets reception give discounts (Settings → Permissions), before anyone acts.
+  await db.rolePermission.upsert({
+    where: { role_permission: { role: "reception", permission: "billing:discount" } },
+    create: {
+      role: "reception",
+      permission: "billing:discount",
+      granted: true,
+      updatedById: members.find((m) => m.role === "owner")!.user.id,
+    },
+    update: { granted: true },
+  })
+  const staff = {} as Record<(typeof STAFF)[number]["username"], CurrentUser>
+  for (const m of members) staff[m.username] = await asActor(m.user, m.role)
   // A former employee whose account was disabled (Settings → Users).
   await createUser(
     { username: "ali.old", name: "علي الموظف السابق", role: "reception" },
@@ -1039,18 +1059,6 @@ async function seedHistory({ patients: patientCount, mode }: { patients: number;
       update: {},
     })
   }
-
-  // The owner lets reception give discounts (Settings → Permissions).
-  await db.rolePermission.upsert({
-    where: { role_permission: { role: "reception", permission: "billing:discount" } },
-    create: {
-      role: "reception",
-      permission: "billing:discount",
-      granted: true,
-      updatedById: owner.id,
-    },
-    update: { granted: true },
-  })
 
   // ─── Catalog with prices (existing procedures keep their price unless unset) ─
   const procedures = new Map<string, { id: string; price: string }>()
