@@ -744,6 +744,31 @@
       "card": "بطاقة",
       "wallet": "محفظة",
       "by": "أغلقه"
+    },
+    "installments": {
+      "payWay": "طريقة الدفع",
+      "once": "دفعة واحدة",
+      "onceHint": "يُسدَّد المبلغ كله حتى تاريخ الاستحقاق.",
+      "monthly": "أقساط شهرية",
+      "monthlyHint": "دفعة أولى إن شئت، ثم أقساط شهرية بالآلاف، كما في الخطة المطبوعة.",
+      "months": "عدد الأقساط",
+      "monthsOption": "{count, plural, few {# أشهر} many {# شهراً} other {# شهر}}",
+      "deposit": "الدفعة الأولى",
+      "noDeposit": "بدون دفعة أولى",
+      "depositOption": "{percent}٪ اليوم",
+      "firstDue": "موعد أول قسط",
+      "firstDueHint": "ثم في اليوم نفسه من كل شهر.",
+      "schedule": "جدول الأقساط",
+      "depositRow": "الدفعة الأولى",
+      "row": "القسط {n}",
+      "lastDue": "موعد آخر قسط",
+      "status": {
+        "paid": "مسدَّد",
+        "due": "لم يُسدَّد بعد",
+        "part": "باقٍ {amount}",
+        "late": "متأخر: {amount}"
+      },
+      "next": "القسط التالي"
     }
   },
   "users": {

@@ -745,14 +745,15 @@ model Invoice {
   voidedById     String?       @map("voided_by_id") @db.Uuid
   voidReason     String?       @map("void_reason")
 
-  patient      Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  plan         TreatmentPlan?      @relation(fields: [planId], references: [id], onDelete: Restrict)
-  journalEntry JournalEntry?       @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
-  createdBy    User?               @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  voidedBy     User?               @relation("InvoiceVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+  patient      Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  plan         TreatmentPlan?       @relation(fields: [planId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry?        @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdBy    User?                @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  voidedBy     User?                @relation("InvoiceVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
   lines        InvoiceLine[]
   planItems    TreatmentPlanItem[]
   allocations  PaymentAllocation[]
+  installments InvoiceInstallment[]
 
   @@index([patientId, issueDate])
   @@index([status, dueDate])
@@ -788,6 +789,27 @@ model InvoiceLine {
   @@index([planItemId])
   @@index([dentistId])
   @@map("invoice_line")
+}
+
+/// When an invoice is to be paid: one row for the whole total, or (plan invoices) a
+/// deposit and monthly installments. Payments cover the earliest rows first, so only rows
+/// due before today can be late. Rows add up to the invoice total and never change (both
+/// enforced by the database); a wrong schedule is fixed by voiding the invoice.
+model InvoiceInstallment {
+  id        String   @id @default(uuid()) @db.Uuid
+  invoiceId String   @map("invoice_id") @db.Uuid
+  /// 1, 2, 3… in due order.
+  seq       Int
+  dueDate   DateTime @map("due_date") @db.Date
+  amount    Decimal  @db.Decimal(14, 2)
+  /// The part paid up front on the issue day.
+  deposit   Boolean  @default(false)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([invoiceId, seq])
+  @@index([dueDate])
+  @@map("invoice_installment")
 }
 
 // ─── Payments ────────────────────────────────────────────────────────────────

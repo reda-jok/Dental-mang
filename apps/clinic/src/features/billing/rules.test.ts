@@ -100,7 +100,7 @@ describe("paymentState", () => {
     status: "issued" as const,
     total: "50000",
     paid: "0",
-    dueDate: "2026-10-31",
+    installments: [{ dueDate: "2026-10-31", amount: "50000" }],
     today: "2026-10-01",
   }
   it("derives the state from payments and the due date", () => {
@@ -110,6 +110,23 @@ describe("paymentState", () => {
     expect(paymentState({ ...base, today: "2026-11-01" })).toBe("overdue")
     expect(paymentState({ ...base, paid: "20000", today: "2026-11-01" })).toBe("overdue")
     expect(paymentState({ ...base, status: "void" })).toBe("void")
+  })
+
+  it("is late only when an installment already due isn't covered", () => {
+    const monthly = {
+      ...base,
+      total: "300000",
+      installments: [
+        { dueDate: "2026-10-01", amount: "100000" },
+        { dueDate: "2026-11-01", amount: "100000" },
+        { dueDate: "2026-12-01", amount: "100000" },
+      ],
+    }
+    // Paying as agreed: the first installment paid, the rest not due yet.
+    expect(paymentState({ ...monthly, paid: "100000", today: "2026-10-20" })).toBe("partial")
+    expect(paymentState({ ...monthly, paid: "100000", today: "2026-11-02" })).toBe("overdue")
+    expect(paymentState({ ...monthly, paid: "150000", today: "2026-11-02" })).toBe("overdue")
+    expect(paymentState({ ...monthly, paid: "200000", today: "2026-11-02" })).toBe("partial")
   })
 
   it("treats a zero invoice as paid", () => {

@@ -3,15 +3,19 @@ import { expect, test, type Page } from "@playwright/test"
 import { createPatient, expectCreated, loginAsOwner, query, uniquePhone } from "./fixtures"
 
 /**
- * An invoice that fell due `daysLate` days ago. Written straight to the database: the
- * app only issues invoices dated today, and debts need time to pass.
+ * An invoice that fell due `daysLate` days ago, with its one installment. Written straight
+ * to the database: the app only issues invoices dated today, and debts need time to pass.
  */
 async function overdueInvoice(patientId: string, number: string, daysLate: number) {
   await query(
-    `insert into invoice (id, number, patient_id, kind, issue_date, due_date, subtotal,
-                          discount_total, total)
-     values (gen_random_uuid(), $1, $2, 'visit', current_date - $3::int - 30,
-             current_date - $3::int, 80000, 0, 80000)`,
+    `with invoice as (
+       insert into invoice (id, number, patient_id, kind, issue_date, due_date, subtotal,
+                            discount_total, total)
+       values (gen_random_uuid(), $1, $2, 'visit', current_date - $3::int - 30,
+               current_date - $3::int, 80000, 0, 80000)
+       returning id, due_date, total)
+     insert into invoice_installment (id, invoice_id, seq, due_date, amount)
+     select gen_random_uuid(), id, 1, due_date, total from invoice`,
     [number, patientId, daysLate],
   )
 }

@@ -2,7 +2,7 @@ import "server-only"
 
 import type { z } from "zod"
 
-import { todayIso } from "@/lib/dates"
+import { todayIso, toIsoDate } from "@/lib/dates"
 import { fromMinor, subtractAmounts, toMinor } from "@/lib/money"
 import { recordAudit } from "@/server/audit"
 import { db, type Db } from "@/server/db"
@@ -20,6 +20,7 @@ import {
   sumAmounts,
   unappliedMoney,
 } from "./payments"
+import { monthlyInstallments, nextDue, singleDue } from "./installments"
 import { givesNewDiscount, invoiceNumber, invoicePosting, invoiceTotals } from "./rules"
 import type {
   closeCashSchema,
@@ -93,9 +94,25 @@ async function settle(tx: Db, patientId: string, at: Date, preferredInvoiceId?: 
   const open = invoices
     .map((i) => ({
       id: i.id,
+      paid: sumAmounts(i.allocations.map((a) => a.amount)),
       balance: subtractAmounts(i.total.toString(), sumAmounts(i.allocations.map((a) => a.amount))),
     }))
     .filter((i) => toMinor(i.balance) > 0n)
+  // Oldest due first: by the earliest installment each invoice still has to pay.
+  const schedule = await tx.invoiceInstallment.findMany({
+    where: { invoiceId: { in: open.map((i) => i.id) } },
+    orderBy: { seq: "asc" },
+    select: { invoiceId: true, dueDate: true, amount: true },
+  })
+  const nextDueOf = new Map(
+    open.map((invoice) => {
+      const rows = schedule
+        .filter((r) => r.invoiceId === invoice.id)
+        .map((r) => ({ dueDate: toIsoDate(r.dueDate), amount: r.amount.toString() }))
+      return [invoice.id, nextDue(rows, invoice.paid)?.dueDate ?? ""]
+    }),
+  )
+  open.sort((a, b) => nextDueOf.get(a.id)!.localeCompare(nextDueOf.get(b.id)!))
   const allocations = allocate(money, open, preferredInvoiceId)
   // Stamped with the operation's time (not the insert time), so commission counts the
   // money in the month it was applied, also for back-dated entries.
@@ -129,6 +146,11 @@ export async function createInvoice(
     const { day: today, at } = await clockOf(tx, clock)
     if (input.dueDate < today) {
       throw new AppError("validation", "dueBeforeIssue", { dueDate: ["dueBeforeIssue"] })
+    }
+    if (input.installments && input.installments.firstDue < today) {
+      throw new AppError("validation", "dueBeforeIssue", {
+        "installments.firstDue": ["dueBeforeIssue"],
+      })
     }
 
     await lockPatient(tx, input.patientId)
@@ -253,6 +275,17 @@ export async function createInvoice(
     const id = crypto.randomUUID()
     const number = invoiceNumber(today, row!.n)
 
+    // When it's to be paid: one due date, or the deposit and monthly installments.
+    const schedule = input.installments
+      ? monthlyInstallments({
+          total: totals.total,
+          months: input.installments.months,
+          depositPercent: input.installments.depositPercent,
+          issueDate: today,
+          firstDue: input.installments.firstDue,
+        })
+      : singleDue(totals.total, input.dueDate).filter((row) => toMinor(row.amount) > 0n)
+
     // The entry is posted first so the invoice is created complete (it can't be edited later).
     const entry = await postJournal(tx, {
       date: today,
@@ -270,7 +303,8 @@ export async function createInvoice(
         kind: input.kind,
         planId,
         issueDate: new Date(`${today}T00:00:00Z`),
-        dueDate: new Date(`${input.dueDate}T00:00:00Z`),
+        // Paid in full by: the last installment.
+        dueDate: new Date(`${schedule.at(-1)?.dueDate ?? input.dueDate}T00:00:00Z`),
         subtotal: totals.subtotal,
         extraDiscount: totals.extraDiscount,
         discountTotal: totals.discountTotal,
@@ -291,6 +325,14 @@ export async function createInvoice(
             unitPrice: line.unitPrice,
             discount: line.discount,
             total: totals.lines[index]!.total,
+          })),
+        },
+        installments: {
+          create: schedule.map((row, index) => ({
+            seq: index + 1,
+            dueDate: new Date(`${row.dueDate}T00:00:00Z`),
+            amount: row.amount,
+            deposit: row.deposit,
           })),
         },
       },
@@ -322,6 +364,7 @@ export async function createInvoice(
         subtotal: totals.subtotal,
         discountTotal: totals.discountTotal,
         total: totals.total,
+        ...(input.installments && { installments: schedule.length }),
       },
     })
     return { id, number }

@@ -10,6 +10,7 @@ import {
   uuid,
 } from "@/lib/validation"
 
+import { DEPOSIT_PERCENTS, INSTALLMENT_MONTHS } from "../printing/quote"
 import { PAYMENT_METHODS } from "./payments"
 
 export const INVOICE_KINDS = ["visit", "plan"] as const
@@ -42,9 +43,21 @@ export const createInvoiceSchema = z
     lines: z.array(invoiceLineSchema).min(1, "noInvoiceLines").max(100),
     extraDiscount: optionalAmountField(),
     dueDate: isoDate,
+    /** Plan invoices only: a deposit and monthly installments, as on the printed plan. */
+    installments: z
+      .strictObject({
+        months: z.union(INSTALLMENT_MONTHS.map((m) => z.literal(m))),
+        depositPercent: z.union(DEPOSIT_PERCENTS.map((d) => z.literal(d))),
+        firstDue: isoDate,
+      })
+      .optional(),
     notes: optionalMultiline(500),
   })
   .refine((v) => v.kind !== "plan" || !!v.planId, { path: ["planId"], message: "required" })
+  .refine((v) => v.kind === "plan" || !v.installments, {
+    path: ["installments"],
+    message: "invalid",
+  })
 
 export const voidInvoiceSchema = z.strictObject({
   id: uuid,

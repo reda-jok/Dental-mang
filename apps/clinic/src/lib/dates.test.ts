@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  addMonths,
   ageInYears,
   birthDateFromAge,
   nextMonth,
@@ -64,6 +65,16 @@ describe("clinic day/month boundaries", () => {
     expect(startOfDayUtc("2026-01-15", "America/New_York").toISOString()).toBe(
       "2026-01-15T05:00:00.000Z",
     )
+  })
+})
+
+describe("addMonths", () => {
+  it("keeps the day of the month, or takes the month's last day", () => {
+    expect(addMonths("2026-10-13", 1)).toBe("2026-11-13")
+    expect(addMonths("2026-10-13", 3)).toBe("2027-01-13")
+    expect(addMonths("2026-01-31", 1)).toBe("2026-02-28")
+    expect(addMonths("2028-01-31", 1)).toBe("2028-02-29")
+    expect(addMonths("2026-08-31", 12)).toBe("2027-08-31")
   })
 })
 

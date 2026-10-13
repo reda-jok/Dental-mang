@@ -5,6 +5,7 @@ import { addDays } from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
 
 import type { PostingLine } from "../ledger/rules"
+import { overdueAmount } from "./installments"
 
 export type LineInput = { quantity: number; unitPrice: string; discount: string }
 
@@ -94,18 +95,23 @@ export function defaultDueDate(issueDate: string, days: number) {
 
 export type PaymentState = "void" | "paid" | "partial" | "unpaid" | "overdue"
 
-/** An invoice's state from what has been paid (always calculated, never stored). */
+/**
+ * An invoice's state from what has been paid (always calculated, never stored). It is
+ * overdue when an installment due before today isn't covered by what was paid.
+ */
 export function paymentState(invoice: {
   status: "issued" | "void"
   total: string
   paid: string
-  dueDate: string
+  installments: readonly { dueDate: string; amount: string }[]
   today: string
 }): PaymentState {
   if (invoice.status === "void") return "void"
   const balance = toMinor(invoice.total) - toMinor(invoice.paid)
   if (balance <= 0n) return "paid"
-  if (invoice.dueDate < invoice.today) return "overdue"
+  if (toMinor(overdueAmount(invoice.installments, invoice.paid, invoice.today)) > 0n) {
+    return "overdue"
+  }
   return toMinor(invoice.paid) > 0n ? "partial" : "unpaid"
 }
 

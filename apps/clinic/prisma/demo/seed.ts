@@ -61,6 +61,7 @@ import { STARTER_MEDICATIONS } from "@/features/prescriptions/starter"
 import { STARTER_CATALOG, STARTER_NOTES, STARTER_VISITS } from "@/features/procedures/starter"
 import {
   addDays,
+  addMonths,
   isoDateInZone,
   startOfDayUtc,
   todayIso,
@@ -201,6 +202,73 @@ async function topUps() {
   await seedVisitItems()
   await seedExpenses()
   await seedDentistPayouts()
+  await seedInstallments()
+}
+
+/**
+ * Installments (2026-10-13): a plan billed up front four months ago with a 30% deposit
+ * and six monthly installments. The deposit and the first two installments were paid by
+ * transfer; the third fell due and wasn't, so the patient is late for that installment
+ * only. Through the real services.
+ */
+async function seedInstallments() {
+  if ((await db.invoiceInstallment.count({ where: { seq: 2 } })) > 0) return
+  const reem = await db.user.findUnique({
+    where: { username: "reem" },
+    select: { id: true, name: true, username: true },
+  })
+  if (!reem) return
+  const actor = await asActor(reem, "reception")
+  const plan = await db.treatmentPlan.findFirst({
+    where: {
+      status: { in: ["accepted", "proposed"] },
+      patient: { deletedAt: null },
+      items: { some: { status: { not: "cancelled" } }, none: { invoiceId: { not: null } } },
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      patientId: true,
+      items: { where: { status: { not: "cancelled" } }, select: { id: true } },
+    },
+  })
+  if (!plan) return
+  let issued = addMonths(today, -4)
+  if (weekdayOf(issued) === 5) issued = addDays(issued, 1) // the clinic is closed on Fridays
+  const invoice = await createInvoice(
+    actor,
+    createInvoiceSchema.parse({
+      patientId: plan.patientId,
+      kind: "plan",
+      planId: plan.id,
+      lines: plan.items.map((item) => ({ planItemId: item.id, quantity: "1", discount: "" })),
+      extraDiscount: "",
+      dueDate: addDays(issued, 30),
+      installments: { months: 6, depositPercent: 30, firstDue: addMonths(issued, 1) },
+      notes: "",
+    }),
+    clockAt(issued, 11 * 60),
+  )
+  const rows = await db.invoiceInstallment.findMany({
+    where: { invoiceId: invoice.id },
+    orderBy: { seq: "asc" },
+    select: { dueDate: true, amount: true },
+  })
+  for (const row of rows.slice(0, 3)) {
+    await recordPayment(
+      actor,
+      recordPaymentSchema.parse({
+        patientId: plan.patientId,
+        amount: row.amount.toString(),
+        method: "wallet",
+        reference: `FIB-${int(100000, 999999)}`,
+        invoiceId: invoice.id,
+        notes: "",
+        idempotencyKey: crypto.randomUUID(),
+      }),
+      clockAt(toIsoDate(row.dueDate), 12 * 60),
+    )
+  }
 }
 
 /**
@@ -1863,7 +1931,8 @@ async function seedHistory({ patients: patientCount, mode }: { patients: number;
         lines: items.map((item) => ({ planItemId: item.id, quantity: "1", discount: "" })),
         extraDiscount: "",
         dueDate: addDays(day, 90),
-        notes: "تُسدَّد على دفعات شهرية",
+        installments: { months: 3, depositPercent: 30, firstDue: addMonths(day, 1) },
+        notes: "",
       }),
       clockAt(day),
     )

@@ -12,6 +12,7 @@ import { getClinicSettings } from "../settings/data"
 import { summarize } from "./cash"
 import { AGE_BUCKETS, agePatientDebts, bucketTotals, type AgeBucket } from "./debts"
 import { PAYMENT_METHODS, patientAccount, sumAmounts } from "./payments"
+import { nextDue, unpaidInstallments } from "./installments"
 import { paymentState } from "./rules"
 import { unclosedMovements } from "./service"
 import type { DEBT_FILTERS, INVOICE_FILTERS } from "./schemas"
@@ -51,9 +52,22 @@ async function invoiceIdsByBalance(
         select coalesce(sum(a.amount), 0) from payment_allocation a
         join payment p on p.id = a.payment_id
         where a.invoice_id = i.id and p.voided_at is null)
-      ${filter === "overdue" ? Prisma.sql`and i.due_date < ${today}::date` : Prisma.empty}
+      ${
+        filter === "overdue"
+          ? Prisma.sql`and ${dueBefore(today)} > (
+        select coalesce(sum(a.amount), 0) from payment_allocation a
+        join payment p on p.id = a.payment_id
+        where a.invoice_id = i.id and p.voided_at is null)`
+          : Prisma.empty
+      }
       ${dentistOnly(dentistId)}`
   return rows.map((r) => r.id)
+}
+
+/** SQL: what invoice `i` asked to be paid before `today` (its installments due by then). */
+function dueBefore(today: string) {
+  return Prisma.sql`(select coalesce(sum(s.amount), 0) from invoice_installment s
+    where s.invoice_id = i.id and s.due_date < ${today}::date)`
 }
 
 function dentistOnly(dentistId: string | null) {
@@ -74,25 +88,31 @@ const listSelect = {
   patient: { select: { id: true, fullName: true, code: true } },
   lines: { orderBy: { sortOrder: "asc" }, take: 1, select: { description: true } },
   allocations: countedAllocations,
+  installments: { orderBy: { seq: "asc" }, select: { dueDate: true, amount: true } },
   _count: { select: { lines: true } },
 } satisfies Prisma.InvoiceSelect
 
 type ListRow = Prisma.InvoiceGetPayload<{ select: typeof listSelect }>
 
+const scheduleOf = (rows: { dueDate: Date; amount: Prisma.Decimal }[]) =>
+  rows.map((r) => ({ dueDate: toIsoDate(r.dueDate), amount: r.amount.toString() }))
+
 function toListRow(row: ListRow, today: string) {
-  const dueDate = toIsoDate(row.dueDate)
   const total = row.total.toString()
   const paid = row.status === "void" ? "0" : sumAmounts(row.allocations.map((a) => a.amount))
+  const installments = scheduleOf(row.installments)
   return {
     id: row.id,
     number: row.number,
     kind: row.kind,
     issueDate: toIsoDate(row.issueDate),
-    dueDate,
+    // The next installment to pay (the invoice's own due date once it's all paid).
+    dueDate: nextDue(installments, paid)?.dueDate ?? toIsoDate(row.dueDate),
+    installmentCount: installments.length,
     total,
     paid,
     balance: row.status === "void" ? "0" : subtractAmounts(total, paid),
-    state: paymentState({ status: row.status, total, paid, dueDate, today }),
+    state: paymentState({ status: row.status, total, paid, installments, today }),
     patient: row.patient,
     summary: row.lines[0]?.description ?? "",
     moreLines: Math.max(0, row._count.lines - 1),
@@ -259,6 +279,10 @@ export async function getInvoice(id: string) {
           payment: { select: { id: true, number: true, method: true, receivedOn: true } },
         },
       },
+      installments: {
+        orderBy: { seq: "asc" },
+        select: { seq: true, dueDate: true, amount: true, deposit: true },
+      },
       lines: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -281,9 +305,20 @@ export async function getInvoice(id: string) {
   const total = invoice.total.toString()
   const live = invoice.status === "issued"
   const paid = live ? sumAmounts(invoice.allocations.map((a) => a.amount)) : "0"
-  const { allocations, ...rest } = invoice
+  const { allocations, installments: schedule, ...rest } = invoice
+  const installments = schedule.map((r) => ({
+    seq: r.seq,
+    deposit: r.deposit,
+    dueDate: toIsoDate(r.dueDate),
+    amount: r.amount.toString(),
+  }))
   return {
     ...rest,
+    /** Each installment with what's still unpaid of it (nothing for a void invoice). */
+    installments: unpaidInstallments(installments, live ? paid : total).map((r) => ({
+      ...r,
+      late: toMinor(r.unpaid) > 0n && r.dueDate < today,
+    })),
     issueDate: toIsoDate(invoice.issueDate),
     dueDate,
     subtotal: invoice.subtotal.toString(),
@@ -292,7 +327,7 @@ export async function getInvoice(id: string) {
     total,
     paid,
     balance: live ? subtractAmounts(total, paid) : "0",
-    state: paymentState({ status: invoice.status, total, paid, dueDate, today }),
+    state: paymentState({ status: invoice.status, total, paid, installments, today }),
     payments: live
       ? allocations.map(({ amount, payment }) => ({
           ...payment,
@@ -408,12 +443,12 @@ export async function getBillingSummary() {
     }),
     db.$queryRaw<{ outstanding: string; open: bigint; overdue: string; late: bigint }[]>`
       select coalesce(sum(i.total - x.paid), 0)::text as outstanding, count(*) as open,
-             coalesce(sum(i.total - x.paid) filter (where i.due_date < ${today}::date), 0)::text
-               as overdue,
-             count(*) filter (where i.due_date < ${today}::date) as late
+             coalesce(sum(x.due - x.paid) filter (where x.due > x.paid), 0)::text as overdue,
+             count(*) filter (where x.due > x.paid) as late
       from invoice i
       cross join lateral (
-        select coalesce(sum(a.amount), 0) as paid from payment_allocation a
+        select coalesce(sum(a.amount), 0) as paid, ${dueBefore(today)} as due
+        from payment_allocation a
         join payment p on p.id = a.payment_id
         where a.invoice_id = i.id and p.voided_at is null) x
       where i.status = 'issued' and i.total > x.paid ${dentistOnly(dentistId)}`,
@@ -533,16 +568,22 @@ export async function getPaymentFormData(patientId: string) {
 
 export type PaymentFormData = Awaited<ReturnType<typeof getPaymentFormData>>
 
-/** Each live invoice that still has something to pay, with what's left. */
+/**
+ * What's left to pay of each installment of each live invoice, with its due date (money
+ * paid covers the earliest installments first), so debts age by installment.
+ */
 async function openBalances(patientId?: string) {
   const rows = await db.$queryRaw<{ patient_id: string; due_date: string; balance: string }[]>`
-    select i.patient_id, to_char(i.due_date, 'YYYY-MM-DD') as due_date,
-           (i.total - x.paid)::text as balance
+    select i.patient_id, to_char(s.due_date, 'YYYY-MM-DD') as due_date,
+           least(s.amount, s.through - x.paid)::text as balance
     from invoice i
     cross join lateral (
       select coalesce(sum(a.amount), 0) as paid from payment_allocation a
       join payment p on p.id = a.payment_id
       where a.invoice_id = i.id and p.voided_at is null) x
+    join lateral (
+      select due_date, amount, sum(amount) over (order by seq) as through
+      from invoice_installment where invoice_id = i.id) s on s.through > x.paid
     where i.status = 'issued' and i.total > x.paid
       ${patientId ? Prisma.sql`and i.patient_id = ${patientId}::uuid` : Prisma.empty}`
   return rows.map((r) => ({ patientId: r.patient_id, dueDate: r.due_date, balance: r.balance }))

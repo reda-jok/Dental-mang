@@ -23,6 +23,8 @@ export async function InvoiceSlip({
   const day = (iso: string) =>
     format.dateTime(parseIsoDate(iso)!, { dateStyle: "medium", timeZone: "UTC" })
 
+  // An invoice paid in installments shows the next one, not the last due date.
+  const next = invoice.installments.find((row) => row.unpaid !== "0")
   return (
     <ThermalSheet>
       <LetterheadBlock letterhead={letterhead} />
@@ -80,7 +82,13 @@ export async function InvoiceSlip({
           <Row label={tb("balance")} strong>
             {money(invoice.balance)}
           </Row>
-          {invoice.balance !== "0" && <Row label={tb("dueDate")}>{day(invoice.dueDate)}</Row>}
+          {next && invoice.installments.length > 1 ? (
+            <Row label={tb("installments.next")}>
+              {money(next.unpaid)} · {day(next.dueDate)}
+            </Row>
+          ) : (
+            invoice.balance !== "0" && <Row label={tb("dueDate")}>{day(invoice.dueDate)}</Row>
+          )}
         </>
       )}
       <Rule />

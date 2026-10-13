@@ -43,15 +43,17 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { addDays, parseIsoDate } from "@/lib/dates"
+import { addDays, addMonths, parseIsoDate } from "@/lib/dates"
 import { useActionErrorHandler, useInvalidHandler, useValidationMessage } from "@/lib/form"
 import { formatMoney, parseAmount } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import { toLatinDigits } from "@/lib/validation"
 
+import { DEPOSIT_PERCENTS, INSTALLMENT_MONTHS } from "../../printing/quote"
 import { createInvoiceAction } from "../actions"
 import type { InvoiceFormData } from "../data"
 import { toothText } from "../display"
+import { monthlyInstallments } from "../installments"
 import { invoiceTotals } from "../rules"
 import { createInvoiceSchema, type CreateInvoiceInput } from "../schemas"
 
@@ -151,10 +153,12 @@ function InvoiceForm({
   const planId = useWatch({ control: form.control, name: "planId" }) ?? ""
   const lines = useWatch({ control: form.control, name: "lines" })
   const extraDiscount = useWatch({ control: form.control, name: "extraDiscount" })
+  const installments = useWatch({ control: form.control, name: "installments" })
 
   /** Switching kind or plan reloads its treatments; procedures added from the catalog stay. */
   const switchTo = (nextKind: Kind, nextPlanId: string) => {
     form.setValue("kind", nextKind)
+    if (nextKind !== "plan") form.setValue("installments", undefined)
     form.setValue("planId", nextKind === "plan" ? nextPlanId : "")
     const catalogLines = form.getValues("lines").filter((line) => line.procedureId)
     replace([...itemsFor(nextKind, nextPlanId).map(itemLine), ...catalogLines])
@@ -394,6 +398,52 @@ function InvoiceForm({
           </Field>
         )}
 
+        {kind === "plan" && (
+          <FieldSet>
+            <FieldLegend variant="label">{t("installments.payWay")}</FieldLegend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {([false, true] as const).map((monthly) => (
+                <button
+                  key={String(monthly)}
+                  type="button"
+                  aria-pressed={!!installments === monthly}
+                  onClick={() =>
+                    form.setValue(
+                      "installments",
+                      monthly
+                        ? { months: 6, depositPercent: 0, firstDue: addMonths(data.today, 1) }
+                        : undefined,
+                    )
+                  }
+                  className={cn(
+                    "rounded-xl border p-3 text-start transition-colors",
+                    !!installments === monthly
+                      ? "border-primary bg-accent ring-primary ring-1"
+                      : "hover:bg-muted",
+                  )}
+                >
+                  <span className="block font-medium">
+                    {t(monthly ? "installments.monthly" : "installments.once")}
+                  </span>
+                  <span className="text-muted-foreground block text-xs">
+                    {t(monthly ? "installments.monthlyHint" : "installments.onceHint")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </FieldSet>
+        )}
+
+        {installments && (
+          <InstallmentFields
+            today={data.today}
+            total={totals.ok ? totals.totals.total : "0"}
+            value={installments}
+            onChange={(next) => form.setValue("installments", next)}
+            error={vm(errors.installments?.firstDue?.message)}
+          />
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2">
           {data.canDiscount ? (
             <Field data-invalid={!!errors.extraDiscount}>
@@ -414,23 +464,25 @@ function InvoiceForm({
           ) : (
             <p className="self-end text-xs text-slate-500">{t("noDiscountPermission")}</p>
           )}
-          <Field data-invalid={!!errors.dueDate}>
-            <FieldLabel htmlFor="dueDate">{t("dueDate")}</FieldLabel>
-            <Input
-              id="dueDate"
-              type="date"
-              dir="ltr"
-              min={data.today}
-              aria-invalid={!!errors.dueDate}
-              {...form.register("dueDate")}
-            />
-            {!errors.dueDate && (
-              <FieldDescription>
-                {t("dueDateHint", { days: String(data.dueDays) })}
-              </FieldDescription>
-            )}
-            <FieldError>{vm(errors.dueDate?.message)}</FieldError>
-          </Field>
+          {!installments && (
+            <Field data-invalid={!!errors.dueDate}>
+              <FieldLabel htmlFor="dueDate">{t("dueDate")}</FieldLabel>
+              <Input
+                id="dueDate"
+                type="date"
+                dir="ltr"
+                min={data.today}
+                aria-invalid={!!errors.dueDate}
+                {...form.register("dueDate")}
+              />
+              {!errors.dueDate && (
+                <FieldDescription>
+                  {t("dueDateHint", { days: String(data.dueDays) })}
+                </FieldDescription>
+              )}
+              <FieldError>{vm(errors.dueDate?.message)}</FieldError>
+            </Field>
+          )}
         </div>
 
         <Field data-invalid={!!errors.notes}>
@@ -479,5 +531,125 @@ function InvoiceForm({
         </DialogFooter>
       </FieldGroup>
     </form>
+  )
+}
+
+type InstallmentChoice = NonNullable<CreateInvoiceInput["installments"]>
+
+/** Months, deposit and first date, with the dates and amounts they make. */
+function InstallmentFields({
+  today,
+  total,
+  value,
+  onChange,
+  error,
+}: {
+  today: string
+  total: string
+  value: InstallmentChoice
+  onChange: (next: InstallmentChoice) => void
+  error?: string
+}) {
+  const t = useTranslations("billing.installments")
+  const format = useFormatter()
+  const rows =
+    total !== "0" && parseIsoDate(value.firstDue)
+      ? monthlyInstallments({
+          total,
+          months: value.months,
+          depositPercent: value.depositPercent,
+          issueDate: today,
+          firstDue: value.firstDue,
+        })
+      : []
+  const deposits = rows.filter((row) => row.deposit).length
+  return (
+    <div className="space-y-4 rounded-xl border p-4">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field>
+          <FieldLabel htmlFor="installmentMonths">{t("months")}</FieldLabel>
+          <Select
+            value={String(value.months)}
+            onValueChange={(v) => onChange({ ...value, months: Number(v) as typeof value.months })}
+          >
+            <SelectTrigger id="installmentMonths">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {INSTALLMENT_MONTHS.map((m) => (
+                <SelectItem key={m} value={String(m)}>
+                  {t("monthsOption", { count: m })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="installmentDeposit">{t("deposit")}</FieldLabel>
+          <Select
+            value={String(value.depositPercent)}
+            onValueChange={(v) =>
+              onChange({ ...value, depositPercent: Number(v) as typeof value.depositPercent })
+            }
+          >
+            <SelectTrigger id="installmentDeposit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEPOSIT_PERCENTS.map((d) => (
+                <SelectItem key={d} value={String(d)}>
+                  {d === 0 ? t("noDeposit") : t("depositOption", { percent: String(d) })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field data-invalid={!!error}>
+          <FieldLabel htmlFor="installmentFirstDue">{t("firstDue")}</FieldLabel>
+          <Input
+            id="installmentFirstDue"
+            type="date"
+            dir="ltr"
+            min={today}
+            value={value.firstDue}
+            aria-invalid={!!error}
+            onChange={(e) => onChange({ ...value, firstDue: e.target.value })}
+          />
+          {error ? (
+            <FieldError>{error}</FieldError>
+          ) : (
+            <FieldDescription>{t("firstDueHint")}</FieldDescription>
+          )}
+        </Field>
+      </div>
+      {rows.length > 0 && (
+        <ol
+          className="divide-y text-sm"
+          aria-label={t("schedule")}
+          data-testid="installment-preview"
+        >
+          {rows.map((row, index) => (
+            <li key={index} className="flex justify-between gap-3 py-1.5">
+              <span>
+                {row.deposit ? t("depositRow") : t("row", { n: String(index + 1 - deposits) })}
+                <span className="text-muted-foreground ms-2">
+                  <bdi>
+                    {format.dateTime(parseIsoDate(row.dueDate)!, {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      timeZone: "UTC",
+                    })}
+                  </bdi>
+                </span>
+              </span>
+              <span dir="ltr" className="font-medium">
+                {formatMoney(row.amount, "IQD")}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   )
 }

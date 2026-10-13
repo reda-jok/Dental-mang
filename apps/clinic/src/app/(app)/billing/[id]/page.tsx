@@ -25,6 +25,7 @@ import { toothText } from "@/features/billing/display"
 import { parseIsoDate } from "@/lib/dates"
 import { formatMoney, toMinor } from "@/lib/money"
 import { hasPermission } from "@/lib/permissions"
+import { cn } from "@/lib/utils"
 import { requirePagePermission } from "@/server/session"
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -53,6 +54,7 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
     format.dateTime(parseIsoDate(iso)!, { dateStyle: "long", timeZone: "UTC" })
   const money = (amount: string) => <span dir="ltr">{formatMoney(amount, "IQD")}</span>
   const isVoid = invoice.status === "void"
+  const deposits = invoice.installments.filter((row) => row.deposit).length
 
   return (
     <div className="space-y-6">
@@ -130,7 +132,9 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
               <dd>{day(invoice.issueDate)}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">{t("dueDate")}</dt>
+              <dt className="text-slate-500">
+                {t(invoice.installments.length > 1 ? "installments.lastDue" : "dueDate")}
+              </dt>
               <dd>{day(invoice.dueDate)}</dd>
             </div>
             <div>
@@ -192,6 +196,58 @@ export default async function InvoicePage({ params }: PageProps<"/billing/[id]">
               </TableBody>
             </Table>
           </div>
+
+          {!isVoid && invoice.installments.length > 1 && (
+            <section aria-labelledby="invoice-installments" className="space-y-2">
+              <h3 id="invoice-installments" className="text-foreground font-semibold">
+                {t("installments.schedule")}
+              </h3>
+              <ul className="divide-y rounded-xl border" data-testid="installments">
+                {invoice.installments.map((row) => {
+                  const status =
+                    row.unpaid === "0"
+                      ? "paid"
+                      : row.late
+                        ? "late"
+                        : row.unpaid !== row.amount
+                          ? "part"
+                          : "due"
+                  return (
+                    <li
+                      key={row.seq}
+                      data-installment={status}
+                      className="flex items-center justify-between gap-3 p-3 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p>
+                          <span className="font-medium">
+                            {row.deposit
+                              ? t("installments.depositRow")
+                              : t("installments.row", { n: String(row.seq - deposits) })}
+                          </span>
+                          <span className="text-muted-foreground ms-2">
+                            <bdi>{day(row.dueDate)}</bdi>
+                          </span>
+                        </p>
+                        <p
+                          className={cn(
+                            "text-muted-foreground text-xs",
+                            status === "late" && "text-destructive font-medium",
+                            status === "paid" && "text-green-700",
+                          )}
+                        >
+                          {t(`installments.status.${status}`, {
+                            amount: formatMoney(row.unpaid, "IQD"),
+                          })}
+                        </p>
+                      </div>
+                      <span className="font-medium whitespace-nowrap">{money(row.amount)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
 
           {!isVoid && (
             <section aria-labelledby="invoice-payments" className="space-y-2">

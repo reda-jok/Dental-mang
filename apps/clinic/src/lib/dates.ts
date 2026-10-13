@@ -108,3 +108,14 @@ export function nextMonth(month: string): string {
   const [year, m] = month.split("-").map(Number) as [number, number]
   return m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, "0")}`
 }
+
+/** "2026-01-31" + 1 month → "2026-02-28": the same day of the month, or its last day. */
+export function addMonths(isoDate: string, months: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number]
+  const first = new Date(Date.UTC(year, month - 1 + months, 1))
+  const lastDay = new Date(
+    Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0),
+  ).getUTCDate()
+  first.setUTCDate(Math.min(day, lastDay))
+  return toIsoDate(first)
+}
