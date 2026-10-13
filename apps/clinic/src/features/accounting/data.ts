@@ -162,6 +162,7 @@ export async function getCashBook(account: MoneyAccount, month = currentMonth())
         reversal: boolean
         number: string | null
         party: string | null
+        taken_to: "owner" | "bank" | null
         debit: string
         credit: string
       }[]
@@ -169,6 +170,7 @@ export async function getCashBook(account: MoneyAccount, month = currentMonth())
       select l.id, e.date, e.source_type as source, e.reverses_id is not null as reversal,
              coalesce(p.number, r.number, lp.number, x.number) as number,
              coalesce(pp.full_name, rp.full_name, lb.name, x.description) as party,
+             cc.taken_to::text as taken_to,
              l.debit::text as debit, l.credit::text as credit
       from journal_line l
       join journal_entry e on e.id = l.entry_id
@@ -180,6 +182,7 @@ export async function getCashBook(account: MoneyAccount, month = currentMonth())
       left join lab_payment lp on e.source_type = 'lab_payment' and lp.id = e.source_id
       left join lab lb on lb.id = lp.lab_id
       left join expense x on e.source_type = 'expense' and x.id = e.source_id
+      left join cash_close cc on e.source_type = 'cash_takeout' and cc.id = e.source_id
       where a.code = ${code} and e.date >= ${from}::date and e.date < ${to}::date
       order by e.date, e.created_at, e.number`,
   ])

@@ -25,7 +25,7 @@ import { CashCloseForm } from "@/features/billing/components/cash-close-form"
 import { getCashDrawer } from "@/features/billing/data"
 import { StatCard } from "@/features/dashboard/components/stat-card"
 import { parseIsoDate } from "@/lib/dates"
-import { formatMoney, toMinor } from "@/lib/money"
+import { formatMoney, subtractAmounts, toMinor } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import { requirePagePermission } from "@/server/session"
 
@@ -119,6 +119,15 @@ export default async function CashPage() {
                 )}
                 {differenceText(drawer.todayClose.difference)}
               </p>
+              <p className="text-sm" data-testid="closed-takeout">
+                {drawer.todayClose.takenOut && drawer.todayClose.takenTo
+                  ? t("closedTakeout", {
+                      amount: formatMoney(drawer.todayClose.takenOut, "IQD"),
+                      to: t(`takenToOptions.${drawer.todayClose.takenTo}`),
+                      kept: formatMoney(drawer.todayClose.kept, "IQD"),
+                    })
+                  : t("closedKept", { kept: formatMoney(drawer.todayClose.kept, "IQD") })}
+              </p>
               <p className="text-sm text-slate-600">
                 {t("closedBy", {
                   name: drawer.todayClose.closedByName ?? "—",
@@ -129,7 +138,7 @@ export default async function CashPage() {
                 <p className="text-sm text-blue-700">
                   {t("afterClose", {
                     count: movements.length,
-                    amount: formatMoney(summary.expected, "IQD"),
+                    amount: formatMoney(subtractAmounts(summary.expected, summary.opening), "IQD"),
                   })}
                 </p>
               )}
@@ -141,6 +150,11 @@ export default async function CashPage() {
                 <p className="text-3xl font-bold text-slate-900" data-testid="expected-cash">
                   {money(summary.expected)}
                 </p>
+                {toMinor(summary.opening) > 0n && (
+                  <p className="mt-1 text-sm text-slate-600" data-testid="opening-cash">
+                    {t("openingNote", { amount: formatMoney(summary.opening, "IQD") })}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-slate-500">{t("expectedHint")}</p>
               </div>
               <CashCloseForm expected={summary.expected} />
@@ -239,6 +253,9 @@ export default async function CashPage() {
                   <TableHead className="text-end">{t("historyColumns.expected")}</TableHead>
                   <TableHead className="text-end">{t("historyColumns.counted")}</TableHead>
                   <TableHead>{t("historyColumns.difference")}</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    {t("historyColumns.takenOut")}
+                  </TableHead>
                   <TableHead className="hidden text-end md:table-cell">
                     {t("historyColumns.card")}
                   </TableHead>
@@ -271,6 +288,18 @@ export default async function CashPage() {
                       </span>
                       {c.notes && (
                         <p className="max-w-56 truncate text-xs text-slate-500">{c.notes}</p>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden text-sm whitespace-nowrap md:table-cell">
+                      {c.takenOut && c.takenTo ? (
+                        <>
+                          {money(c.takenOut)}
+                          <span className="block text-xs text-slate-500">
+                            {t(`takenToOptions.${c.takenTo}`)}
+                          </span>
+                        </>
+                      ) : (
+                        "—"
                       )}
                     </TableCell>
                     <TableCell className="hidden text-end whitespace-nowrap md:table-cell">

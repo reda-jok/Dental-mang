@@ -22,6 +22,7 @@ import {
 } from "@/features/billing/schemas"
 import {
   closeCashDrawer,
+  drawerOpening,
   createInvoice,
   logPaymentReminder,
   recordPayment,
@@ -1198,7 +1199,9 @@ async function seedLabMoney() {
   if (owedMost && roundThousands(owedMost.amount / 2n) > 0n) {
     const { labId, amount } = owedMost
     const clock = { day: today, at: new Date() }
-    events.push({ clock, run: () => pay(labId, roundThousands(amount / 2n), "cash", clock) })
+    // No more than the drawer is likely to hold by then (60,000).
+    const part = amount / 2n < 6_000_000n ? roundThousands(amount / 2n) : 6_000_000n
+    events.push({ clock, run: () => pay(labId, part, "cash", clock) })
     counts.payments++
   }
   events.sort((a, b) => a.clock.at.getTime() - b.clock.at.getTime())
@@ -2068,9 +2071,14 @@ async function seedHistory({ patients: patientCount, mode }: { patients: number;
     counts.payments++
   }
 
-  /** The daily cash close; now and then the count is a little off, with a note. */
+  /**
+   * The daily cash close; now and then the count is a little off, with a note. The owner
+   * takes the cash home and leaves 50,000 for change; on Thursdays it goes to the bank.
+   */
   async function closeDrawer(day: string) {
-    const expected = toMinor(summarize(await unclosedMovements(db)).expected)
+    const expected = toMinor(
+      summarize(await unclosedMovements(db), await drawerOpening(db)).expected,
+    )
     // Random small differences, plus one shortage and one overage in the last two weeks
     // so the "last 30 days" panel has something to show.
     const off =
@@ -2090,9 +2098,16 @@ async function seedHistory({ patients: patientCount, mode }: { patients: number;
           : off < 0n
             ? pick(["فكة أُعطيت لمريض ولم تُسجَّل", "خطأ في العد", "مبلغ ناقص، يُراجع غداً"])
             : pick(["مريض دفع ولم تُسجَّل دفعته", "زيادة غير معروفة السبب"])
+    const float = 5_000_000n // 50,000 dinars, in minor units
+    const takenOut = counted > float ? counted - float : 0n
     await closeCashDrawer(
       reception,
-      closeCashSchema.parse({ counted: dinars(counted), notes }),
+      closeCashSchema.parse({
+        counted: dinars(counted),
+        takenOut: dinars(takenOut),
+        takenTo: weekdayOf(day) === 4 ? "bank" : "owner",
+        notes,
+      }),
       clockAt(day, 22 * 60 + 5),
     )
     counts.closes++

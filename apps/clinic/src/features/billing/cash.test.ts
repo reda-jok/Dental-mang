@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { postingProblem } from "../ledger/rules"
-import { closeOutcome, differencePosting, signedAmount, summarize } from "./cash"
+import { closeOutcome, differencePosting, signedAmount, summarize, takeoutPosting } from "./cash"
 
 describe("summarize", () => {
   it("expects cash in minus cash out; card and wallet are listed, not counted", () => {
@@ -15,6 +15,7 @@ describe("summarize", () => {
       { kind: "refund", method: "wallet", amount: "15000" },
     ])
     expect(summary).toEqual({
+      opening: "0",
       cashIn: "75000",
       cashOut: "15000",
       expected: "60000",
@@ -67,6 +68,38 @@ describe("summarize", () => {
     expect(signedAmount({ kind: "payment", method: "cash", amount: "100" })).toBe("100")
     expect(signedAmount({ kind: "refund", method: "cash", amount: "100" })).toBe("-100")
     expect(signedAmount({ kind: "payment_void", method: "card", amount: "100" })).toBe("-100")
+  })
+})
+
+describe("summarize with cash left from the previous close", () => {
+  it("expects the cash left in the drawer plus the day's movements", () => {
+    const summary = summarize(
+      [
+        { kind: "payment", method: "cash", amount: "100000" },
+        { kind: "expense", method: "cash", amount: "30000" },
+      ],
+      "50000",
+    )
+    expect(summary).toMatchObject({
+      opening: "50000",
+      cashIn: "100000",
+      cashOut: "30000",
+      expected: "120000",
+    })
+    expect(summarize([], "50000").expected).toBe("50000")
+  })
+})
+
+describe("takeoutPosting", () => {
+  it("hands cash to the owner or the bank, out of the drawer", () => {
+    const owner = takeoutPosting("300000", "owner")!
+    expect(owner).toEqual([
+      { account: "ownerDrawings", debit: "300000" },
+      { account: "cash", credit: "300000" },
+    ])
+    expect(postingProblem(owner)).toBeNull()
+    expect(takeoutPosting("300000", "bank")![0]).toEqual({ account: "bank", debit: "300000" })
+    expect(takeoutPosting("0", "owner")).toBeNull()
   })
 })
 

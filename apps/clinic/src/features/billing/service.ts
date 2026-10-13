@@ -11,7 +11,14 @@ import { hasPermission } from "@/lib/permissions"
 import type { CurrentUser } from "@/server/session"
 
 import { postJournal, reverseJournal } from "../ledger/service"
-import { closeOutcome, differencePosting, signedAmount, summarize, type Movement } from "./cash"
+import {
+  closeOutcome,
+  differencePosting,
+  signedAmount,
+  summarize,
+  takeoutPosting,
+  type Movement,
+} from "./cash"
 import {
   allocate,
   documentNumber,
@@ -735,6 +742,12 @@ export async function unclosedMovements(tx: Db): Promise<OpenMovement[]> {
  * counted cash with the expected cash, and books any difference. One close per day;
  * a close can't be changed afterwards.
  */
+/** What the latest close left in the drawer: the next close starts from it. */
+export async function drawerOpening(tx: Db) {
+  const last = await tx.cashClose.findFirst({ orderBy: { day: "desc" }, select: { kept: true } })
+  return last?.kept.toString() ?? "0"
+}
+
 export async function closeCashDrawer(
   actor: CurrentUser,
   input: z.output<typeof closeCashSchema>,
@@ -751,7 +764,7 @@ export async function closeCashDrawer(
     if (existing) throw new AppError("conflict", "dayAlreadyClosed")
 
     const movements = await unclosedMovements(tx)
-    const summary = summarize(movements)
+    const summary = summarize(movements, await drawerOpening(tx))
     const outcome = closeOutcome(input.counted, summary.expected)
     if (outcome.kind !== "match" && !input.notes) {
       throw new AppError("validation", "differenceNeedsNote", { notes: ["differenceNeedsNote"] })
@@ -768,12 +781,24 @@ export async function closeCashDrawer(
           userId: actor.id,
         })
       : null
+    // Cash taken out goes to the owner or the bank; the rest stays for the next close.
+    const takeout = input.takenTo ? takeoutPosting(input.takenOut, input.takenTo) : null
+    if (takeout) {
+      await postJournal(tx, {
+        date: day,
+        description: `cash takeout ${day}`,
+        source: { type: "cash_takeout", id },
+        lines: takeout,
+        userId: actor.id,
+      })
+    }
 
     await tx.cashClose.create({
       data: {
         id,
         day: new Date(`${day}T00:00:00Z`),
         closedAt: at,
+        opening: summary.opening,
         expected: summary.expected,
         counted: input.counted,
         difference: outcome.difference,
@@ -781,6 +806,8 @@ export async function closeCashDrawer(
         cashOut: summary.cashOut,
         card: summary.card,
         wallet: summary.wallet,
+        kept: subtractAmounts(input.counted, takeout ? input.takenOut : "0"),
+        takenTo: takeout ? input.takenTo : null,
         notes: input.notes,
         closedById: actor.id,
         journalEntryId: entry?.id,
@@ -799,7 +826,13 @@ export async function closeCashDrawer(
       action: "create",
       entity: "cash_close",
       entityId: id,
-      after: { day, expected: summary.expected, counted: input.counted, ...outcome },
+      after: {
+        day,
+        expected: summary.expected,
+        counted: input.counted,
+        ...outcome,
+        ...(takeout && { takenOut: input.takenOut, takenTo: input.takenTo }),
+      },
     })
     return { id, ...outcome }
   })

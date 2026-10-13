@@ -13,6 +13,7 @@ export type JournalSource =
   | "payment"
   | "refund"
   | "cash_close"
+  | "cash_takeout"
   | "lab_bill"
   | "lab_payment"
   | "expense"

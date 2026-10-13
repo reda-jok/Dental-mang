@@ -14,7 +14,7 @@ import { AGE_BUCKETS, agePatientDebts, bucketTotals, type AgeBucket } from "./de
 import { PAYMENT_METHODS, patientAccount, sumAmounts } from "./payments"
 import { nextDue, unpaidInstallments } from "./installments"
 import { paymentState } from "./rules"
-import { unclosedMovements } from "./service"
+import { drawerOpening, unclosedMovements } from "./service"
 import type { DEBT_FILTERS, INVOICE_FILTERS } from "./schemas"
 
 export const INVOICE_PAGE_SIZE = 20
@@ -693,8 +693,9 @@ export async function getCashDrawer() {
   await authorize("billing:write")
   const settings = await getClinicSettings()
   const today = todayIso(settings?.timezone)
-  const [movements, closes] = await Promise.all([
+  const [movements, opening, closes] = await Promise.all([
     unclosedMovements(db),
+    drawerOpening(db),
     db.cashClose.findMany({
       orderBy: { day: "desc" },
       take: 60,
@@ -709,6 +710,8 @@ export async function getCashDrawer() {
         cashOut: true,
         card: true,
         wallet: true,
+        kept: true,
+        takenTo: true,
         notes: true,
         closedBy: { select: { name: true } },
         _count: { select: { items: true } },
@@ -725,6 +728,9 @@ export async function getCashDrawer() {
     cashOut: c.cashOut.toString(),
     card: c.card.toString(),
     wallet: c.wallet.toString(),
+    kept: c.kept.toString(),
+    // Nothing recorded for closes before take-outs were: the drawer was emptied then.
+    takenOut: c.takenTo ? subtractAmounts(c.counted.toString(), c.kept.toString()) : null,
     closedByName: closedBy?.name ?? null,
     movements: _count.items,
   }))
@@ -735,7 +741,7 @@ export async function getCashDrawer() {
   const over = month.filter((c) => toMinor(c.difference) > 0n)
   return {
     today,
-    open: { movements, summary: summarize(movements) },
+    open: { movements, summary: summarize(movements, opening) },
     todayClose: history.find((c) => c.day === today) ?? null,
     history,
     month: {

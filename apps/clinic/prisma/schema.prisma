@@ -924,30 +924,42 @@ model PaymentReminder {
 // difference between the count and the expected cash is posted to "cash over/short".
 
 model CashClose {
-  id             String   @id @default(uuid()) @db.Uuid
+  id             String       @id @default(uuid()) @db.Uuid
   /// Clinic day closed (one close per day).
-  day            DateTime @unique @db.Date
-  closedAt       DateTime @default(now()) @map("closed_at") @db.Timestamptz(3)
-  /// Cash that should be in the drawer: cash in − cash out.
-  expected       Decimal  @db.Decimal(14, 2)
+  day            DateTime     @unique @db.Date
+  closedAt       DateTime     @default(now()) @map("closed_at") @db.Timestamptz(3)
+  /// Cash left in the drawer by the previous close: this close starts from it.
+  opening        Decimal      @default(0) @db.Decimal(14, 2)
+  /// Cash that should be in the drawer: opening + cash in − cash out.
+  expected       Decimal      @db.Decimal(14, 2)
   /// Cash counted by hand.
-  counted        Decimal  @db.Decimal(14, 2)
+  counted        Decimal      @db.Decimal(14, 2)
   /// counted − expected (negative = shortage).
-  difference     Decimal  @db.Decimal(14, 2)
-  cashIn         Decimal  @map("cash_in") @db.Decimal(14, 2)
-  cashOut        Decimal  @map("cash_out") @db.Decimal(14, 2)
+  difference     Decimal      @db.Decimal(14, 2)
+  cashIn         Decimal      @map("cash_in") @db.Decimal(14, 2)
+  cashOut        Decimal      @map("cash_out") @db.Decimal(14, 2)
   /// For checking against the card machine and wallet statements (not counted).
-  card           Decimal  @db.Decimal(14, 2)
-  wallet         Decimal  @db.Decimal(14, 2)
+  card           Decimal      @db.Decimal(14, 2)
+  wallet         Decimal      @db.Decimal(14, 2)
+  /// Of the cash counted, what stays in the drawer for the next close; the rest is taken
+  /// out (to `takenTo`). Closes before 2026-10-13 kept nothing: the drawer started empty.
+  kept           Decimal      @default(0) @db.Decimal(14, 2)
+  takenTo        CashTakenTo? @map("taken_to")
   notes          String?
-  closedById     String?  @map("closed_by_id") @db.Uuid
-  journalEntryId String?  @unique @map("journal_entry_id") @db.Uuid
+  closedById     String?      @map("closed_by_id") @db.Uuid
+  journalEntryId String?      @unique @map("journal_entry_id") @db.Uuid
 
   closedBy     User?           @relation(fields: [closedById], references: [id], onDelete: SetNull)
   journalEntry JournalEntry?   @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
   items        CashCloseItem[]
 
   @@map("cash_close")
+}
+
+/// Where cash taken out of the drawer at a close went.
+enum CashTakenTo {
+  owner // handed to the owner (Dr owner's drawings / Cr cash)
+  bank // deposited in the clinic's bank account (Dr bank / Cr cash)
 }
 
 enum CashMovement {

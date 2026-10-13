@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("title") }
 }
 
-const KINDS = ["payment", "refund", "lab_payment", "expense", "cash_close"] as const
+const KINDS = ["payment", "refund", "lab_payment", "expense", "cash_close", "cash_takeout"] as const
 
 export default async function CashBookPage({ searchParams }: PageProps<"/accounting/cash-book">) {
   await requirePagePermission("accounting:reports")
@@ -120,8 +120,10 @@ export default async function CashBookPage({ searchParams }: PageProps<"/account
                           <bdi>{row.number}</bdi>
                         </span>
                       )}
-                      {row.party && (
-                        <span className="text-muted-foreground block text-xs">{row.party}</span>
+                      {(row.party || row.taken_to) && (
+                        <span className="text-muted-foreground block text-xs">
+                          {row.taken_to ? t(`takenTo.${row.taken_to}`) : row.party}
+                        </span>
                       )}
                       {/* Phones: the date and the signed amount here, the balance beside. */}
                       <span className="block text-xs md:hidden">

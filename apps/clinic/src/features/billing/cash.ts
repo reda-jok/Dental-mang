@@ -33,11 +33,13 @@ export function signedAmount(m: Movement): string {
 }
 
 export type CashSummary = {
+  /** Cash the previous close left in the drawer. */
+  opening: string
   /** Cash received. */
   cashIn: string
   /** Cash given back, taken back or paid out: refunds, voided payments, lab payments. */
   cashOut: string
-  /** What the drawer should hold from these movements: cashIn − cashOut. */
+  /** What the drawer should hold: opening + cashIn − cashOut. */
   expected: string
   /** Card and wallet money received from patients, to check against the machine and statements. */
   card: string
@@ -45,7 +47,8 @@ export type CashSummary = {
   counts: { cashIn: number; cashOut: number; card: number; wallet: number }
 }
 
-export function summarize(movements: readonly Movement[]): CashSummary {
+/** The open movements, starting from what the previous close left in the drawer. */
+export function summarize(movements: readonly Movement[], opening = "0"): CashSummary {
   let cashIn = 0n
   let cashOut = 0n
   let card = 0n
@@ -72,9 +75,10 @@ export function summarize(movements: readonly Movement[]): CashSummary {
     }
   }
   return {
+    opening,
     cashIn: fromMinor(cashIn),
     cashOut: fromMinor(cashOut),
-    expected: fromMinor(cashIn - cashOut),
+    expected: fromMinor(toMinor(opening) + cashIn - cashOut),
     card: fromMinor(card),
     wallet: fromMinor(wallet),
     counts,
@@ -109,4 +113,19 @@ export function differencePosting(difference: string): PostingLine[] | null {
         { account: "cash", debit: amount },
         { account: "cashOverShort", credit: amount },
       ]
+}
+
+export const CASH_TAKEN_TO = ["owner", "bank"] as const
+export type CashTakenTo = (typeof CASH_TAKEN_TO)[number]
+
+/**
+ * Cash taken out of the drawer at a close: handed to the owner (Dr owner's drawings) or
+ * deposited in the bank (Dr bank), Cr cash. Nothing taken out: no entry.
+ */
+export function takeoutPosting(amount: string, to: CashTakenTo): PostingLine[] | null {
+  if (toMinor(amount) <= 0n) return null
+  return [
+    { account: to === "owner" ? "ownerDrawings" : "bank", debit: amount },
+    { account: "cash", credit: amount },
+  ]
 }

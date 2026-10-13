@@ -37,10 +37,40 @@ test("close the day's cash drawer with a shortage", async ({ page }, testInfo) =
   await page.getByRole("button", { name: "إغلاق الصندوق" }).click()
   await expect(page.getByText("اكتب سبب الفرق قبل الإغلاق")).toBeVisible()
   await page.getByLabel(/ملاحظة/).fill("فكة أُعطيت لمريض")
+
+  // The cash goes to the owner, but 10,000 stays in the drawer for the next close.
+  const counted = expected - 2_000n
+  const takenOut = page.getByLabel("يُخرج من الدرج الآن")
+  await page.getByRole("button", { name: "إخراج الكل" }).click()
+  await expect(takenOut).toHaveValue(String(counted))
+  await takenOut.fill(String(counted + 1_000n))
+  await takenOut.blur()
+  await expect(page.getByText("لا يمكن إخراج أكثر مما عُدّ في الدرج.")).toBeVisible()
+  await takenOut.fill(String(counted - 10_000n))
+  await expect(page.getByTestId("kept-after")).toContainText("10,000")
   await page.getByRole("button", { name: "إغلاق الصندوق" }).click()
-  await page.getByRole("alertdialog").getByRole("button", { name: "تأكيد الإغلاق" }).click()
+  await expect(page.getByRole("radiogroup", { name: "إلى أين؟" })).toBeVisible()
+  await expect(page.getByText("هذا الحقل مطلوب")).toBeVisible() // where it went
+  await page.getByRole("radio", { name: "سُلِّم للمالك" }).click()
+  await page.getByRole("button", { name: "إغلاق الصندوق" }).click()
+  const confirm = page.getByRole("alertdialog")
+  await expect(confirm).toContainText("سُلِّم للمالك")
+  await confirm.getByRole("button", { name: "تأكيد الإغلاق" }).click()
   await expect(page.getByText("تم إغلاق الصندوق", { exact: true })).toBeVisible()
   await expect(page.locator("[data-closed-today]")).toContainText("عجز في الصندوق")
+  await expect(page.getByTestId("closed-takeout")).toContainText("سُلِّم للمالك")
+  await expect(page.getByTestId("closed-takeout")).toContainText("10,000")
+
+  // The owner's cash is in the books (Dr owner's drawings, Cr cash); the rest stays.
+  const [takeout] = await query<{ code: string; debit: string; kept: string }>(
+    `select a.code, l.debit::text, c.kept::text
+     from cash_close c
+     join journal_entry e on e.source_type = 'cash_takeout' and e.source_id = c.id
+     join journal_line l on l.entry_id = e.id and l.debit > 0
+     join ledger_account a on a.id = l.account_id
+     where c.day = (now() at time zone 'Asia/Baghdad')::date`,
+  )
+  expect(takeout).toEqual({ code: "3100", debit: `${counted - 10_000n}.00`, kept: "10000.00" })
 
   // Stored with every movement it took in, and the shortage is in the books.
   const [close] = await query<{ difference: string; items: string; code: string; debit: string }>(
