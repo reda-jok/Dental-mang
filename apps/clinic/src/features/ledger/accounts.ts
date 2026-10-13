@@ -15,7 +15,8 @@ export const ACCOUNTS = {
   discounts: "4100",
   labExpense: "5000",
   salaries: "5100",
-  commission: "5200",
+  /** What dentists are paid: an expense category; the P&L counts their calculated pay. */
+  dentistPay: "5200",
   supplies: "5300",
   rent: "5400",
   utilities: "5500",

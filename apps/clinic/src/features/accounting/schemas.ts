@@ -27,4 +27,16 @@ export const expenseParams = z.object({
   q: z.string().trim().max(100).optional().catch(undefined),
 })
 
+/** The money accounts a cash book can show: the drawer, card payments, wallets and transfers, the bank. */
+export const MONEY_ACCOUNTS = ["cash", "card", "wallet", "bank"] as const
+export type MoneyAccount = (typeof MONEY_ACCOUNTS)[number]
+
+export const reportParams = z.object({
+  month: z.string().regex(MONTH).optional().catch(undefined),
+})
+
+export const cashBookParams = reportParams.extend({
+  account: z.enum(MONEY_ACCOUNTS).catch("cash").default("cash"),
+})
+
 export type RecordExpenseInput = z.input<typeof recordExpenseSchema>

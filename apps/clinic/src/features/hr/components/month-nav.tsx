@@ -6,11 +6,19 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { nextMonth, previousMonth } from "@/lib/dates"
 
-/** Previous / next month links around the month's name (?month=YYYY-MM). */
-export async function MonthNav({ path, month }: { path: string; month: string }) {
+/** Previous / next month links around the month's name (?month=YYYY-MM); `keep` carries other params along. */
+export async function MonthNav({
+  path,
+  month,
+  keep,
+}: {
+  path: string
+  month: string
+  keep?: Record<string, string>
+}) {
   const t = await getTranslations("hr")
   const format = await getFormatter()
-  const link = (m: string) => `${path}?month=${m}` as Route
+  const link = (m: string) => `${path}?${new URLSearchParams({ ...keep, month: m })}` as Route
   return (
     <div className="flex items-center gap-2">
       <Button variant="outline" size="icon-sm" asChild>

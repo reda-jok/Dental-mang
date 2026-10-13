@@ -200,6 +200,7 @@ async function topUps() {
   await seedStaffWithoutSignIn()
   await seedVisitItems()
   await seedExpenses()
+  await seedDentistPayouts()
 }
 
 /**
@@ -406,6 +407,51 @@ async function seedExpenses() {
     )
   }
   console.log(`Expenses: ${due.length}, two of them from today's drawer`)
+}
+
+/**
+ * Dentist pay handed over (2026-10-13): early each month, last month's pay to each dentist
+ * by bank, as the "أجور الأطباء" expense. Round figures: the profit and loss counts the
+ * calculated pay instead, so these only move money in the cash book.
+ */
+async function seedDentistPayouts() {
+  if (await db.expense.count({ where: { account: { code: "5200" } } })) return
+  const accountant = await db.user.findFirst({
+    where: { username: "mahmoud" },
+    select: { id: true, name: true, username: true },
+  })
+  if (!accountant) return
+  const actor = await asActor(accountant, "accountant")
+  const dentists = await db.user.findMany({
+    where: { role: "dentist", banned: false },
+    orderBy: { name: "asc" },
+    select: { name: true },
+  })
+  const monthName = new Intl.DateTimeFormat("ar-u-nu-latn", { month: "long", timeZone: "UTC" })
+  let paid = 0
+  let month = today.slice(0, 7)
+  for (let back = 0; back < 5; back++) month = previousMonth(month)
+  for (let i = 0; i < 5; i++, month = nextMonth(month)) {
+    const day = `${nextMonth(month)}-03`
+    if (day > today) break
+    for (const dentist of dentists) {
+      await recordExpense(
+        actor,
+        recordExpenseSchema.parse({
+          category: "dentistPay",
+          method: "bank",
+          amount: String(int(12, 25) * 100_000),
+          description: `أجور ${monthName.format(new Date(`${month}-01T00:00:00Z`))}`,
+          payee: dentist.name,
+          reference: `TRX-${int(100000, 999999)}`,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+        clockAt(day, 11 * 60),
+      )
+      paid++
+    }
+  }
+  console.log(`Dentist payouts: ${paid}`)
 }
 
 /**

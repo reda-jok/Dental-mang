@@ -6,13 +6,14 @@ import { fromMinor, toMinor } from "@/lib/money"
 import type { AccountKey } from "../ledger/accounts"
 import type { PostingLine } from "../ledger/rules"
 
-/** The expense accounts staff choose from, as categories. Lab, commission and cash
- * over/short are posted by the app itself, so they're not offered. */
+/** The expense accounts staff choose from, as categories. Lab bills and cash over/short
+ * are posted by the app itself, so they're not offered. */
 export const EXPENSE_CATEGORIES = [
   "supplies",
   "rent",
   "utilities",
   "salaries",
+  "dentistPay",
   "maintenance",
   "telecom",
   "marketing",

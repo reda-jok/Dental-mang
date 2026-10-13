@@ -178,6 +178,43 @@ export async function getCommissionReport(month: string) {
 
 export type CommissionRow = Awaited<ReturnType<typeof getCommissionReport>>["rows"][number]
 
+/**
+ * What all dentists earned in each month (commission + salary), for the profit and loss:
+ * the same figures as the commission report, summed. Checks the reports permission, so
+ * reading the accounts doesn't need access to staff pay.
+ */
+export async function dentistPayByMonth(months: readonly string[]) {
+  await authorize("accounting:reports")
+  const dentists = await db.user.findMany({
+    where: { role: "dentist" },
+    select: { id: true, banned: true },
+  })
+  const ids = dentists.map((d) => d.id)
+  const versions = await payVersions(ids)
+  const totals = await Promise.all(
+    months.map(async (month) => {
+      const { start, end } = monthRange(month)
+      const lines = await linesForMonth(ids, month)
+      let total = 0n
+      for (const dentist of dentists) {
+        const result = dentistMonth(
+          lines.filter((l) => l.dentistId === dentist.id).map((l) => l.line),
+          payFor(
+            versions.filter((v) => v.dentistId === dentist.id),
+            month,
+          ),
+          start,
+          end,
+        )
+        // A former dentist only while they still have something this month (as the report).
+        if (!dentist.banned || result.lines.length > 0) total += toMinor(result.total)
+      }
+      return [month, fromMinor(total)] as const
+    }),
+  )
+  return new Map(totals)
+}
+
 /** One dentist's month: the treatments behind the figure, and their pay history. */
 export async function getDentistCommission(dentistId: string, month: string) {
   const user = await authorize("hr:self")

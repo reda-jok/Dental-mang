@@ -103,6 +103,7 @@ function ExpenseForm({ onDone }: { onDone: () => void }) {
   })
   const { errors } = form.formState
   const method = useWatch({ control: form.control, name: "method" })
+  const category = useWatch({ control: form.control, name: "category" })
 
   const onSubmit = form.handleSubmit(
     () =>
@@ -138,6 +139,7 @@ function ExpenseForm({ onDone }: { onDone: () => void }) {
               </Select>
             )}
           />
+          {category === "dentistPay" && <FieldDescription>{t("dentistPayHint")}</FieldDescription>}
         </Field>
 
         <Field data-invalid={!!errors.amount}>
@@ -146,7 +148,6 @@ function ExpenseForm({ onDone }: { onDone: () => void }) {
             id="expenseAmount"
             dir="ltr"
             inputMode="numeric"
-            autoFocus
             aria-invalid={!!errors.amount}
             {...form.register("amount")}
           />
