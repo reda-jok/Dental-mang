@@ -2,6 +2,7 @@
 
 import {
   BanknoteIcon,
+  BookOpenIcon,
   CalendarDaysIcon,
   FlaskConicalIcon,
   SettingsIcon,
@@ -34,6 +35,7 @@ const ICONS: Record<Group, LucideIcon> = {
   appointment: CalendarDaysIcon,
   billing: BanknoteIcon,
   lab: FlaskConicalIcon,
+  accounting: BookOpenIcon,
   hr: UserCogIcon,
   settings: SettingsIcon,
 }

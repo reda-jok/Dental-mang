@@ -7,17 +7,24 @@ import type { PostingLine } from "../ledger/rules"
 import type { PaymentMethod } from "./payments"
 
 export type MovementKind =
-  "payment" | "payment_void" | "refund" | "lab_payment" | "lab_payment_void"
+  | "payment"
+  | "payment_void"
+  | "refund"
+  | "lab_payment"
+  | "lab_payment_void"
+  | "expense"
+  | "expense_void"
 
 /** A money movement not closed yet. `amount` is the positive size of the movement. */
 export type Movement = { kind: MovementKind; method: PaymentMethod; amount: string }
 
 /**
- * Whether a movement brings money in: a patient's payment, or a lab payment voided
- * (the money is back). Refunds, voided patient payments and lab payments take it out.
+ * Whether a movement brings money in: a patient's payment, or a lab payment or expense
+ * voided (the money is back). Refunds, voided patient payments, lab payments and
+ * expenses take it out.
  */
 export function isMoneyIn(kind: MovementKind): boolean {
-  return kind === "payment" || kind === "lab_payment_void"
+  return kind === "payment" || kind === "lab_payment_void" || kind === "expense_void"
 }
 
 /** As stored on a close item: money in is positive, money out negative. */

@@ -23,6 +23,7 @@ export const ACTIVITY_AREAS = {
     "cash_close",
     "payment_reminder",
     "lab_payment",
+    "expense",
     "lab_adjustment",
   ],
   patients: [

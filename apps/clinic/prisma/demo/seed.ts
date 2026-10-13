@@ -31,6 +31,8 @@ import {
   voidPayment,
   type Clock,
 } from "@/features/billing/service"
+import { recordExpenseSchema } from "@/features/accounting/schemas"
+import { recordExpense } from "@/features/accounting/service"
 import { monthRange } from "@/features/lab/money"
 import {
   createLabCaseSchema,
@@ -64,6 +66,8 @@ import {
   todayIso,
   toIsoDate,
   weekdayOf,
+  nextMonth,
+  previousMonth,
   zonedInstant,
 } from "@/lib/dates"
 import { fromMinor, toMinor } from "@/lib/money"
@@ -195,6 +199,7 @@ async function topUps() {
   await seedPrintDetails()
   await seedStaffWithoutSignIn()
   await seedVisitItems()
+  await seedExpenses()
 }
 
 /**
@@ -284,6 +289,123 @@ async function seedStaffWithoutSignIn() {
       role: "assistant",
     },
   })
+}
+
+/**
+ * Expenses (2026-10-12): six months of rent, salaries, generator fuel, supplies, the
+ * internet and the odd repair, paid by bank or wallet; and two paid from the drawer
+ * today, so today's cash close shows them. Through the real service with a past clock.
+ */
+async function seedExpenses() {
+  if ((await db.expense.count()) > 0) return
+  const accountant = await db.user.findFirst({
+    where: { username: "mahmoud" },
+    select: { id: true, name: true, username: true },
+  })
+  if (!accountant) return
+  const actor = await asActor(accountant, "accountant")
+  type Plan = {
+    day: string
+    category: (typeof recordExpenseSchema)["shape"]["category"]["options"][number]
+    method: "cash" | "wallet" | "bank"
+    amount: number
+    description: string
+    payee?: string
+  }
+  const plans: Plan[] = []
+  const thisMonth = today.slice(0, 7)
+  let month = thisMonth
+  for (let back = 0; back < 5; back++) month = previousMonth(month)
+  for (let i = 0; i < 6; i++, month = nextMonth(month)) {
+    const day = (d: number) => `${month}-${String(d).padStart(2, "0")}`
+    plans.push(
+      {
+        day: day(1),
+        category: "rent",
+        method: "bank",
+        amount: 750_000,
+        description: "إيجار العيادة",
+        payee: "مالك البناية",
+      },
+      {
+        day: day(5),
+        category: "salaries",
+        method: "bank",
+        amount: 2_400_000,
+        description: "رواتب موظفي الاستقبال والمساعدات",
+      },
+      {
+        day: day(12),
+        category: "supplies",
+        method: "bank",
+        amount: int(18, 40) * 10_000,
+        description: "مستلزمات طبية من المذخر",
+        payee: "مذخر الرافدين",
+      },
+      {
+        day: day(15),
+        category: "telecom",
+        method: "wallet",
+        amount: 45_000,
+        description: "اشتراك الإنترنت",
+        payee: "إيرثلنك",
+      },
+    )
+    for (const d of [3, 10, 17, 24]) {
+      plans.push({
+        day: day(d),
+        category: "utilities",
+        method: "wallet",
+        amount: int(6, 9) * 10_000,
+        description: "وقود المولدة للأسبوع",
+        payee: "محطة الوقود",
+      })
+    }
+    if (i % 2 === 1) {
+      plans.push({
+        day: day(20),
+        category: "maintenance",
+        method: "wallet",
+        amount: 120_000,
+        description: "صيانة كرسي الأسنان",
+        payee: "ورشة المعدات الطبية",
+      })
+    }
+  }
+  // Today, from the drawer: they show in today's cash close.
+  plans.push(
+    {
+      day: today,
+      category: "utilities",
+      method: "cash",
+      amount: 25_000,
+      description: "وقود المولدة",
+    },
+    {
+      day: today,
+      category: "otherExpense",
+      method: "cash",
+      amount: 10_000,
+      description: "مواد تنظيف",
+    },
+  )
+  const due = plans.filter((p) => p.day <= today).sort((a, b) => a.day.localeCompare(b.day))
+  for (const p of due) {
+    await recordExpense(
+      actor,
+      recordExpenseSchema.parse({
+        category: p.category,
+        method: p.method,
+        amount: String(p.amount),
+        description: p.description,
+        payee: p.payee ?? "",
+        reference: p.method === "cash" ? "" : `TRX-${int(100000, 999999)}`,
+        idempotencyKey: crypto.randomUUID(),
+      }),
+      clockAt(p.day, 13 * 60),
+    )
+  }
+  console.log(`Expenses: ${due.length}, two of them from today's drawer`)
 }
 
 /**

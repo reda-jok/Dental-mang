@@ -29,10 +29,12 @@ type Props = {
     defaultValue: string
     options: { value: string; label: string }[]
   }
+  /** Other URL parameters to keep while searching (e.g. the month being shown). */
+  keep?: Record<string, string>
 }
 
 /** Search box + one filter, kept in the URL (?q=&<param>=) so back and sharing work. */
-export function FilterBar({ q, placeholder, hint, filter }: Props) {
+export function FilterBar({ q, placeholder, hint, filter, keep }: Props) {
   const t = useTranslations("common")
   const router = useRouter()
   const pathname = usePathname()
@@ -43,7 +45,7 @@ export function FilterBar({ q, placeholder, hint, filter }: Props) {
   useEffect(() => () => clearTimeout(timer.current), [])
 
   const navigate = (next: { q?: string; filter?: string }) => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(keep)
     const query = (next.q ?? value).trim()
     const selected = next.filter ?? filter.value
     if (query) params.set("q", query)

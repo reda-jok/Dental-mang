@@ -44,6 +44,17 @@ describe("summarize", () => {
     expect(signedAmount({ kind: "lab_payment_void", method: "cash", amount: "100" })).toBe("100")
   })
 
+  it("counts an expense paid from the drawer as cash out, and a voided one as cash back", () => {
+    const summary = summarize([
+      { kind: "payment", method: "cash", amount: "100000" },
+      { kind: "expense", method: "cash", amount: "25000" },
+      { kind: "expense", method: "cash", amount: "10000" },
+      { kind: "expense_void", method: "cash", amount: "10000" },
+    ])
+    expect(summary).toMatchObject({ cashIn: "110000", cashOut: "35000", expected: "75000" })
+    expect(signedAmount({ kind: "expense", method: "cash", amount: "100" })).toBe("-100")
+  })
+
   it("is zero for a day without money", () => {
     expect(summarize([])).toMatchObject({ cashIn: "0", cashOut: "0", expected: "0" })
   })

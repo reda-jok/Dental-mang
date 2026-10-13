@@ -69,7 +69,7 @@ export const navGroups: { key: NavItem["key"]; items: NavItem[] }[] = [
         href: "/accounting",
         icon: BookOpenIcon,
         permission: "accounting:read",
-        ready: false,
+        ready: true,
       },
       // Staff and their pay: whoever manages staff, and dentists for their own commission.
       {

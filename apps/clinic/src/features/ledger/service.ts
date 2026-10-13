@@ -15,6 +15,7 @@ export type JournalSource =
   | "cash_close"
   | "lab_bill"
   | "lab_payment"
+  | "expense"
   | "lab_adjustment"
   | "manual"
 

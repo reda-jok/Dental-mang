@@ -19,7 +19,7 @@ export const statements = {
   billing: ["read", "write", "discount", "void", "refund"],
   /** "pay": see what the clinic owes each lab, pay labs and record lab discounts. */
   lab: ["read", "write", "pay"],
-  accounting: ["read", "write"],
+  accounting: ["read", "write", "expense", "reports"],
   /**
    * "commission": see every dentist's commission; "self": see your own pay and commission;
    * "pay": set a dentist's pay type and rate (owner only).
@@ -41,7 +41,7 @@ const everything = {
   appointment: ["read", "write"],
   billing: ["read", "write", "discount", "void", "refund"],
   lab: ["read", "write", "pay"],
-  accounting: ["read", "write"],
+  accounting: ["read", "write", "expense", "reports"],
   hr: ["read", "write", "commission", "self", "pay"],
   inventory: ["read", "write"],
   settings: ["read", "write", "permissions", "activity"],
@@ -55,7 +55,7 @@ export const roles = {
     ...everything,
     clinical: ["read"],
     billing: ["read", "write", "discount"],
-    accounting: ["read"],
+    accounting: ["read", "expense"],
     hr: ["read", "write"],
     settings: ["read", "write"],
   }),
@@ -86,7 +86,7 @@ export const roles = {
     patient: ["read"],
     billing: ["read", "write"],
     lab: ["read", "pay"],
-    accounting: ["read", "write"],
+    accounting: ["read", "write", "expense", "reports"],
     hr: ["read", "write", "commission", "self"],
     inventory: ["read"],
   }),
@@ -105,7 +105,7 @@ export type Permission = {
  * shows them. `requires`: a role only has the permission while it also has these (a
  * discount is given while writing an invoice), so removing one takes its dependents with it.
  * Not listed (fixed): user and session management (Better Auth checks those itself),
- * `settings:permissions` (owner only), and modules not built yet.
+ * `settings:permissions` (owner only), and modules not built yet (inventory).
  */
 export const ADJUSTABLE_PERMISSIONS = [
   { permission: "patient:read", requires: [] },
@@ -126,6 +126,10 @@ export const ADJUSTABLE_PERMISSIONS = [
   { permission: "lab:write", requires: ["lab:read"] },
   // Paying a lab takes money out of the clinic, so only roles that handle money.
   { permission: "lab:pay", requires: ["lab:read", "billing:write"] },
+  { permission: "accounting:read", requires: [] },
+  // A cash expense comes out of the drawer, like paying a lab.
+  { permission: "accounting:expense", requires: ["accounting:read", "billing:write"] },
+  { permission: "accounting:reports", requires: ["accounting:read"] },
   { permission: "hr:self", requires: [] },
   { permission: "hr:commission", requires: ["hr:self"] },
   { permission: "hr:pay", requires: ["hr:commission"] },

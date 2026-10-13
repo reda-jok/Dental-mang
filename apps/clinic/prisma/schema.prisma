@@ -69,6 +69,8 @@ model User {
   appointmentReminders  AppointmentReminder[]
   pay                   DentistPay[]          @relation("DentistPay")
   paySet                DentistPay[]          @relation("DentistPaySetBy")
+  expensesCreated       Expense[]             @relation("ExpenseCreatedBy")
+  expensesVoided        Expense[]             @relation("ExpenseVoidedBy")
 
   @@map("user")
 }
@@ -484,10 +486,10 @@ model TreatmentPlanItem {
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  plan         TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  procedure    Procedure     @relation(fields: [procedureId], references: [id], onDelete: Restrict)
-  dentist      User?         @relation("PlanItemDentist", fields: [dentistId], references: [id], onDelete: SetNull)
-  invoice      Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  plan         TreatmentPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  procedure    Procedure         @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  dentist      User?             @relation("PlanItemDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+  invoice      Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   invoiceLines InvoiceLine[]
   labCases     LabCase[]
   visits       AppointmentItem[]
@@ -641,7 +643,8 @@ model LedgerAccount {
   createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   archivedAt DateTime?         @map("archived_at") @db.Timestamptz(3)
 
-  lines JournalLine[]
+  lines    JournalLine[]
+  expenses Expense[]
 
   @@map("ledger_account")
 }
@@ -674,6 +677,7 @@ model JournalEntry {
   labCase       LabCase?
   labPayment    LabPayment?
   labAdjustment LabAdjustment?
+  expense       Expense?
 
   @@index([date])
   @@index([sourceType, sourceId])
@@ -930,6 +934,8 @@ enum CashMovement {
   refund // money given back (−)
   lab_payment // money paid to a lab (−)
   lab_payment_void // a lab payment voided after it was made (+)
+  expense // an expense paid from the drawer (−)
+  expense_void // a drawer expense voided after it was paid (+)
 }
 
 /// Which money movements a close took in. Each movement belongs to exactly one close.
@@ -1257,4 +1263,52 @@ model LabAdjustment {
 enum ReceiptPaper {
   A5
   thermal80
+}
+
+// ─── Accounting: expenses ────────────────────────────────────────────────────
+
+/// Where an expense was paid from: the cash drawer (counted in the daily close), a
+/// wallet or transfer, or the bank account.
+enum ExpenseMethod {
+  cash
+  wallet
+  bank
+}
+
+/// Money the clinic spends: rent, supplies, generator fuel… Posted as Dr the expense
+/// account (its category) / Cr where it was paid from. Never edited; a mistake is voided,
+/// which reverses its journal entry (database trigger).
+model Expense {
+  id             String        @id @default(uuid()) @db.Uuid
+  /// "EX-2026-000123" (expense_number_seq).
+  number         String        @unique
+  /// The expense account it's booked to (its category).
+  accountId      String        @map("account_id") @db.Uuid
+  method         ExpenseMethod
+  amount         Decimal       @db.Decimal(14, 2)
+  currency       Currency      @default(IQD)
+  /// Clinic calendar day it was paid.
+  paidOn         DateTime      @map("paid_on") @db.Date
+  /// What it was for, and to whom.
+  description    String
+  payee          String?
+  /// Transfer or invoice reference.
+  reference      String?
+  /// Generated once per form; a repeated submit returns the first expense.
+  idempotencyKey String        @unique @map("idempotency_key") @db.Uuid
+  journalEntryId String?       @unique @map("journal_entry_id") @db.Uuid
+  createdById    String?       @map("created_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  voidedAt       DateTime?     @map("voided_at") @db.Timestamptz(3)
+  voidedById     String?       @map("voided_by_id") @db.Uuid
+  voidReason     String?       @map("void_reason")
+
+  account      LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdBy    User?         @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  voidedBy     User?         @relation("ExpenseVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+
+  @@index([paidOn])
+  @@index([accountId, paidOn])
+  @@map("expense")
 }

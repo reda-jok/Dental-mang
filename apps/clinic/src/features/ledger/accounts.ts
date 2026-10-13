@@ -1,5 +1,5 @@
 // The system accounts the app posts to, by chart-of-accounts code. The rows are
-// seeded by the billing_foundation migration; keep both in step.
+// seeded by the billing_foundation and expenses migrations; keep both in step.
 
 export const ACCOUNTS = {
   cash: "1000",
@@ -17,6 +17,11 @@ export const ACCOUNTS = {
   salaries: "5100",
   commission: "5200",
   supplies: "5300",
+  rent: "5400",
+  utilities: "5500",
+  maintenance: "5600",
+  telecom: "5700",
+  marketing: "5750",
   cashOverShort: "5800",
   otherExpense: "5900",
 } as const

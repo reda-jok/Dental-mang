@@ -665,6 +665,16 @@ export async function unclosedMovements(tx: Db): Promise<OpenMovement[]> {
     from lab_payment lp join lab l on l.id = lp.lab_id
     where lp.method = 'cash' and lp.voided_at is not null
       and not exists (select 1 from cash_close_item c where c.kind = 'lab_payment_void' and c.source_id = lp.id)
+    union all
+    select 'expense', e.id, e.method::text, e.amount::text, e.number, e.description, e.created_at
+    from expense e
+    where e.method = 'cash'
+      and not exists (select 1 from cash_close_item c where c.kind = 'expense' and c.source_id = e.id)
+    union all
+    select 'expense_void', e.id, e.method::text, e.amount::text, e.number, e.description, e.voided_at
+    from expense e
+    where e.method = 'cash' and e.voided_at is not null
+      and not exists (select 1 from cash_close_item c where c.kind = 'expense_void' and c.source_id = e.id)
     order by at`
   return rows.map((r) => ({
     kind: r.kind,
