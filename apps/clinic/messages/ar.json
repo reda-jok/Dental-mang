@@ -737,6 +737,7 @@
     "todayClosed": "تم إغلاق صندوق اليوم",
     "closedBy": "أغلقه {name} الساعة {time}",
     "afterClose": "{count, plural, one {حركة واحدة} two {حركتان} few {# حركات} other {# حركة}} بعد الإغلاق ({amount} نقداً) تدخل في إغلاق الغد.",
+    "drawerNow": "يُفترض أن يكون في الدرج الآن: {amount}",
     "monthTitle": "فروقات آخر 30 يوماً",
     "monthDescription": "{count, plural, =0 {لا إغلاقات في آخر 30 يوماً} one {إغلاق واحد في آخر 30 يوماً} two {إغلاقان في آخر 30 يوماً} few {# إغلاقات في آخر 30 يوماً} other {# إغلاقاً في آخر 30 يوماً}}",
     "monthShort": "عجز ({count, plural, =0 {لا أيام} one {يوم واحد} two {يومان} few {# أيام} other {# يوماً}})",

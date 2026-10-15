@@ -20,7 +20,7 @@ test("a plan billed up front and paid in monthly installments", async ({ page },
   const patientUrl = await newPatientWithPlan(
     page,
     `مريض أقساط ${testInfo.project.name}`,
-    desktop ? 121 : 122,
+    desktop ? 211 : 212,
   )
 
   await page.goto(`${patientUrl}/billing`)

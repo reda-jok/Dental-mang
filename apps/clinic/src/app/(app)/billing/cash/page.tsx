@@ -134,6 +134,9 @@ export default async function CashPage() {
                   time: time(drawer.todayClose.closedAt),
                 })}
               </p>
+              <p className="text-sm" data-testid="drawer-now">
+                {t("drawerNow", { amount: formatMoney(summary.expected, "IQD") })}
+              </p>
               {movements.length > 0 && (
                 <p className="text-sm text-blue-700">
                   {t("afterClose", {
