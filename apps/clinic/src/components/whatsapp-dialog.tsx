@@ -32,6 +32,7 @@ const KIND_STYLE: Record<WhatsAppKind, string> = {
   reminder: "bg-yellow-100 text-yellow-800",
   completed: "bg-green-100 text-green-700",
   payment: "bg-red-100 text-red-700",
+  followUp: "bg-purple-100 text-purple-700",
   custom: "bg-slate-100 text-slate-700",
 }
 

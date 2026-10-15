@@ -10,7 +10,7 @@ export const PAGE_SIZE = 20
 
 const notDeleted = { deletedAt: null } satisfies Prisma.PatientWhereInput
 
-function searchWhere(query: string): Prisma.PatientWhereInput {
+export function searchWhere(query: string): Prisma.PatientWhereInput {
   const tokens = searchTokens(query)
   // Each token must appear in the normalized search text (uses the trigram index).
   return { ...notDeleted, AND: tokens.map((t) => ({ searchText: { contains: t } })) }

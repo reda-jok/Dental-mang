@@ -16,6 +16,11 @@ export const statements = {
   /** "prescribe": write prescriptions (dentists and the owner, not assistants). */
   clinical: ["read", "write", "prescribe"],
   appointment: ["read", "write"],
+  /**
+   * The clinic's treatment lists. "read": open plans and the plans to call;
+   * "reports": work done by each dentist and the value still to be done.
+   */
+  treatments: ["read", "reports"],
   billing: ["read", "write", "discount", "void", "refund"],
   /** "pay": see what the clinic owes each lab, pay labs and record lab discounts. */
   lab: ["read", "write", "pay"],
@@ -39,6 +44,7 @@ const everything = {
   patient: ["read", "write", "delete"],
   clinical: ["read", "write", "prescribe"],
   appointment: ["read", "write"],
+  treatments: ["read", "reports"],
   billing: ["read", "write", "discount", "void", "refund"],
   lab: ["read", "write", "pay"],
   accounting: ["read", "write", "expense", "reports"],
@@ -63,6 +69,7 @@ export const roles = {
     patient: ["read", "write"],
     clinical: ["read", "write", "prescribe"],
     appointment: ["read", "write"],
+    treatments: ["read"],
     billing: ["read"],
     lab: ["read", "write"],
     hr: ["self"],
@@ -72,12 +79,15 @@ export const roles = {
     patient: ["read", "write"],
     clinical: ["read", "write"],
     appointment: ["read"],
+    treatments: ["read"],
     lab: ["read", "write"],
     inventory: ["read", "write"],
   }),
   reception: ac.newRole({
     patient: ["read", "write"],
     appointment: ["read", "write"],
+    // Reception calls the patients whose plans have no next visit.
+    treatments: ["read"],
     billing: ["read", "write"],
     lab: ["read"],
     inventory: ["read"],
@@ -117,6 +127,9 @@ export const ADJUSTABLE_PERMISSIONS = [
   { permission: "appointment:read", requires: [] },
   // Booking searches patients.
   { permission: "appointment:write", requires: ["appointment:read", "patient:read"] },
+  // The lists name patients.
+  { permission: "treatments:read", requires: ["patient:read"] },
+  { permission: "treatments:reports", requires: ["treatments:read"] },
   { permission: "billing:read", requires: [] },
   { permission: "billing:write", requires: ["billing:read"] },
   { permission: "billing:discount", requires: ["billing:write"] },

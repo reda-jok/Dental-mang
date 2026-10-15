@@ -21,8 +21,8 @@ type Props = {
   q: string
   placeholder: string
   hint: string
-  /** The select: its URL parameter, current value, default (left out of the URL) and options. */
-  filter: {
+  /** The select (optional): its URL parameter, current value, default (left out of the URL) and options. */
+  filter?: {
     param: string
     label: string
     value: string
@@ -33,7 +33,7 @@ type Props = {
   keep?: Record<string, string>
 }
 
-/** Search box + one filter, kept in the URL (?q=&<param>=) so back and sharing work. */
+/** Search box (+ one filter), kept in the URL (?q=&<param>=) so back and sharing work. */
 export function FilterBar({ q, placeholder, hint, filter, keep }: Props) {
   const t = useTranslations("common")
   const router = useRouter()
@@ -47,9 +47,9 @@ export function FilterBar({ q, placeholder, hint, filter, keep }: Props) {
   const navigate = (next: { q?: string; filter?: string }) => {
     const params = new URLSearchParams(keep)
     const query = (next.q ?? value).trim()
-    const selected = next.filter ?? filter.value
+    const selected = next.filter ?? filter?.value
     if (query) params.set("q", query)
-    if (selected !== filter.defaultValue) params.set(filter.param, selected)
+    if (filter && selected && selected !== filter.defaultValue) params.set(filter.param, selected)
     const url = params.size ? `${pathname}?${params}` : pathname
     startTransition(() => router.replace(url as Route))
   }
@@ -86,18 +86,20 @@ export function FilterBar({ q, placeholder, hint, filter, keep }: Props) {
         </div>
         <InfoHint>{hint}</InfoHint>
       </div>
-      <Select value={filter.value} onValueChange={(v) => navigate({ filter: v })}>
-        <SelectTrigger className="w-full sm:w-48" aria-label={filter.label}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {filter.options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {filter && (
+        <Select value={filter.value} onValueChange={(v) => navigate({ filter: v })}>
+          <SelectTrigger className="w-full sm:w-48" aria-label={filter.label}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {filter.options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   )
 }

@@ -1,7 +1,8 @@
 // WhatsApp messages (the clinic's original Arabic templates), sent with wa.me links:
 // free, no API account, and no risk of the clinic's number being banned (decision D3).
 
-export type WhatsAppKind = "scheduled" | "reminder" | "completed" | "payment" | "custom"
+export type WhatsAppKind =
+  "scheduled" | "reminder" | "completed" | "payment" | "followUp" | "custom"
 
 export type AppointmentMessage = {
   clinicName: string
@@ -131,6 +132,30 @@ export function paymentReminderMessage(m: PaymentReminderMessage): string {
     m.clinicPhone && `📞 للاستفسار: ${m.clinicPhone}`,
     "",
     "إذا كنت قد سددت المبلغ مؤخراً، يرجى تجاهل هذه الرسالة. شكراً لك! 😊",
+  )
+}
+
+export type PlanFollowUpMessage = {
+  clinicName: string
+  patientName: string
+  /** What comes next in the plan, e.g. "تاج زركون على السن 16". */
+  nextTreatment?: string | null
+  clinicPhone?: string | null
+}
+
+/** For a treatment plan with no next visit booked (the plans-to-call list). */
+export function planFollowUpMessage(m: PlanFollowUpMessage): string {
+  return lines(
+    `🦷 *${m.clinicName}* - متابعة خطة العلاج`,
+    "",
+    `مرحباً ${m.patientName}! 👋`,
+    "نتمنى أن تكون بخير. خطة علاجك لدينا لم تكتمل بعد، ولم يُحجز موعدك القادم.",
+    m.nextTreatment && `🔧 *الخطوة القادمة:* ${m.nextTreatment}`,
+    "",
+    "يسعدنا أن نحجز لك موعداً في الوقت الذي يناسبك.",
+    m.clinicPhone && `📞 للحجز: ${m.clinicPhone}`,
+    "",
+    `شكراً لاختيارك ${m.clinicName}! 😊`,
   )
 }
 

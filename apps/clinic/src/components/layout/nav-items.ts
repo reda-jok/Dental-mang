@@ -48,8 +48,8 @@ export const navGroups: { key: NavItem["key"]; items: NavItem[] }[] = [
         key: "treatments",
         href: "/treatments",
         icon: StethoscopeIcon,
-        permission: "clinical:read",
-        ready: false,
+        permission: "treatments:read",
+        ready: true,
       },
       {
         key: "billing",

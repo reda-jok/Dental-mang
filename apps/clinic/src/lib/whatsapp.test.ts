@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   completedMessage,
   paymentReminderMessage,
+  planFollowUpMessage,
   reminderMessage,
   scheduledMessage,
   whatsappLink,
@@ -71,5 +72,22 @@ describe("payment reminder", () => {
     })
     expect(text).not.toContain("مستحق منذ")
     expect(text).not.toContain("للاستفسار")
+  })
+})
+
+describe("planFollowUpMessage", () => {
+  it("names the next step and the clinic's phone, and drops them when missing", () => {
+    const text = planFollowUpMessage({
+      clinicName: "عيادة الابتسامة",
+      patientName: "فاطمة",
+      nextTreatment: "تاج زركون على السن 16",
+      clinicPhone: "0770 123 4567",
+    })
+    expect(text).toContain("مرحباً فاطمة")
+    expect(text).toContain("الخطوة القادمة:* تاج زركون على السن 16")
+    expect(text).toContain("0770 123 4567")
+    const bare = planFollowUpMessage({ clinicName: "عيادة الابتسامة", patientName: "فاطمة" })
+    expect(bare).not.toContain("الخطوة القادمة")
+    expect(bare).not.toContain("📞")
   })
 })
